@@ -2,7 +2,9 @@ package com.example.bffandroid.repository
 
 import android.os.Build
 import android.util.Log
+import com.example.bffandroid.model.AppVersionResult
 import com.example.bffandroid.model.CountryLoginConfig
+import com.example.bffandroid.model.GoogleAuthResult
 import com.example.bffandroid.model.LoginMethod
 import com.example.bffandroid.model.OtpRequestResult
 import com.example.bffandroid.model.OtpVerifyResult
@@ -71,19 +73,11 @@ class AuthRepository {
     ): OtpVerifyResult {
         return withContext(Dispatchers.IO) {
             runCatching {
-                val deviceJson = JSONObject().apply {
-                    put("installationId", installationId)
-                    put("platform", DEVICE_PLATFORM)
-                    put("deviceBrand", Build.BRAND.orEmpty().ifBlank { "Android" })
-                    put("deviceModel", Build.MODEL.orEmpty().ifBlank { "Device" })
-                    put("osVersion", Build.VERSION.RELEASE.orEmpty().ifBlank { "unknown" })
-                    put("appVersion", APP_VERSION)
-                }
                 val requestBody = JSONObject().apply {
                     put("countryIso2", countryIso.normalizedCountryIso())
                     put("phoneNumber", phoneNumber.onlyDigits())
                     put("otp", otp.onlyDigits())
-                    put("device", deviceJson)
+                    put("device", buildDeviceJson(installationId))
                     put("displayName", DEFAULT_DISPLAY_NAME)
                 }
 
@@ -101,6 +95,75 @@ class AuthRepository {
                     message = error.message ?: "Unable to verify OTP"
                 )
             }
+        }
+    }
+
+    suspend fun authenticateWithGoogle(
+        countryIso: String,
+        installationId: String = DEFAULT_INSTALLATION_ID
+    ): GoogleAuthResult {
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val requestBody = JSONObject().apply {
+                    put("countryIso2", countryIso.normalizedCountryIso())
+                    put("idToken", "dev-google:$installationId")
+                    put("device", buildDeviceJson(installationId))
+                    put("displayName", DEFAULT_DISPLAY_NAME)
+                    put("dateOfBirth", DEFAULT_DATE_OF_BIRTH)
+                }
+
+                Log.d(TAG, "Authenticating with Google for ISO=${countryIso.normalizedCountryIso()}")
+                val response = executeJsonRequest(
+                    url = GOOGLE_AUTH_ENDPOINT,
+                    method = "POST",
+                    body = requestBody.toString()
+                )
+                parseGoogleAuthResult(response)
+            }.getOrElse { error ->
+                Log.e(TAG, "Google auth failed", error)
+                GoogleAuthResult(
+                    isSuccessful = false,
+                    message = error.message ?: "Unable to sign in with Google"
+                )
+            }
+        }
+    }
+
+    suspend fun getAppVersion(
+        platform: String = DEVICE_PLATFORM,
+        appVersion: String = APP_VERSION
+    ): AppVersionResult {
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val normalizedPlatform = platform.uppercase(Locale.US)
+                val response = executeJsonRequest(
+                    url = "$APP_VERSION_ENDPOINT/$normalizedPlatform/$appVersion",
+                    method = "GET"
+                )
+                AppVersionResult(
+                    isSuccessful = true,
+                    message = parseMessage(response),
+                    rawResponse = response
+                )
+            }.getOrElse { error ->
+                Log.e(TAG, "App version check failed", error)
+                AppVersionResult(
+                    isSuccessful = false,
+                    message = error.message ?: "Unable to check app version",
+                    rawResponse = null
+                )
+            }
+        }
+    }
+
+    private fun buildDeviceJson(installationId: String): JSONObject {
+        return JSONObject().apply {
+            put("installationId", installationId)
+            put("platform", DEVICE_PLATFORM)
+            put("deviceBrand", Build.BRAND.orEmpty().ifBlank { "Android" })
+            put("deviceModel", Build.MODEL.orEmpty().ifBlank { "Device" })
+            put("osVersion", Build.VERSION.RELEASE.orEmpty().ifBlank { "unknown" })
+            put("appVersion", APP_VERSION)
         }
     }
 
@@ -197,6 +260,14 @@ class AuthRepository {
         )
     }
 
+    private fun parseGoogleAuthResult(response: String): GoogleAuthResult {
+        val json = JSONObject(response)
+        return GoogleAuthResult(
+            isSuccessful = json.optBoolean("success", true) || json.optBoolean("verified", false),
+            message = parseMessage(response) ?: "Signed in with Google"
+        )
+    }
+
     private fun parseMessage(response: String): String? {
         val json = runCatching { JSONObject(response) }.getOrNull() ?: return null
         return findStringValue(json, "message", "error", "detail")
@@ -229,10 +300,13 @@ class AuthRepository {
         const val TAG = "AuthRepository"
         const val COUNTRIES_ENDPOINT = "https://api.gobff.app/api/v1/auth/countries"
         const val OTP_REQUEST_ENDPOINT = "https://api.gobff.app/api/v1/auth/otp/request"
-        const val OTP_VERIFY_ENDPOINT = "http://localhost:8080/api/v1/auth/otp/verify"
+        const val OTP_VERIFY_ENDPOINT = "https://api.gobff.app/api/v1/auth/otp/verify"
+        const val GOOGLE_AUTH_ENDPOINT = "https://api.gobff.app/api/v1/auth/google"
+        const val APP_VERSION_ENDPOINT = "https://api.gobff.app/api/v1/app-version"
         const val DEFAULT_COUNTRY_ISO = "IN"
         const val DEFAULT_INSTALLATION_ID = "android-device-1"
         const val DEFAULT_DISPLAY_NAME = "Android User"
+        const val DEFAULT_DATE_OF_BIRTH = "1995-01-01"
         const val DEVICE_PLATFORM = "ANDROID"
         const val APP_VERSION = "1.0.0"
     }

@@ -31,6 +31,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -65,8 +66,16 @@ import com.example.bffandroid.viewmodel.LoginViewModel
 @Composable
 fun LoginScreen(
     modifier: Modifier = Modifier,
+    onSkipLogin: () -> Unit = {},
+    onAuthenticated: () -> Unit = {},
     viewModel: LoginViewModel = viewModel()
 ) {
+    LaunchedEffect(viewModel.uiState.isAuthenticated) {
+        if (viewModel.uiState.isAuthenticated) {
+            onAuthenticated()
+        }
+    }
+
     LoginScreenContent(
         uiState = viewModel.uiState,
         onMobileNumberChange = viewModel::onMobileNumberChange,
@@ -74,6 +83,7 @@ fun LoginScreen(
         onLoginClick = viewModel::onLoginClick,
         onContinueClick = viewModel::onContinueClick,
         onGoogleSignInClick = viewModel::onGoogleSignInClick,
+        onSkipLogin = onSkipLogin,
         modifier = modifier
     )
 }
@@ -86,6 +96,7 @@ private fun LoginScreenContent(
     onLoginClick: () -> Unit,
     onContinueClick: () -> Unit,
     onGoogleSignInClick: () -> Unit,
+    onSkipLogin: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val loginMethod = uiState.loginCountry.loginMethod
@@ -125,6 +136,7 @@ private fun LoginScreenContent(
             )
         } else {
             TopArrowButton(
+                onClick = onSkipLogin,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .offset(x = (-17).dp, y = 28.dp)
@@ -200,10 +212,19 @@ private fun LoginScreenContent(
             } else {
                 GoogleSignInButton(
                     onClick = onGoogleSignInClick,
+                    isLoading = uiState.isGoogleAuthLoading,
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .offset(y = screenHeight * 0.22f)
                         .width(screenWidth * 0.77f)
+                )
+
+                LoginStatusText(
+                    text = uiState.authStatusText,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .offset(y = screenHeight * 0.31f)
+                        .width(screenWidth * 0.72f)
                 )
             }
         }
@@ -320,6 +341,7 @@ private fun LoginPhoneTextField(
 @Composable
 private fun GoogleSignInButton(
     onClick: () -> Unit,
+    isLoading: Boolean,
     modifier: Modifier = Modifier
 ) {
     val shape = RoundedCornerShape(80.dp)
@@ -364,7 +386,7 @@ private fun GoogleSignInButton(
                         .background(Color(0xFFDCDCDC))
                 )
                 Text(
-                    text = "Sign in with Google",
+                    text = if (isLoading) "Signing in..." else "Sign in with Google",
                     color = borderColor,
                     fontSize = 14.sp,
                     lineHeight = 14.sp,
@@ -378,12 +400,16 @@ private fun GoogleSignInButton(
 }
 
 @Composable
-private fun TopArrowButton(modifier: Modifier = Modifier) {
+private fun TopArrowButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     Box(
         modifier = modifier
             .size(width = 52.dp, height = 27.dp)
             .clip(RoundedCornerShape(50))
-            .background(Color.Black),
+            .background(Color.Black)
+            .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Icon(
@@ -931,7 +957,8 @@ private fun LoginScreenPreview() {
             onOtpCodeChange = {},
             onLoginClick = {},
             onContinueClick = {},
-            onGoogleSignInClick = {}
+            onGoogleSignInClick = {},
+            onSkipLogin = {}
         )
     }
 }

@@ -11,6 +11,8 @@ import com.example.bffandroid.model.CountryIsoProvider
 import com.example.bffandroid.model.CountryLoginConfig
 import com.example.bffandroid.model.LoginMethod
 import com.example.bffandroid.model.LoginUiState
+import com.example.bffandroid.model.AuthSessionStore
+import com.example.bffandroid.model.OtpDeviceProvider
 import com.example.bffandroid.repository.AuthRepository
 import kotlinx.coroutines.launch
 
@@ -19,6 +21,8 @@ class LoginViewModel(
 ) : AndroidViewModel(application) {
     private val authRepository = AuthRepository()
     private val countryIsoProvider = CountryIsoProvider(application.applicationContext)
+    private val otpDeviceProvider = OtpDeviceProvider(application.applicationContext)
+    private val authSessionStore = AuthSessionStore(application.applicationContext)
 
     var uiState by mutableStateOf(createInitialState())
         private set
@@ -49,8 +53,8 @@ class LoginViewModel(
     }
 
     fun onGoogleSignInClick() {
-        Log.d(TAG, "Google sign-in clicked. No Google auth API is wired yet.")
-        // Google sign-in flow will be connected here when auth client details are available.
+        Log.d(TAG, "Google sign-in clicked")
+        authenticateWithGoogle()
     }
 
     private fun restoreSession() {
@@ -80,11 +84,13 @@ class LoginViewModel(
             uiState = uiState.copy(
                 isOtpRequestLoading = true,
                 authStatusText = null,
-                otpDebugText = null
+                otpDebugText = null,
+                isAuthenticated = false
             )
             val result = authRepository.requestOtp(
                 countryIso = uiState.countryIso,
-                phoneNumber = phoneNumber
+                phoneNumber = phoneNumber,
+                installationId = otpDeviceProvider.installationId()
             )
             Log.d(TAG, "OTP request completed: debugOtp=${result.debugOtp}, message=${result.message}")
             uiState = uiState.copy(
@@ -113,15 +119,48 @@ class LoginViewModel(
             val result = authRepository.verifyOtp(
                 countryIso = uiState.countryIso,
                 phoneNumber = uiState.mobileNumber,
-                otp = otp
+                otp = otp,
+                installationId = otpDeviceProvider.installationId()
             )
             Log.d(TAG, "OTP verify completed: verified=${result.isVerified}, message=${result.message}")
+            if (result.isVerified) {
+                authSessionStore.setLoggedIn(true)
+            }
             uiState = uiState.copy(
                 isOtpVerifyLoading = false,
+                isAuthenticated = result.isVerified,
                 authStatusText = result.message ?: if (result.isVerified) {
                     "OTP verified"
                 } else {
                     "OTP verification failed"
+                }
+            )
+        }
+    }
+
+    private fun authenticateWithGoogle() {
+        viewModelScope.launch {
+            Log.d(TAG, "Starting Google auth")
+            uiState = uiState.copy(
+                isGoogleAuthLoading = true,
+                authStatusText = null,
+                isAuthenticated = false
+            )
+            val result = authRepository.authenticateWithGoogle(
+                countryIso = uiState.countryIso,
+                installationId = otpDeviceProvider.installationId()
+            )
+            Log.d(TAG, "Google auth completed: success=${result.isSuccessful}, message=${result.message}")
+            if (result.isSuccessful) {
+                authSessionStore.setLoggedIn(true)
+            }
+            uiState = uiState.copy(
+                isGoogleAuthLoading = false,
+                isAuthenticated = result.isSuccessful,
+                authStatusText = result.message ?: if (result.isSuccessful) {
+                    "Signed in with Google"
+                } else {
+                    "Google sign-in failed"
                 }
             )
         }
