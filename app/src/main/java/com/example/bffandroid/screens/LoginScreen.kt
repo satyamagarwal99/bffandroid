@@ -451,10 +451,13 @@ private fun OtpTopContent(
 ) {
     Box(modifier = modifier) {
         Column(
+            horizontalAlignment = Alignment.Start,
             verticalArrangement = Arrangement.spacedBy(3.dp),
             modifier = Modifier
-                .offset(x = 49.dp, y = 88.dp)
-                .size(width = 200.dp, height = 58.dp)
+                .align(Alignment.TopCenter)
+                .offset(y = 88.dp)
+                .width(296.5.dp)
+                .height(58.dp)
         ) {
             Text(
                 text = "Let's get you in",
@@ -478,7 +481,8 @@ private fun OtpTopContent(
             value = otpCode,
             onValueChange = onOtpCodeChange,
             modifier = Modifier
-                .offset(x = 49.dp, y = 158.dp)
+                .align(Alignment.TopCenter)
+                .offset(y = 158.dp)
                 .size(width = 296.495849609375.dp, height = 64.dp)
         )
 
@@ -486,7 +490,8 @@ private fun OtpTopContent(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
-                .offset(x = 49.dp, y = 246.dp)
+                .align(Alignment.TopCenter)
+                .offset(y = 246.dp)
                 .size(width = 210.dp, height = 24.dp)
         ) {
             Text(
@@ -515,7 +520,10 @@ private fun OtpTopContent(
                 lineHeight = 13.sp,
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Medium,
-                modifier = Modifier.offset(x = 49.dp, y = 274.dp)
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = 274.dp)
+                    .width(296.5.dp)
             )
         }
     }

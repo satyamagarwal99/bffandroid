@@ -1,0 +1,1259 @@
+package com.example.bffandroid.screens
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.SportsEsports
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.bffandroid.R
+import com.example.bffandroid.ui.theme.BffAndroidTheme
+import com.example.bffandroid.ui.theme.GaretFontFamily
+import com.example.bffandroid.viewmodel.WalletViewModel
+
+private val ProfileCoral = Color(0xFFFF7171)
+
+@Composable
+fun ProfileScreen(
+    modifier: Modifier = Modifier,
+    onBack: () -> Unit = {},
+    onGiftVibeRequested: () -> Unit = {},
+    onWalletRequested: () -> Unit = {},
+    onRechargeRequested: () -> Unit = {},
+    onSettingsRequested: () -> Unit = {},
+    walletViewModel: WalletViewModel = viewModel()
+) {
+    var openSheet by remember { mutableStateOf<ProfileSheet?>(null) }
+    var selectedLanguages by remember { mutableStateOf(setOf("English", "Tamil", "Hindi")) }
+    var selectedVibes by remember { mutableStateOf(setOf("Dating", "Gaming")) }
+    var selectedInterests by remember { mutableStateOf(setOf("Gaming", "Memes", "Foodie", "Fashion", "Deep talks")) }
+    val walletBalance = walletViewModel.uiState.amountInr
+
+    BackHandler {
+        if (openSheet != null) {
+            openSheet = null
+        } else {
+            onBack()
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(ProfileCoral)
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.profile_screen_bg_objects),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.FillBounds
+        )
+
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(top = 50.dp, bottom = 30.dp)
+        ) {
+            ProfileTopBar(
+                onBack = onBack,
+                walletBalance = walletBalance,
+                onWalletRequested = onWalletRequested,
+                onRechargeRequested = onRechargeRequested,
+                onSettingsRequested = onSettingsRequested
+            )
+            Spacer(modifier = Modifier.height(48.dp))
+            ProfileIdentity()
+            Spacer(modifier = Modifier.height(36.dp))
+            ProfileInfoGrid(
+                onLanguageClick = { openSheet = ProfileSheet.Language },
+                onInterestClick = { openSheet = ProfileSheet.Interests },
+                onVibeClick = { openSheet = ProfileSheet.Vibe },
+                onGameStatsClick = { openSheet = ProfileSheet.GameStats }
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            GiftReceivedCard(onViewAll = onGiftVibeRequested)
+        }
+
+        if (openSheet != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.48f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        openSheet = null
+                    }
+            )
+        }
+
+        when (openSheet) {
+            ProfileSheet.Language -> LanguageFilterSheet(
+                selectedLanguages = selectedLanguages,
+                onLanguageSelected = { selectedLanguages = selectedLanguages.toggleValue(it) },
+                onClear = { selectedLanguages = emptySet() },
+                onApply = { openSheet = null },
+                actionText = "Save",
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+
+            ProfileSheet.Vibe -> VibeFilterSheet(
+                selectedVibes = selectedVibes,
+                onVibeSelected = { selectedVibes = selectedVibes.toggleValue(it) },
+                onClear = { selectedVibes = emptySet() },
+                onApply = { openSheet = null },
+                actionText = "Save",
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+
+            ProfileSheet.Interests -> InterestsFilterSheet(
+                selectedInterests = selectedInterests,
+                onInterestSelected = { selectedInterests = selectedInterests.toggleValue(it) },
+                onClear = { selectedInterests = emptySet() },
+                onSave = { openSheet = null },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+
+            ProfileSheet.GameStats -> GameStatsSheet(
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+
+            null -> Unit
+        }
+    }
+}
+
+@Composable
+private fun ProfileTopBar(
+    onBack: () -> Unit,
+    walletBalance: Int,
+    onWalletRequested: () -> Unit,
+    onRechargeRequested: () -> Unit,
+    onSettingsRequested: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+            contentDescription = "Back",
+            tint = Color.White,
+            modifier = Modifier
+                .size(24.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onBack
+                )
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        ProfileTopChip(
+            width = 61.dp,
+            iconRes = R.drawable.profile_screen_wallet,
+            text = "₹$walletBalance",
+            onClick = onWalletRequested
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        ProfileHeartChip(
+            text = "30",
+            onClick = onRechargeRequested
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        ProfileSettingsChip(onClick = onSettingsRequested)
+    }
+}
+
+@Composable
+private fun ProfileTopChip(
+    width: androidx.compose.ui.unit.Dp,
+    iconRes: Int,
+    text: String,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(10.dp)
+    Box(
+        modifier = Modifier
+            .size(width = width, height = 32.dp)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+    ) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(x = 2.dp, y = 2.dp)
+                .clip(shape)
+                .background(Color.Black)
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(Color.White)
+                .border(1.2.dp, Color.Black, shape)
+                .padding(horizontal = 6.dp)
+        ) {
+            Image(
+                painter = painterResource(id = iconRes),
+                contentDescription = null,
+                modifier = Modifier.size(19.dp),
+                contentScale = ContentScale.Fit
+            )
+            Spacer(modifier = Modifier.width(3.dp))
+            Text(
+                text = text,
+                color = Color.Black,
+                fontSize = 12.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProfileHeartChip(
+    text: String,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(10.dp)
+    Box(
+        modifier = Modifier
+            .size(width = 61.dp, height = 32.dp)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+    ) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(x = 2.dp, y = 2.dp)
+                .clip(shape)
+                .background(Color.Black)
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(Color.White)
+                .border(1.2.dp, Color.Black, shape)
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.single_heart),
+                contentDescription = null,
+                modifier = Modifier.size(19.dp),
+                contentScale = ContentScale.Fit
+            )
+            Spacer(modifier = Modifier.width(5.dp))
+            Text(
+                text = text,
+                color = Color.Black,
+                fontSize = 14.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProfileSettingsChip(onClick: () -> Unit) {
+    val shape = RoundedCornerShape(10.dp)
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+    ) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(x = 2.dp, y = 2.dp)
+                .clip(shape)
+                .background(Color.Black)
+        )
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(Color.White)
+                .border(1.2.dp, Color.Black, shape)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Menu,
+                contentDescription = null,
+                tint = Color.Black,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProfileIdentity() {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(modifier = Modifier.size(112.dp)) {
+            Image(
+                painter = painterResource(id = R.drawable.women_avatar1),
+                contentDescription = null,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(104.dp)
+                    .clip(CircleShape)
+                    .border(3.dp, Color.White, CircleShape),
+                contentScale = ContentScale.Crop
+            )
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFFFD33F))
+                    .border(2.dp, Color.Black, CircleShape)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = null,
+                    tint = Color.Black,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "Alea",
+            color = Color.White,
+            fontSize = 24.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        FriendSquadChip()
+    }
+}
+
+@Composable
+private fun FriendSquadChip() {
+    val shape = RoundedCornerShape(10.dp)
+    Box(modifier = Modifier.size(width = 232.dp, height = 42.dp)) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(x = 1.5.dp, y = 1.5.dp)
+                .clip(shape)
+                .background(Color.Black)
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(Color.White)
+                .border(1.dp, Color.Black, shape)
+                .padding(horizontal = 12.dp)
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.profile_screen_friend_sqaud),
+                contentDescription = null,
+                modifier = Modifier.size(width = 26.dp, height = 24.dp),
+                contentScale = ContentScale.Fit
+            )
+            Spacer(modifier = Modifier.width(7.dp))
+            Text(
+                text = "Friends squad : ",
+                color = Color(0xFF222222),
+                fontSize = 16.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = "28",
+                color = Color(0xFFFF5D5D),
+                fontSize = 16.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProfileInfoGrid(
+    onLanguageClick: () -> Unit,
+    onInterestClick: () -> Unit,
+    onVibeClick: () -> Unit,
+    onGameStatsClick: () -> Unit
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+    ) {
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            ProfileFeatureCard(
+                title = "My languages",
+                imageRes = R.drawable.profile_screen_language,
+                icon = Icons.Default.Language,
+                background = Color(0xFFFFF2F5),
+                onClick = onLanguageClick,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(140.dp)
+            )
+
+            ProfileFeatureCard(
+                title = "My Interests",
+                imageRes = R.drawable.profile_screen_interest,
+                icon = Icons.Default.Favorite,
+                background = Color(0xFFFFF2F5),
+                onClick = onInterestClick,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(140.dp)
+            )
+        }
+
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            ProfileFeatureCard(
+                title = "Current vibe",
+                imageRes = R.drawable.profile_screen_vibe,
+                icon = Icons.Default.Star,
+                background = Color(0xFFE6D4F9),
+                onClick = onVibeClick,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(140.dp)
+            )
+
+            ProfileGameStatsCard(
+                onClick = onGameStatsClick,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(140.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProfileFeatureCard(
+    title: String,
+    imageRes: Int,
+    icon: ImageVector,
+    background: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(14.dp)
+    Box(modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(x = 1.5.dp, y = 2.dp)
+                .clip(shape)
+                .background(Color.Black)
+        )
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(background)
+                .border(1.2.dp, Color.Black, shape)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onClick
+                )
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .padding(start = 14.dp, top = 14.dp)
+            ) {
+                IconBubble(icon = icon)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = title,
+                    color = Color.Black,
+                    fontSize = 13.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+            }
+            Image(
+                painter = painterResource(id = imageRes),
+                contentDescription = null,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 24.dp)
+                    .size(width = 118.dp, height = 66.dp),
+                contentScale = ContentScale.Fit
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProfileGameStatsCard(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(14.dp)
+    Box(modifier = modifier) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(x = 3.dp, y = 4.dp)
+                .clip(shape)
+                .background(Color.Black)
+        )
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(Color(0xFFFFF0C9))
+                .border(1.2.dp, Color.Black, shape)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onClick
+                )
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(start = 14.dp, top = 14.dp)
+            ) {
+                IconBubble(icon = Icons.Default.SportsEsports)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Game stats",
+                    color = Color.Black,
+                    fontSize = 13.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Image(
+                painter = painterResource(id = R.drawable.profile_screen_game_stats),
+                contentDescription = null,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 24.dp, bottom = 13.dp)
+                    .size(width = 80.dp, height = 74.dp),
+                contentScale = ContentScale.Fit
+            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 16.dp, top = 18.dp)
+            ) {
+                Text(
+                    text = "42",
+                    color = Color.Black,
+                    fontSize = 30.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Won",
+                    color = Color.Black,
+                    fontSize = 13.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun IconBubble(icon: ImageVector) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(22.dp)
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.72f))
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = Color(0xFFA032B3),
+            modifier = Modifier.size(14.dp)
+        )
+    }
+}
+
+@Composable
+private fun GiftReceivedCard(onViewAll: () -> Unit) {
+    val shape = RoundedCornerShape(20.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(140.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(x = 4.dp, y = 5.dp)
+                .clip(shape)
+                .background(Color.Black)
+        )
+        Column(
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(Color.White)
+                .border(1.2.dp, Color.Black, shape)
+                .padding(horizontal = 16.dp, vertical = 14.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "🎁", fontSize = 20.sp)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Gift received",
+                    color = Color.Black,
+                    fontSize = 15.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = "View all 〉",
+                    color = Color(0xFF8C8C8C),
+                    fontSize = 13.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Normal,
+                    modifier = Modifier.clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onViewAll
+                    )
+                )
+            }
+            Spacer(modifier = Modifier.height(14.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                ProfileGiftItem(
+                    title = "Garam chai",
+                    resId = R.drawable.gift_chai,
+                    count = "x40",
+                    modifier = Modifier.weight(1f)
+                )
+
+                ProfileGiftItem(
+                    title = "Ice cream",
+                    resId = R.drawable.gift_icecream,
+                    count = "x12",
+                    modifier = Modifier.weight(1f)
+                )
+
+                ProfileGiftItem(
+                    title = "Maggie",
+                    resId = R.drawable.gift_maggie,
+                    count = "x23",
+                    modifier = Modifier.weight(1f)
+                )
+
+                ProfileGiftItem(
+                    title = "Yellow rose",
+                    resId = R.drawable.gift_yellow_rose,
+                    count = "x32",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileGiftItem(
+    title: String,
+    resId: Int,
+    count: String,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(9.dp)
+
+    Box(
+        modifier = modifier
+            .aspectRatio(70f / 72f)
+    ) {
+
+        // shadow
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(x = 2.dp, y = 2.dp)
+                .clip(shape)
+                .background(Color.Black)
+        )
+
+        // card
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(Color.White)
+                .border(1.dp, Color.Black, shape)
+        ) {
+
+            Image(
+                painter = painterResource(id = resId),
+                contentDescription = null,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 8.dp)
+                    .size(width = 44.dp, height = 34.dp),
+                contentScale = ContentScale.Fit
+            )
+
+            Text(
+                text = title,
+                color = Color.Black,
+                fontSize = 7.5.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 4.dp, vertical = 7.dp)
+            )
+        }
+
+
+        // count badge
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = 5.dp, y = (-5).dp)
+                .size(width = 21.dp, height = 14.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color(0xFFFF5A9C))
+        ) {
+            Text(
+                text = count,
+                color = Color.White,
+                fontSize = 8.sp,
+                lineHeight = 8.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.offset(y = (-0.5f).dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun InterestsFilterSheet(
+    selectedInterests: Set<String>,
+    onInterestSelected: (String) -> Unit,
+    onClear: () -> Unit,
+    onSave: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    ProfileBottomSheetContainer(
+        title = "What’s your interests?",
+        onClear = onClear,
+        onSave = onSave,
+        modifier = modifier.height(650.dp)
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(22.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            InterestSection(
+                title = "Fun & Entertainment",
+                rows = listOf(
+                    listOf("Gaming", "Anime", "Movies"),
+                    listOf("K-pop", "Music", "Memes")
+                ),
+                selectedInterests = selectedInterests,
+                onInterestSelected = onInterestSelected
+            )
+            InterestSection(
+                title = "Food & Lifestyle",
+                rows = listOf(
+                    listOf("Foodie", "Travel", "Fitness"),
+                    listOf("Coffee", "Fashion", "Art")
+                ),
+                selectedInterests = selectedInterests,
+                onInterestSelected = onInterestSelected
+            )
+            InterestSection(
+                title = "Talk & Mood",
+                rows = listOf(
+                    listOf("Late night talks", "Deep talks"),
+                    listOf("Coffee", "Fashion", "Art")
+                ),
+                selectedInterests = selectedInterests,
+                onInterestSelected = onInterestSelected
+            )
+            InterestSection(
+                title = "Skill & Growth",
+                rows = listOf(
+                    listOf("Learning", "Tech", "Books")
+                ),
+                selectedInterests = selectedInterests,
+                onInterestSelected = onInterestSelected
+            )
+        }
+    }
+}
+
+@Composable
+private fun InterestSection(
+    title: String,
+    rows: List<List<String>>,
+    selectedInterests: Set<String>,
+    onInterestSelected: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            text = title,
+            color = Color(0xFF858585),
+            fontSize = 13.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold
+        )
+        rows.forEach { rowItems ->
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                rowItems.forEach { interest ->
+                    InterestChip(
+                        text = interest,
+                        selected = selectedInterests.contains(interest),
+                        onClick = { onInterestSelected(interest) },
+                        modifier = Modifier.weight(if (rowItems.size == 2) 1.5f else 1f)
+                    )
+                }
+                if (rowItems.size == 2) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun InterestChip(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val selectedColor = when (text) {
+        "Gaming", "Memes" -> Color(0xFFFF5A8D)
+        "Foodie", "Fashion" -> Color(0xFF39B9B0)
+        "Deep talks", "Tech" -> Color(0xFFB953DF)
+        else -> Color(0xFFFF5A8D)
+    }
+    val shape = RoundedCornerShape(7.dp)
+
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .height(40.dp)
+            .clip(shape)
+            .background(if (selected) selectedColor else Color.White)
+            .border(1.2.dp, Color.Black, shape)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+            .padding(horizontal = 6.dp)
+    ) {
+        Text(
+            text = "# $text",
+            color = Color.Black,
+            fontSize = 11.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun GameStatsSheet(modifier: Modifier = Modifier) {
+    ProfileBottomSheetContainer(
+        title = "Your player record",
+        onClear = {},
+        onSave = {},
+        showActions = false,
+        modifier = modifier.height(633.dp)
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+        ) {
+            val shape = RoundedCornerShape(18.dp)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(334.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .offset(x = 3.dp, y = 4.dp)
+                        .clip(shape)
+                        .background(Color.Black)
+                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clip(shape)
+                        .background(Color(0xFF8B4BD6))
+                        .border(1.5.dp, Color.Black, shape)
+                        .padding(horizontal = 20.dp, vertical = 24.dp)
+                ) {
+                    Text(
+                        text = "TRUTH / DARE",
+                        color = Color.White,
+                        fontSize = 26.sp,
+                        fontFamily = GaretFontFamily,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(28.dp))
+                    Text(
+                        text = "You earned",
+                        color = Color.White.copy(alpha = 0.88f),
+                        fontSize = 13.sp,
+                        fontFamily = GaretFontFamily,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "120 Hearts",
+                        color = Color(0xFF9CFF67),
+                        fontSize = 24.sp,
+                        fontFamily = GaretFontFamily,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(26.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                        GameStatMiniCard(value = "32", label = "Dares Completed")
+                        GameStatMiniCard(value = "18", label = "Truths Told")
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(28.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(1.dp)
+                        .background(Color(0xFFD8B9EC))
+                )
+                Text(
+                    text = "Coming soon 🚀",
+                    color = Color(0xFF606060),
+                    fontSize = 13.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(1.dp)
+                        .background(Color(0xFFD8B9EC))
+                )
+            }
+            Spacer(modifier = Modifier.height(22.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(18.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                ComingSoonGameCard(R.drawable.game_uno, "Uno", Modifier.weight(1f))
+                ComingSoonGameCard(R.drawable.game_ludo, "Ludo", Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun GameStatMiniCard(value: String, label: String) {
+    val shape = RoundedCornerShape(8.dp)
+    Box(modifier = Modifier.size(width = 108.dp, height = 70.dp)) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(x = 2.dp, y = 2.dp)
+                .clip(shape)
+                .background(Color.Black)
+        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(Color.White)
+                .border(1.dp, Color.Black, shape)
+        ) {
+            Text(
+                text = value,
+                color = Color.Black,
+                fontSize = 24.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = label,
+                color = Color(0xFF777777),
+                fontSize = 8.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+private fun ComingSoonGameCard(resId: Int, label: String, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(10.dp)
+    Column(horizontalAlignment = Alignment.CenterHorizontally,     modifier = modifier.alpha(0.6f)) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(89.dp)
+                .clip(shape)
+                .background(Color.White)
+                .border(1.2.dp, Color(0xFF777777), shape)
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(top = 4.dp)
+            ) {
+                Image(
+                    painter = painterResource(id = resId),
+                    contentDescription = null,
+                    modifier = Modifier.size(48.dp),
+                    contentScale = ContentScale.Fit
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = label,
+                    color = Color(0xFF777777),
+                    fontSize = 13.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileBottomSheetContainer(
+    title: String,
+    onClear: () -> Unit,
+    onSave: () -> Unit,
+    modifier: Modifier = Modifier,
+    showActions: Boolean = true,
+    content: @Composable () -> Unit
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .background(Color.White)
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(top = 10.dp)
+                .size(width = 62.dp, height = 5.dp)
+                .align(Alignment.CenterHorizontally)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color(0xFFD7D7D7))
+        )
+        Spacer(modifier = Modifier.height(28.dp))
+        Text(
+            text = title,
+            color = Color.Black,
+            fontSize = 18.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(34.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) {
+            content()
+        }
+        if (showActions) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(58.dp)
+                    .background(Color.White)
+                    .border(0.5.dp, Color(0xFFE5E5E5), RoundedCornerShape(0.dp))
+                    .padding(horizontal = 20.dp)
+            ) {
+                Text(
+                    text = "Clear All",
+                    color = Color(0xFF1F1F1F),
+                    fontSize = 15.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onClear
+                        )
+                        .padding(horizontal = 8.dp, vertical = 8.dp)
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(width = 132.dp, height = 40.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0xFFFF6464))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onSave
+                        )
+                ) {
+                    Text(
+                        text = "Save",
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontFamily = GaretFontFamily,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        } else {
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+private enum class ProfileSheet {
+    Language,
+    Interests,
+    Vibe,
+    GameStats
+}
+
+private fun Set<String>.toggleValue(value: String): Set<String> {
+    return if (contains(value)) this - value else this + value
+}
+
+@Preview(showBackground = true, widthDp = 393, heightDp = 852)
+@Composable
+private fun ProfileScreenPreview() {
+    BffAndroidTheme {
+        ProfileScreen()
+    }
+}

@@ -125,6 +125,7 @@ class LoginViewModel(
             Log.d(TAG, "OTP verify completed: verified=${result.isVerified}, message=${result.message}")
             if (result.isVerified) {
                 authSessionStore.setLoggedIn(true)
+                result.accessToken?.takeIf { it.isNotBlank() }?.let(authSessionStore::setAccessToken)
             }
             uiState = uiState.copy(
                 isOtpVerifyLoading = false,
@@ -153,6 +154,7 @@ class LoginViewModel(
             Log.d(TAG, "Google auth completed: success=${result.isSuccessful}, message=${result.message}")
             if (result.isSuccessful) {
                 authSessionStore.setLoggedIn(true)
+                result.accessToken?.takeIf { it.isNotBlank() }?.let(authSessionStore::setAccessToken)
             }
             uiState = uiState.copy(
                 isGoogleAuthLoading = false,

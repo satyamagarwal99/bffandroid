@@ -1,0 +1,1445 @@
+package com.example.bffandroid.screens
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.bffandroid.model.RechargeOption
+import com.example.bffandroid.model.RechargeUiState
+import com.example.bffandroid.R
+import com.example.bffandroid.ui.theme.BffAndroidTheme
+import com.example.bffandroid.ui.theme.GaretFontFamily
+import com.example.bffandroid.viewmodel.RechargeViewModel
+private val RechargePurple = Color(0xFF5515BA)
+private val RechargePink = Color(0xFFFF3F78)
+private val RechargeInk = Color(0xFF101010)
+private val RechargeMuted = Color(0xFF777777)
+private val RechargeProcessPurple = Color(0xFF4D13A5)
+
+@Composable
+fun RechargeScreen(
+    modifier: Modifier = Modifier,
+    onBack: () -> Unit = {},
+    rechargeViewModel: RechargeViewModel = viewModel()
+) {
+    val rechargeUiState = rechargeViewModel.uiState
+    val rechargePacks = remember(rechargeUiState.options) {
+        rechargeUiState.options.mapIndexed { index, option ->
+            option.toRechargePack(index)
+        }
+    }
+    val paymentMethods = remember { paymentMethods() }
+    val coupons = remember { couponItems() }
+    var selectedPayment by remember { mutableStateOf(paymentMethods.first()) }
+    var stage by remember { mutableStateOf(RechargeStage.Main) }
+    var selectedCouponId by remember { mutableStateOf<String?>(null) }
+    var pendingCouponCode by remember { mutableStateOf("") }
+    val selectedPack = rechargePacks.firstOrNull { it.id == rechargeUiState.selectedOptionId }
+        ?: rechargePacks.firstOrNull()
+
+    BackHandler {
+        when (stage) {
+            RechargeStage.Main -> onBack()
+            RechargeStage.Coupon -> stage = RechargeStage.Main
+            RechargeStage.Processing -> {
+                rechargeViewModel.clearQuoteState()
+                stage = RechargeStage.Main
+            }
+            RechargeStage.Success -> {
+                rechargeViewModel.clearQuoteState()
+                stage = RechargeStage.Main
+            }
+        }
+    }
+
+    LaunchedEffect(stage, rechargeUiState.isQuoteLoading, rechargeUiState.isQuoteSuccessful) {
+        if (stage == RechargeStage.Processing &&
+            !rechargeUiState.isQuoteLoading &&
+            !rechargeUiState.isQuoteSuccessful &&
+            rechargeUiState.quoteMessage == null
+        ) {
+            rechargeViewModel.requestRechargeQuote(couponCode = pendingCouponCode)
+            return@LaunchedEffect
+        }
+
+        if (stage == RechargeStage.Processing && !rechargeUiState.isQuoteLoading) {
+            stage = if (rechargeUiState.isQuoteSuccessful) {
+                RechargeStage.Success
+            } else {
+                RechargeStage.Main
+            }
+        }
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        when (stage) {
+            RechargeStage.Main, RechargeStage.Coupon -> RechargeMainContent(
+                selectedPack = selectedPack,
+                selectedPayment = selectedPayment,
+                rechargePacks = rechargePacks,
+                rechargeUiState = rechargeUiState,
+                paymentMethods = paymentMethods,
+                onPackSelected = { rechargeViewModel.selectOption(it.id) },
+                onPaymentSelected = { selectedPayment = it },
+                onRetry = rechargeViewModel::loadRechargeOptions,
+                onBack = onBack,
+                onCouponClick = { stage = RechargeStage.Coupon },
+                onPayClick = {
+                    if (selectedPack != null) {
+                        rechargeViewModel.clearQuoteState()
+                        pendingCouponCode = coupons.firstOrNull { it.id == selectedCouponId }?.code.orEmpty()
+                        stage = RechargeStage.Processing
+                    }
+                }
+            )
+            RechargeStage.Processing -> RechargeProcessingScreen(
+                statusMessage = rechargeUiState.quoteMessage
+            )
+            RechargeStage.Success -> RechargeSuccessScreen(
+                balance = 120,
+                onDismiss = {
+                    rechargeViewModel.clearQuoteState()
+                    stage = RechargeStage.Main
+                },
+                onStartTalking = {
+                    rechargeViewModel.clearQuoteState()
+                    onBack()
+                }
+            )
+        }
+
+        if (stage == RechargeStage.Coupon) {
+            CouponOverlay(
+                coupons = coupons,
+                selectedCouponId = selectedCouponId,
+                onDismiss = { stage = RechargeStage.Main },
+                onCouponApply = {
+                    selectedCouponId = it
+                    stage = RechargeStage.Main
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun RechargeMainContent(
+    selectedPack: RechargePack?,
+    selectedPayment: PaymentMethod,
+    rechargePacks: List<RechargePack>,
+    rechargeUiState: RechargeUiState,
+    paymentMethods: List<PaymentMethod>,
+    onPackSelected: (RechargePack) -> Unit,
+    onPaymentSelected: (PaymentMethod) -> Unit,
+    onRetry: () -> Unit,
+    onBack: () -> Unit,
+    onCouponClick: () -> Unit,
+    onPayClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 28.dp)
+        ) {
+            RechargeHeader(
+                balance = 120,
+                onBack = onBack
+            )
+            Spacer(modifier = Modifier.height(22.dp))
+            when {
+                rechargeUiState.isLoading -> {
+                    RechargeOptionsStatus(
+                        title = "Loading recharge options...",
+                        actionLabel = null,
+                        onAction = null,
+                        modifier = Modifier.padding(horizontal = 30.dp)
+                    )
+                }
+                rechargePacks.isEmpty() -> {
+                    RechargeOptionsStatus(
+                        title = rechargeUiState.errorMessage ?: "No recharge options available",
+                        actionLabel = "Retry",
+                        onAction = onRetry,
+                        modifier = Modifier.padding(horizontal = 30.dp)
+                    )
+                }
+                else -> {
+                    RechargePackGrid(
+                        packs = rechargePacks,
+                        selectedPack = selectedPack,
+                        onPackSelected = onPackSelected,
+                        modifier = Modifier.padding(horizontal = 30.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(34.dp))
+            CouponOfferCard(
+                modifier = Modifier.padding(horizontal = 34.dp),
+                onClick = onCouponClick
+            )
+            Spacer(modifier = Modifier.height(28.dp))
+            Text(
+                text = "Choose a payment method",
+                color = Color.Black,
+                fontSize = 16.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(horizontal = 34.dp)
+            )
+            Spacer(modifier = Modifier.height(18.dp))
+            PaymentMethodRow(
+                methods = paymentMethods,
+                selectedPayment = selectedPayment,
+                onPaymentSelected = onPaymentSelected,
+                modifier = Modifier.padding(horizontal = 34.dp)
+            )
+            Spacer(modifier = Modifier.height(34.dp))
+            selectedPack?.let { pack ->
+                RechargePayButton(
+                    pack = pack,
+                    modifier = Modifier.padding(horizontal = 34.dp),
+                    onClick = onPayClick
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RechargeHeader(
+    balance: Int,
+    onBack: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(230.dp)
+            .background(RechargePurple)
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.recharge_screen_background),
+            contentDescription = null,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(290.dp)
+                .offset(y = (-6).dp),
+            contentScale = ContentScale.FillBounds
+        )
+        Canvas(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(36.dp)
+        ) {
+            val path = Path().apply {
+                moveTo(0f, size.height * 0.2f)
+                quadraticTo(
+                    size.width * 0.5f,
+                    size.height * 1.08f,
+                    size.width,
+                    size.height * 0.2f
+                )
+                lineTo(size.width, size.height)
+                lineTo(0f, size.height)
+                close()
+            }
+            drawPath(path = path, color = Color.White)
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 20.dp, top = 48.dp)
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Back",
+                tint = Color.White,
+                modifier = Modifier
+                    .size(24.dp)
+                    .clickable(onClick = onBack)
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(
+                text = "Recharge Now",
+                color = Color.White,
+                fontSize = 16.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.HelpOutline,
+            contentDescription = null,
+            tint = Color.White.copy(alpha = 0.85f),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 48.dp, end = 30.dp)
+                .size(24.dp)
+        )
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 20.dp, bottom = 56.dp)
+        ) {
+            Text(
+                text = "Don't feel lonely",
+                color = Color.White,
+                fontSize = 14.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "Recharge & keep talking",
+                color = Color.White,
+                fontSize = 14.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        BalanceChip(
+            balance = balance,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 18.dp, bottom = 50.dp)
+        )
+    }
+}
+
+@Composable
+private fun BalanceChip(
+    balance: Int,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(22.dp)
+    Box(modifier = modifier.size(width = 152.dp, height = 56.dp)) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(x = 4.dp, y = 5.dp)
+                .clip(shape)
+                .background(Color.Black)
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(Color.White)
+                .border(1.3.dp, Color.Black, shape)
+                .padding(horizontal = 14.dp)
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.single_heart),
+                contentDescription = null,
+                modifier = Modifier.size(30.dp),
+                contentScale = ContentScale.Fit
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(
+                    text = "Your Balance",
+                    color = RechargeMuted,
+                    fontSize = 11.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = balance.toString(),
+                    color = RechargeInk,
+                    fontSize = 14.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RechargePackGrid(
+    packs: List<RechargePack>,
+    selectedPack: RechargePack?,
+    onPackSelected: (RechargePack) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        packs.chunked(3).forEach { rowItems ->
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(22.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                rowItems.forEach { pack ->
+                    RechargePackCard(
+                        pack = pack,
+                        isSelected = selectedPack?.id == pack.id,
+                        onClick = { onPackSelected(pack) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RechargeOptionsStatus(
+    title: String,
+    actionLabel: String?,
+    onAction: (() -> Unit)?,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = modifier
+            .fillMaxWidth()
+            .height(180.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color(0xFFF8F8F8))
+            .border(1.dp, Color(0xFFE5E5E5), RoundedCornerShape(18.dp))
+            .padding(horizontal = 20.dp)
+    ) {
+        Text(
+            text = title,
+            color = Color.Black,
+            fontSize = 16.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Medium
+        )
+        if (!actionLabel.isNullOrBlank() && onAction != null) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = actionLabel,
+                color = RechargePurple,
+                fontSize = 14.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable(onClick = onAction)
+            )
+        }
+    }
+}
+
+@Composable
+private fun RechargePackCard(
+    pack: RechargePack,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(16.dp)
+    Box(
+        modifier = modifier
+            .height(132.dp)
+            .clickable(onClick = onClick)
+    ) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(x = if (isSelected) 4.dp else 0.dp, y = if (isSelected) 5.dp else 0.dp)
+                .clip(shape)
+                .background(if (isSelected) Color.Black else Color.Transparent)
+        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(if (isSelected) Color(0xFFFFEDF3) else Color.White)
+                .border(
+                    width = if (isSelected) 1.2.dp else 0.8.dp,
+                    color = if (isSelected) Color.Black else Color(0xFFE5E5E5),
+                    shape = shape
+                )
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp)
+                    .padding(top = 8.dp)
+            ) {
+                Image(
+                    painter = painterResource(id = pack.iconRes),
+                    contentDescription = null,
+                    modifier = Modifier.size(pack.iconSize),
+                    contentScale = ContentScale.Fit
+                )
+                if (isSelected) {
+                    SelectedCheck(modifier = Modifier.align(Alignment.TopEnd).padding(end = 4.dp))
+                }
+            }
+            Text(
+                text = pack.hearts.toString(),
+                color = Color.Black,
+                fontSize = 16.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = "Hearts",
+                color = RechargeMuted,
+                fontSize = 10.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Medium
+            )
+            Spacer(modifier = Modifier.height(1.dp))
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .background(if (isSelected) RechargePink else Color(0xFFF7F7F7))
+            ) {
+                Text(
+                    text = "₹${pack.price}",
+                    color = Color.Black,
+                    fontSize = 16.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+        if (pack.isPopular) {
+            PopularPill(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = (-12).dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SelectedCheck(modifier: Modifier = Modifier) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .size(20.dp)
+            .clip(CircleShape)
+            .background(Color(0xFFFF5B86))
+    ) {
+        Icon(
+            imageVector = Icons.Default.Check,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(18.dp)
+        )
+    }
+}
+
+@Composable
+private fun PopularPill(modifier: Modifier = Modifier) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF2EB4A4))
+            .padding(horizontal = 6.dp, vertical = 1.dp)
+    ) {
+        Text(
+            text = "Popular",
+            color = Color.White,
+            fontSize = 12.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun CouponOfferCard(
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .fillMaxWidth()
+            .height(78.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFFF1F0FF))
+            .padding(start = 16.dp)
+            .clickable(onClick = onClick)
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Coupons & offers",
+                color = Color(0xFF08033D),
+                fontSize = 16.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = buildAnnotatedString {
+                    append("Grab the ")
+                    withStyle(SpanStyle(color = RechargePink, fontWeight = FontWeight.Bold)) {
+                        append("best deals")
+                    }
+                    append(" before\nthey're gone!")
+                },
+                color = Color(0xFF777777),
+                fontSize = 10.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Normal,
+                lineHeight = 10.sp
+            )
+        }
+        Image(
+            painter = painterResource(id = R.drawable.coupan_icon),
+            contentDescription = null,
+            modifier = Modifier.size(width = 114.dp, height = 84.dp),
+            contentScale = ContentScale.Fit
+        )
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .padding(end = 14.dp)
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(Color(0xFF6017DD))
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(19.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun PaymentMethodRow(
+    methods: List<PaymentMethod>,
+    selectedPayment: PaymentMethod,
+    onPaymentSelected: (PaymentMethod) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        methods.forEach { method ->
+            PaymentMethodItem(
+                method = method,
+                isSelected = selectedPayment == method,
+                onClick = { onPaymentSelected(method) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun PaymentMethodItem(
+    method: PaymentMethod,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier.size(40.dp)
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(7.dp))
+                    .background(Color.White)
+                    .border(1.dp, Color.Black, RoundedCornerShape(7.dp))
+                    .clickable(onClick = onClick)
+            ) {
+                Image(
+                    painter = painterResource(id = method.iconRes),
+                    contentDescription = null,
+                    modifier = Modifier.size(width = method.iconWidth, height = method.iconHeight),
+                    contentScale = ContentScale.Fit
+                )
+            }
+            if (isSelected) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(18.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF2FBF64))
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = method.label,
+            color = Color.Black,
+            fontSize = 13.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Normal
+        )
+    }
+}
+
+@Composable
+private fun RechargePayButton(
+    pack: RechargePack,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(14.dp)
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(54.dp)
+            .clickable(onClick = onClick)
+    ) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(x = 4.dp, y = 5.dp)
+                .clip(shape)
+                .background(Color.Black)
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(Color(0xFF5616C8))
+        ) {
+            Text(
+                text = "Add ₹${pack.price} • ${pack.hearts} Hearts",
+                color = Color.White,
+                fontSize = 17.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(30.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun CouponOverlay(
+    coupons: List<CouponItem>,
+    selectedCouponId: String?,
+    onDismiss: () -> Unit,
+    onCouponApply: (String) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.42f))
+            .clickable(onClick = onDismiss)
+    ) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(horizontal = 24.dp)
+                .fillMaxWidth()
+                .height(560.dp)
+        ) {
+            val sheetShape = RoundedCornerShape(26.dp)
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .offset(x = 6.dp, y = 8.dp)
+                    .clip(sheetShape)
+                    .background(Color.Black)
+            )
+            Column(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clip(sheetShape)
+                    .background(Color.White)
+                    .clickable(enabled = false, onClick = {})
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(138.dp)
+                        .background(RechargePurple)
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.recharge_screen_background),
+                        contentDescription = null,
+                        modifier = Modifier.matchParentSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                    Canvas(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .height(34.dp)
+                    ) {
+                        val path = Path().apply {
+                            moveTo(0f, size.height * 0.25f)
+                            quadraticTo(size.width * 0.5f, size.height, size.width, size.height * 0.25f)
+                            lineTo(size.width, size.height)
+                            lineTo(0f, size.height)
+                            close()
+                        }
+                        drawPath(path = path, color = Color.White)
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 18.dp, start = 16.dp, end = 16.dp)
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(Color.White)
+                            .padding(horizontal = 18.dp)
+                    ) {
+                        Text(
+                            text = "Enter coupon code",
+                            color = Color(0xFF404040),
+                            fontSize = 14.sp,
+                            fontFamily = GaretFontFamily,
+                            fontWeight = FontWeight.Normal,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = "Apply",
+                            color = Color.Black,
+                            fontSize = 16.sp,
+                            fontFamily = GaretFontFamily,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 18.dp, vertical = 18.dp)
+                ) {
+                    coupons.forEach { coupon ->
+                        CouponItemCard(
+                            coupon = coupon,
+                            isApplied = selectedCouponId == coupon.id,
+                            onApply = { onCouponApply(coupon.id) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CouponItemCard(
+    coupon: CouponItem,
+    isApplied: Boolean,
+    onApply: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(94.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(coupon.background)
+    ) {
+        Box(
+            modifier = Modifier
+                .width(60.dp)
+                .fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.coupan_design),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.FillBounds,
+                colorFilter = ColorFilter.tint(coupon.accent)
+            )
+            Box(
+                modifier = Modifier
+                    .width(90.dp)   // text ki length
+                    .rotate(-90f),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = coupon.discountLabel,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 12.dp, top = 12.dp, bottom = 12.dp)
+        ) {
+            Text(
+                text = coupon.title,
+                color = Color.Black,
+                fontSize = 14.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = coupon.subtitle,
+                    color = coupon.accent,
+                    fontSize = 10.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Medium
+                )
+                if (coupon.heartText != null) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Image(
+                        painter = painterResource(id = R.drawable.single_heart),
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = coupon.heartText,
+                        color = Color.Black,
+                        fontSize = 12.sp,
+                        fontFamily = GaretFontFamily,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = coupon.validity,
+                color = Color(0xFF8E8E8E),
+                fontSize = 11.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Normal
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .padding(end = 12.dp, top = 31.dp)
+                .size(width = 62.dp, height = 32.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .offset(x = 3.dp, y = 4.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.Black)
+            )
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .matchParentSize()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(coupon.accent)
+                    .clickable(onClick = onApply)
+            ) {
+                Text(
+                    text = if (isApplied) "Added" else "Apply",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RechargeProcessingScreen(
+    statusMessage: String?
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "recharge-process")
+    val progressSweep by infiniteTransition.animateFloat(
+        initialValue = 20f,
+        targetValue = 320f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "progress-sweep"
+    )
+    val progressRotation by infiniteTransition.animateFloat(
+        initialValue = -90f,
+        targetValue = 270f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "progress-rotation"
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(RechargeProcessPurple)
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.process_screen_oject),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.Crop
+        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .offset(y = 24.dp)
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.size(170.dp)
+            ) {
+                Canvas(modifier = Modifier.matchParentSize()) {
+                    drawCircle(
+                        color = Color.White.copy(alpha = 0.08f),
+                        radius = size.minDimension / 2.45f
+                    )
+                    drawArc(
+                        color = Color.White,
+                        startAngle = progressRotation,
+                        sweepAngle = progressSweep,
+                        useCenter = false,
+                        style = androidx.compose.ui.graphics.drawscope.Stroke(
+                            width = 10.dp.toPx(),
+                            cap = StrokeCap.Round
+                        ),
+                        topLeft = androidx.compose.ui.geometry.Offset(
+                            x = size.width * 0.16f,
+                            y = size.height * 0.16f
+                        ),
+                        size = androidx.compose.ui.geometry.Size(
+                            width = size.width * 0.68f,
+                            height = size.height * 0.68f
+                        )
+                    )
+                }
+                Image(
+                    painter = painterResource(id = R.drawable.single_heart),
+                    contentDescription = null,
+                    modifier = Modifier.size(64.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(28.dp))
+            Text(
+                text = "Adding your hearts...",
+                color = Color.White,
+                fontSize = 22.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "This usually take a few seconds.",
+                color = Color.White.copy(alpha = 0.9f),
+                fontSize = 14.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Normal
+            )
+            if (!statusMessage.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = statusMessage,
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 12.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Normal
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RechargeSuccessScreen(
+    balance: Int,
+    onDismiss: () -> Unit,
+    onStartTalking: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(RechargeProcessPurple)
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.process_screen_oject),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.Crop
+        )
+        Text(
+            text = "Yay!",
+            color = Color.White,
+            fontSize = 34.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 88.dp)
+        )
+        Text(
+            text = "Recharge successful",
+            color = Color.White,
+            fontSize = 16.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Normal,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 140.dp)
+        )
+        Text(
+            text = "x",
+            color = Color.White,
+            fontSize = 34.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Normal,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 56.dp, end = 28.dp)
+                .clickable(onClick = onDismiss)
+        )
+        Image(
+            painter = painterResource(id = R.drawable.success_screen_people),
+            contentDescription = null,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth()
+                .offset(y = (-24).dp),
+            contentScale = ContentScale.FillWidth
+        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 48.dp, start = 28.dp, end = 28.dp)
+        ) {
+            Text(
+                text = "You can now talk for up to",
+                color = Color.White,
+                fontSize = 14.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Normal
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "20 Minutes",
+                color = Color(0xFFFFE16A),
+                fontSize = 34.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(26.dp))
+            BalanceAvailableChip(balance = balance)
+            Spacer(modifier = Modifier.height(24.dp))
+            LargeSuccessButton(
+                text = "Start talking now",
+                onClick = onStartTalking
+            )
+        }
+    }
+}
+
+@Composable
+private fun BalanceAvailableChip(balance: Int) {
+    val shape = RoundedCornerShape(28.dp)
+    Box(
+        modifier = Modifier
+            .size(width = 210.dp, height = 34.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.28f),
+                            Color.White.copy(alpha = 0.14f)
+                        )
+                    )
+                )
+                .border(1.dp, Color.White.copy(alpha = 0.35f), shape)
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.matchParentSize()
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.single_heart),
+                contentDescription = null,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "$balance hearts available",
+                color = Color.White,
+                fontSize = 14.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+@Composable
+private fun LargeSuccessButton(
+    text: String,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(18.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(58.dp)
+            .clickable(onClick = onClick)
+    ) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(x = 4.dp, y = 5.dp)
+                .clip(shape)
+                .background(Color.Black)
+        )
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(Color.White)
+        ) {
+            Text(
+                text = text,
+                color = RechargeProcessPurple,
+                fontSize = 18.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+private data class RechargePack(
+    val id: String,
+    val hearts: Int,
+    val price: Int,
+    val iconRes: Int,
+    val iconSize: androidx.compose.ui.unit.Dp,
+    val isPopular: Boolean = false
+)
+
+private data class PaymentMethod(
+    val label: String,
+    val iconRes: Int,
+    val iconWidth: androidx.compose.ui.unit.Dp,
+    val iconHeight: androidx.compose.ui.unit.Dp
+)
+
+private data class CouponItem(
+    val id: String,
+    val code: String,
+    val title: String,
+    val subtitle: String,
+    val heartText: String? = null,
+    val validity: String,
+    val discountLabel: String,
+    val accent: Color,
+    val background: Color
+)
+
+private enum class RechargeStage {
+    Main,
+    Coupon,
+    Processing,
+    Success
+}
+
+private fun RechargeOption.toRechargePack(index: Int): RechargePack {
+    val iconRes = when (index % 6) {
+        0 -> R.drawable.single_heart
+        1 -> R.drawable.double_heart
+        2 -> R.drawable.triple_heart
+        3 -> R.drawable.bucket_hearts
+        4 -> R.drawable.box_hearts
+        else -> R.drawable.safe_hearts
+    }
+    return RechargePack(
+        id = id,
+        hearts = hearts,
+        price = price,
+        iconRes = iconRes,
+        iconSize = 46.dp,
+        isPopular = isPopular
+    )
+}
+
+private fun paymentMethods() = listOf(
+    PaymentMethod("G pay", R.drawable.recharge_gpay, 22.67.dp, 19.2.dp),
+    PaymentMethod("Phonepe", R.drawable.recharge_phonepe, 19.2.dp, 19.2.dp),
+    PaymentMethod("Other apps", R.drawable.recharge_upi, 22.4.dp, 8.36.dp),
+    PaymentMethod("Card", R.drawable.recharge_debit_card, 19.2.dp, 12.22.dp)
+)
+
+private fun couponItems() = listOf(
+    CouponItem(
+        id = "welcome90",
+        code = "WELCOME90",
+        title = "Welcome #90",
+        subtitle = "Save upto ₹ 60",
+        heartText = "90",
+        validity = "Valid till 26 May 2026",
+        discountLabel = "90% OFF",
+        accent = Color(0xFF7D3CF0),
+        background = Color(0xFFF5F0FF)
+    ),
+    CouponItem(
+        id = "summer20",
+        code = "SUMMER_SPLASH",
+        title = "Summer Splash",
+        subtitle = "Save 20% on any heart pack",
+        validity = "Expires 15 Aug 2025",
+        discountLabel = "20% OFF",
+        accent = Color(0xFFFD5698),
+        background = Color(0xFFFFF1F7)
+    ),
+    CouponItem(
+        id = "festive30",
+        code = "FESTIVE_TREAT",
+        title = "Festive Treat",
+        subtitle = "Save upto ₹ 30",
+        validity = "Until 10 Dec 2025",
+        discountLabel = "30% OFF",
+        accent = Color(0xFF00ADB8),
+        background = Color(0xFFF0FCFD)
+    )
+)
+
+@Preview(showBackground = true, widthDp = 393, heightDp = 852)
+@Composable
+private fun RechargeScreenPreview() {
+    val previewPacks = listOf(
+        RechargeOption("preview_100", "HEARTS_100", 100, 99),
+        RechargeOption("preview_250", "HEARTS_250", 250, 199),
+        RechargeOption("preview_600", "HEARTS_600", 600, 499, isPopular = true),
+        RechargeOption("preview_1200", "HEARTS_1200", 1200, 999),
+        RechargeOption("preview_2500", "HEARTS_2500", 2500, 1499),
+        RechargeOption("preview_4000", "HEARTS_4000", 4000, 199)
+    ).mapIndexed { index, option -> option.toRechargePack(index) }
+    val payments = paymentMethods()
+
+    BffAndroidTheme {
+        RechargeMainContent(
+            selectedPack = previewPacks.first(),
+            selectedPayment = payments.first(),
+            rechargePacks = previewPacks,
+            rechargeUiState = RechargeUiState(
+                isLoading = false,
+                options = listOf(
+                    RechargeOption("preview_100", "HEARTS_100", 100, 99),
+                    RechargeOption("preview_250", "HEARTS_250", 250, 199),
+                    RechargeOption("preview_600", "HEARTS_600", 600, 499, isPopular = true),
+                    RechargeOption("preview_1200", "HEARTS_1200", 1200, 999),
+                    RechargeOption("preview_2500", "HEARTS_2500", 2500, 1499),
+                    RechargeOption("preview_4000", "HEARTS_4000", 4000, 199)
+                ),
+                selectedOptionId = "preview_100"
+            ),
+            paymentMethods = payments,
+            onPackSelected = {},
+            onPaymentSelected = {},
+            onRetry = {},
+            onBack = {},
+            onCouponClick = {},
+            onPayClick = {}
+        )
+    }
+}

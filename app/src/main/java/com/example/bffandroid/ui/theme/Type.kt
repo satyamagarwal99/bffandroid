@@ -14,6 +14,11 @@ val GaretFontFamily = FontFamily(
     Font(R.font.garet_heavy, FontWeight.ExtraBold)
 )
 
+val FreedokaFontFamily = FontFamily(
+    Font(R.font.fredoka, FontWeight.Normal),
+            Font(R.font.fredoka_bold, FontWeight.Bold)
+)
+
 // Set of Material typography styles to start with
 val Typography = Typography(
     bodyLarge = TextStyle(

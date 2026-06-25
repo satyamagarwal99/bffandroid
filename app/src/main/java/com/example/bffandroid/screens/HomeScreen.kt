@@ -1,5 +1,6 @@
 package com.example.bffandroid.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector2D
@@ -76,13 +77,22 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     onLogout: () -> Unit = {},
     onCallRequested: (String) -> Unit = {},
-    onFriendsRequested: () -> Unit = {}
+    onFriendsRequested: () -> Unit = {},
+    onRechargeRequested: () -> Unit = {},
+    onChatRequested: () -> Unit = {},
+    onHistoryRequested: () -> Unit = {},
+    onGamesRequested: () -> Unit = {},
+    onProfileRequested: () -> Unit = {}
 ) {
     var selectedTab by remember { mutableStateOf(HomeTab.Connect) }
     var openFilterSheet by remember { mutableStateOf<HomeFilterSheet?>(null) }
     var selectedLanguages by remember { mutableStateOf(setOf<String>()) }
     var selectedVibes by remember { mutableStateOf(setOf<String>()) }
     var callDragProgress by remember { mutableStateOf(0f) }
+
+    BackHandler(enabled = openFilterSheet != null) {
+        openFilterSheet = null
+    }
 
     Box(
         modifier = modifier
@@ -105,12 +115,16 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp)
-                    .padding(top = 40.dp)
+                    .padding(top = 48.dp)
                     .graphicsLayer {
                         alpha = (1f - (callDragProgress * 1.35f)).coerceIn(0f, 1f)
                     }
             ) {
-                HomeHeader(onFriendsClick = onFriendsRequested)
+                HomeHeader(
+                    onFriendsClick = onFriendsRequested,
+                    onRechargeClick = onRechargeRequested,
+                    onProfileClick = onProfileRequested
+                )
                 Spacer(modifier = Modifier.height(30.dp))
                 HomeTitle()
                 Spacer(modifier = Modifier.height(24.dp))
@@ -142,7 +156,16 @@ fun HomeScreen(
         // Bottom bar overlay
         HomeBottomBar(
             selectedTab = selectedTab,
-            onTabSelected = { selectedTab = it },
+            onTabSelected = { tab ->
+                when (tab) {
+                    HomeTab.Games -> onGamesRequested()
+                    HomeTab.Chat -> onChatRequested()
+                    HomeTab.History -> onHistoryRequested()
+                    else -> {
+                        selectedTab = tab
+                    }
+                }
+            },
             modifier = Modifier.align(Alignment.BottomCenter)
         )
 
@@ -187,7 +210,11 @@ fun HomeScreen(
 }
 
 @Composable
-private fun HomeHeader(onFriendsClick: () -> Unit) {
+private fun HomeHeader(
+    onFriendsClick: () -> Unit,
+    onRechargeClick: () -> Unit,
+    onProfileClick: () -> Unit
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth()
@@ -198,7 +225,12 @@ private fun HomeHeader(onFriendsClick: () -> Unit) {
             modifier = Modifier
                 .size(44.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(Color.White),
+                .background(Color.White)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onProfileClick
+                ),
             contentScale = ContentScale.Crop
 
         )
@@ -210,7 +242,7 @@ private fun HomeHeader(onFriendsClick: () -> Unit) {
             onClick = onFriendsClick
         )
         Spacer(modifier = Modifier.width(12.dp))
-        HeartCountChip()
+        HeartCountChip(onClick = onRechargeClick)
     }
 }
 
@@ -256,10 +288,14 @@ private fun HeaderIconChip(
 }
 
 @Composable
-private fun HeartCountChip() {
+private fun HeartCountChip(onClick: () -> Unit) {
     val shape = RoundedCornerShape(16.dp)
 
-    Box(modifier = Modifier.size(width = 88.dp, height = 44.dp)) {
+    Box(
+        modifier = Modifier
+            .size(width = 88.dp, height = 44.dp)
+            .clickable(onClick = onClick)
+    ) {
         Box(
             modifier = Modifier
                 .matchParentSize()
@@ -275,11 +311,10 @@ private fun HeartCountChip() {
                 .clip(shape)
                 .background(Color.White)
         ) {
-            Icon(
-                imageVector = Icons.Default.Favorite,
+            Image(
+                painter = painterResource(id = R.drawable.single_heart),
                 contentDescription = null,
-                tint = Color(0xFFFF477A),
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(20.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
@@ -287,7 +322,7 @@ private fun HeartCountChip() {
                 color = Color.Black,
                 fontSize = 16.sp,
                 fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Medium
             )
         }
     }
@@ -436,17 +471,19 @@ private fun HomeFilterChip(
 }
 
 @Composable
-private fun LanguageFilterSheet(
+fun LanguageFilterSheet(
     selectedLanguages: Set<String>,
     onLanguageSelected: (String) -> Unit,
     onClear: () -> Unit,
     onApply: () -> Unit,
+    actionText: String = "Apply",
     modifier: Modifier = Modifier
 ) {
     FilterSheetContainer(
         title = "Choose your languages",
         onClear = onClear,
         onApply = onApply,
+        actionText = actionText,
         modifier = modifier
     ) {
         Column(
@@ -475,17 +512,19 @@ private fun LanguageFilterSheet(
 }
 
 @Composable
-private fun VibeFilterSheet(
+fun VibeFilterSheet(
     selectedVibes: Set<String>,
     onVibeSelected: (String) -> Unit,
     onClear: () -> Unit,
     onApply: () -> Unit,
+    actionText: String = "Apply",
     modifier: Modifier = Modifier
 ) {
     FilterSheetContainer(
         title = "What’s your vibe today?",
         onClear = onClear,
         onApply = onApply,
+        actionText = actionText,
         modifier = modifier
     ) {
         Column(
@@ -522,6 +561,7 @@ private fun FilterSheetContainer(
     title: String,
     onClear: () -> Unit,
     onApply: () -> Unit,
+    actionText: String = "Apply",
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
@@ -560,7 +600,8 @@ private fun FilterSheetContainer(
         }
         FilterSheetActions(
             onClear = onClear,
-            onApply = onApply
+            onApply = onApply,
+            actionText = actionText
         )
     }
 }
@@ -637,9 +678,11 @@ private fun VibeOptionCard(
             )
             .padding(horizontal = 14.dp)
     ) {
-        Text(
-            text = option.emoji,
-            fontSize = 22.sp
+        Image(
+            painter = painterResource(id = option.iconRes),
+            contentDescription = null,
+            modifier = Modifier.size(32.dp),
+            contentScale = ContentScale.Fit
         )
         Spacer(modifier = Modifier.width(10.dp))
         Text(
@@ -656,7 +699,8 @@ private fun VibeOptionCard(
 @Composable
 private fun FilterSheetActions(
     onClear: () -> Unit,
-    onApply: () -> Unit
+    onApply: () -> Unit,
+    actionText: String = "Apply"
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -695,7 +739,7 @@ private fun FilterSheetActions(
                 )
         ) {
             Text(
-                text = "Apply",
+                text = actionText,
                 color = Color.White,
                 fontSize = 15.sp,
                 fontFamily = GaretFontFamily,
@@ -1441,7 +1485,7 @@ private data class LanguageOption(
 
 private data class VibeOption(
     val id: String,
-    val emoji: String,
+    val iconRes: Int,
     val label: String
 )
 
@@ -1469,18 +1513,18 @@ private val LanguageOptions = listOf(
 )
 
 private val VibeOptions = listOf(
-    VibeOption("Friends", "👫", "Friends"),
-    VibeOption("Dating", "💖", "Dating"),
-    VibeOption("Advice", "💬", "Advice"),
-    VibeOption("Late Night", "🌙", "Late Night"),
-    VibeOption("Breakup", "💔", "Breakup"),
-    VibeOption("Deep Talks", "☕", "Deep Talks"),
-    VibeOption("Movies", "🎬", "Movies"),
-    VibeOption("Timepass", "😂", "Timepass"),
-    VibeOption("Gaming", "🎮", "Gaming"),
-    VibeOption("Astrology", "🔮", "Astrology"),
-    VibeOption("Music", "🎧", "Music"),
-    VibeOption("Relationship", "🎭", "Relationship")
+    VibeOption("Friends", R.drawable.profile_screen_friend_sqaud, "Friends"),
+    VibeOption("Dating", R.drawable.vibe_dating, "Dating"),
+    VibeOption("Advice", R.drawable.vibe_advice, "Advice"),
+    VibeOption("Late Night", R.drawable.vibe_late_night, "Late Night"),
+    VibeOption("Breakup", R.drawable.vibe_breakup, "Breakup"),
+    VibeOption("Deep Talks", R.drawable.vibe_deep_talk, "Deep Talks"),
+    VibeOption("Movies", R.drawable.vibe_movie, "Movies"),
+    VibeOption("Timepass", R.drawable.vibe_timepass, "Timepass"),
+    VibeOption("Gaming", R.drawable.vibe_gaming, "Gaming"),
+    VibeOption("Astrology", R.drawable.vibe_astrology, "Astrology"),
+    VibeOption("Gossip", R.drawable.vibe_gossip, "Gossip"),
+    VibeOption("Antakshari", R.drawable.vibe_antakshari, "Antakshari")
 )
 
 private val HomeProfiles = listOf(

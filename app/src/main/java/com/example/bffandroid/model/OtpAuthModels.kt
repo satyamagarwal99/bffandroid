@@ -14,12 +14,14 @@ data class OtpRequestResult(
 
 data class OtpVerifyResult(
     val isVerified: Boolean,
-    val message: String?
+    val message: String?,
+    val accessToken: String? = null
 )
 
 data class GoogleAuthResult(
     val isSuccessful: Boolean,
-    val message: String?
+    val message: String?,
+    val accessToken: String? = null
 )
 
 data class AppVersionResult(
@@ -91,10 +93,30 @@ class AuthSessionStore(private val context: Context) {
             .apply()
     }
 
+    fun getAccessToken(): String? {
+        return preferences()
+            .getString(KEY_ACCESS_TOKEN, null)
+            ?.takeIf { it.isNotBlank() }
+    }
+
+    fun setAccessToken(accessToken: String?) {
+        preferences()
+            .edit()
+            .apply {
+                if (accessToken.isNullOrBlank()) {
+                    remove(KEY_ACCESS_TOKEN)
+                } else {
+                    putString(KEY_ACCESS_TOKEN, accessToken)
+                }
+            }
+            .apply()
+    }
+
     private fun preferences() = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     private companion object {
         const val PREFS_NAME = "auth_session"
         const val KEY_IS_LOGGED_IN = "is_logged_in"
+        const val KEY_ACCESS_TOKEN = "access_token"
     }
 }

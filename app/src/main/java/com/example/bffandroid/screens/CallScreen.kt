@@ -346,19 +346,38 @@ private fun ActiveCallContent(
                 .align(Alignment.Center)
                 .offset(y = (-64).dp)
                 .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp)
+                .padding(horizontal = 16.dp)
         ) {
-            CallParticipantCard(
-                name = personName,
-                avatarRes = R.drawable.women_avatar11,
-                background = Color(0xFFFFF17A)
-            )
-            AudioWaveform(modifier = Modifier.padding(horizontal = 16.dp))
-            CallParticipantCard(
-                name = "Nike",
-                avatarRes = R.drawable.man_avatar1,
-                background = Color(0xFF6CCBEE)
-            )
+
+            Box(
+                modifier = Modifier.weight(0.9f),
+                contentAlignment = Alignment.Center
+            ) {
+                CallParticipantCard(
+                    name = personName,
+                    avatarRes = R.drawable.women_avatar11,
+                    background = Color(0xFFFFF17A)
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .weight(0.35f),
+                contentAlignment = Alignment.Center
+            ) {
+                AudioWaveform()
+            }
+
+            Box(
+                modifier = Modifier.weight(0.9f),
+                contentAlignment = Alignment.Center
+            ) {
+                CallParticipantCard(
+                    name = "Nike",
+                    avatarRes = R.drawable.man_avatar1,
+                    background = Color(0xFF6CCBEE)
+                )
+            }
         }
 
         Row(
@@ -1066,7 +1085,7 @@ private fun GiftHeroCard(
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Normal
             )
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             GiftPricePill(price = item.price)
         }
         Image(
@@ -1359,7 +1378,8 @@ private fun GiftPricePill(price: Int) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
         modifier = Modifier
-            .size(width = 54.dp, height = 22.dp)
+            .width(54.dp)
+            .height(26.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(Color.White)
     ) {
@@ -1573,13 +1593,20 @@ private fun CallParticipantCard(
     avatarRes: Int,
     background: Color
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+
         Box(
             modifier = Modifier
-                .size(width = 132.dp, height = 132.dp)
+                .size(132.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(background)
-                .border(1.4.dp, Color.Black, RoundedCornerShape(12.dp))
+                .border(
+                    1.4.dp,
+                    Color.Black,
+                    RoundedCornerShape(12.dp)
+                )
         ) {
             Image(
                 painter = painterResource(id = avatarRes),
@@ -1588,7 +1615,9 @@ private fun CallParticipantCard(
                 contentScale = ContentScale.Crop
             )
         }
+
         Spacer(modifier = Modifier.height(12.dp))
+
         Text(
             text = name,
             color = Color.Black,
