@@ -57,8 +57,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.bffandroid.R
-import com.example.bffandroid.model.LoginMethod
-import com.example.bffandroid.model.LoginUiState
+import com.example.bffandroid.data.model.LoginMethod
+import com.example.bffandroid.data.model.LoginUiState
 import com.example.bffandroid.ui.theme.BffAndroidTheme
 import com.example.bffandroid.ui.theme.GaretFontFamily
 import com.example.bffandroid.viewmodel.LoginViewModel

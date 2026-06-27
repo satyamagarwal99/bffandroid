@@ -10,9 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
-import com.example.bffandroid.model.AuthSessionStore
-import com.example.bffandroid.repository.AuthRepository
+import com.example.bffandroid.data.MainRepository
 import com.example.bffandroid.screens.AudioScreen
 import com.example.bffandroid.screens.CallScreen
 import com.example.bffandroid.screens.ChatScreen
@@ -31,10 +29,13 @@ import com.example.bffandroid.screens.SplashScreen
 import com.example.bffandroid.screens.TruthDareScreen
 import com.example.bffandroid.screens.WalletScreen
 import com.example.bffandroid.ui.theme.BffAndroidTheme
+import com.example.bffandroid.utils.AppSession
+import com.example.bffandroid.utils.Constant
 import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        AppSession.initialize(this)
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
@@ -47,18 +48,18 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun AppEntry() {
-    val context = LocalContext.current
-    val authSessionStore = remember { AuthSessionStore(context) }
-    val authRepository = remember { AuthRepository() }
+    val mainRepository = remember { MainRepository() }
     var currentScreen by remember { mutableStateOf<AppScreen>(AppScreen.Splash) }
     var activeCallName by remember { mutableStateOf("Anshu") }
     var activeChatName by remember { mutableStateOf("Anshu") }
     var activeChatAvatar by remember { mutableStateOf(R.drawable.women_avatar3) }
 
     LaunchedEffect(Unit) {
-        authRepository.getAppVersion()
+        runCatching {
+            mainRepository.getAppVersion(Constant.DEVICE_PLATFORM, Constant.APP_VERSION)
+        }
         delay(SPLASH_DURATION_MS)
-        currentScreen = if (authSessionStore.isLoggedIn()) {
+        currentScreen = if (AppSession.getBoolean(Constant.IS_USER_LOGGED_IN)) {
             AppScreen.Home
         } else {
             AppScreen.Login
@@ -80,8 +81,7 @@ private fun AppEntry() {
         )
         AppScreen.Home -> HomeScreen(
             onLogout = {
-                authSessionStore.setLoggedIn(false)
-                authSessionStore.setAccessToken(null)
+                AppSession.clear()
                 currentScreen = AppScreen.Login
             },
             onCallRequested = { personName ->
@@ -105,8 +105,7 @@ private fun AppEntry() {
         AppScreen.Settings -> SettingsScreen(
             onBack = { currentScreen = AppScreen.Profile },
             onLogout = {
-                authSessionStore.setLoggedIn(false)
-                authSessionStore.setAccessToken(null)
+                AppSession.clear()
                 currentScreen = AppScreen.Login
             }
         )

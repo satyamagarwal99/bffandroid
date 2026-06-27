@@ -6,16 +6,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.bffandroid.model.AuthSessionStore
-import com.example.bffandroid.model.WalletUiState
-import com.example.bffandroid.repository.AuthRepository
+import com.example.bffandroid.data.model.WalletUiState
+import com.example.bffandroid.data.MainRepository
+import com.example.bffandroid.utils.TokenUtils
 import kotlinx.coroutines.launch
 
 class WalletViewModel(
     application: Application
 ) : AndroidViewModel(application) {
-    private val authRepository = AuthRepository()
-    private val authSessionStore = AuthSessionStore(application.applicationContext)
+    private val mainRepository = MainRepository()
 
     var uiState by mutableStateOf(WalletUiState())
         private set
@@ -26,8 +25,8 @@ class WalletViewModel(
 
     fun loadWalletBalance() {
         viewModelScope.launch {
-            val accessToken = authSessionStore.getAccessToken()
-            if (accessToken.isNullOrBlank()) {
+            val token = TokenUtils.getToken()
+            if (token.isBlank()) {
                 uiState = uiState.copy(
                     isLoading = false,
                     amountInr = 0,
@@ -37,12 +36,34 @@ class WalletViewModel(
             }
 
             uiState = uiState.copy(isLoading = true, errorMessage = null)
-            val result = authRepository.getWalletBalance(accessToken)
-            uiState = uiState.copy(
-                isLoading = false,
-                amountInr = result.amountInr,
-                errorMessage = if (result.isSuccessful) null else result.message
-            )
+            runCatching { mainRepository.getWalletBalance(token) }
+                .onSuccess { response ->
+                    val body = response.body()
+                    uiState = uiState.copy(
+                        isLoading = false,
+                        amountInr = if (response.isSuccessful && body != null) {
+                            body.withdrawableAmount
+                                ?: body.withdrawableBalance
+                                ?: body.rewardBalance
+                                ?: body.cashBalance
+                                ?: body.amountInr
+                                ?: body.amount
+                                ?: body.balance
+                                ?: body.walletBalance
+                                ?: 0
+                        } else {
+                            0
+                        },
+                        errorMessage = if (response.isSuccessful) null else body?.message ?: "Unable to load wallet balance"
+                    )
+                }
+                .onFailure { error ->
+                    uiState = uiState.copy(
+                        isLoading = false,
+                        amountInr = 0,
+                        errorMessage = error.message ?: "Unable to load wallet balance"
+                    )
+                }
         }
     }
 }

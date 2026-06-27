@@ -1,4 +1,4 @@
-package com.example.bffandroid.model
+package com.example.bffandroid.data.model
 
 data class LoginUiState(
     val countryIso: String = "IN",

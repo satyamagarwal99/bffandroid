@@ -2,16 +2,18 @@ package com.example.bffandroid.repository
 
 import android.os.Build
 import android.util.Log
-import com.example.bffandroid.model.AppVersionResult
-import com.example.bffandroid.model.CountryLoginConfig
-import com.example.bffandroid.model.GoogleAuthResult
-import com.example.bffandroid.model.LoginMethod
-import com.example.bffandroid.model.OtpRequestResult
-import com.example.bffandroid.model.RechargeQuoteResult
-import com.example.bffandroid.model.RechargeOption
-import com.example.bffandroid.model.RechargeOptionsResult
-import com.example.bffandroid.model.OtpVerifyResult
-import com.example.bffandroid.model.WalletBalanceResult
+import com.example.bffandroid.data.model.AppVersionResult
+import com.example.bffandroid.data.model.CountryLoginConfig
+import com.example.bffandroid.data.model.GoogleAuthResult
+import com.example.bffandroid.data.model.JuspayCheckoutData
+import com.example.bffandroid.data.model.LoginMethod
+import com.example.bffandroid.data.model.OtpRequestResult
+import com.example.bffandroid.data.model.RechargePurchaseResult
+import com.example.bffandroid.data.model.RechargeQuoteResult
+import com.example.bffandroid.data.model.RechargeOption
+import com.example.bffandroid.data.model.RechargeOptionsResult
+import com.example.bffandroid.data.model.OtpVerifyResult
+import com.example.bffandroid.data.model.WalletBalanceResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -220,6 +222,54 @@ class AuthRepository {
         }
     }
 
+    suspend fun purchaseRecharge(
+        accessToken: String,
+        packCode: String,
+        couponCode: String,
+        customerEmail: String,
+        customerPhone: String,
+        firstName: String,
+        lastName: String,
+        returnUrl: String = DEFAULT_RETURN_URL,
+        description: String = DEFAULT_RECHARGE_DESCRIPTION
+    ): RechargePurchaseResult {
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val requestBody = JSONObject().apply {
+                    put("packCode", packCode)
+                    put("couponCode", couponCode)
+                    put("customerEmail", customerEmail)
+                    put("customerPhone", customerPhone.onlyDigits())
+                    put("firstName", firstName)
+                    put("lastName", lastName)
+                    put("returnUrl", returnUrl)
+                    put("description", description)
+                }
+                val response = executeJsonRequest(
+                    url = RECHARGE_PURCHASE_ENDPOINT,
+                    method = "POST",
+                    body = requestBody.toString(),
+                    bearerToken = accessToken,
+                    idempotencyKey = "wallet-recharge-${java.util.UUID.randomUUID()}"
+                )
+                RechargePurchaseResult(
+                    isSuccessful = true,
+                    message = parseMessage(response) ?: "Complete your payment",
+                    checkout = parseJuspayCheckoutData(response),
+                    rawResponse = response
+                )
+            }.getOrElse { error ->
+                Log.e(TAG, "Recharge purchase failed", error)
+                RechargePurchaseResult(
+                    isSuccessful = false,
+                    message = error.message ?: "Unable to start payment",
+                    checkout = null,
+                    rawResponse = null
+                )
+            }
+        }
+    }
+
     suspend fun getWalletBalance(accessToken: String): WalletBalanceResult {
         return withContext(Dispatchers.IO) {
             runCatching {
@@ -259,7 +309,8 @@ class AuthRepository {
         url: String,
         method: String,
         body: String? = null,
-        bearerToken: String? = null
+        bearerToken: String? = null,
+        idempotencyKey: String? = null
     ): String {
         Log.d(TAG, "$method $url")
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
@@ -270,6 +321,9 @@ class AuthRepository {
             setRequestProperty("Accept", "application/json")
             if (!bearerToken.isNullOrBlank()) {
                 setRequestProperty("Authorization", "Bearer $bearerToken")
+            }
+            if (!idempotencyKey.isNullOrBlank()) {
+                setRequestProperty("Idempotency-Key", idempotencyKey)
             }
             doInput = true
             doOutput = body != null
@@ -446,6 +500,53 @@ class AuthRepository {
         ) ?: 0
     }
 
+    private fun parseJuspayCheckoutData(response: String): JuspayCheckoutData {
+        val json = JSONObject(response)
+        val sdkPayload = findJsonObjectValue(
+            json,
+            "sdkPayload",
+            "sdk_payload",
+            "juspayPayload",
+            "hyperSdkPayload",
+            "processPayload",
+            "paymentPagePayload"
+        )?.toString()
+            ?: findStringValue(
+                json,
+                "sdkPayload",
+                "sdk_payload",
+                "juspayPayload",
+                "hyperSdkPayload",
+                "processPayload",
+                "paymentPagePayload"
+            )
+        val paymentUrl = findStringValue(
+            json,
+            "paymentUrl",
+            "payment_url",
+            "paymentLink",
+            "payment_link",
+            "redirectUrl",
+            "redirect_url",
+            "webUrl",
+            "web_url"
+        )
+        val orderId = findStringValue(
+            json,
+            "orderId",
+            "order_id",
+            "juspayOrderId",
+            "paymentOrderId"
+        )
+
+        return JuspayCheckoutData(
+            orderId = orderId,
+            paymentUrl = paymentUrl,
+            sdkPayload = sdkPayload,
+            rawResponse = response
+        )
+    }
+
     private fun parseAccessToken(json: JSONObject): String? {
         return findStringValue(
             json,
@@ -471,6 +572,20 @@ class AuthRepository {
         json.keys().forEach { key ->
             val nested = json.optJSONObject(key) ?: return@forEach
             val value = findStringValue(nested, *keys)
+            if (value != null) return value
+        }
+
+        return null
+    }
+
+    private fun findJsonObjectValue(json: JSONObject, vararg keys: String): JSONObject? {
+        keys.forEach { key ->
+            json.optJSONObject(key)?.let { return it }
+        }
+
+        json.keys().forEach { key ->
+            val nested = json.optJSONObject(key) ?: return@forEach
+            val value = findJsonObjectValue(nested, *keys)
             if (value != null) return value
         }
 
@@ -514,7 +629,10 @@ class AuthRepository {
         const val APP_VERSION_ENDPOINT = "https://api.gobff.app/api/v1/app-version"
         const val RECHARGE_OPTIONS_ENDPOINT = "https://api.gobff.app/api/v1/wallet/recharge/options"
         const val RECHARGE_QUOTE_ENDPOINT = "https://api.gobff.app/api/v1/wallet/recharge/quote"
+        const val RECHARGE_PURCHASE_ENDPOINT = "https://api.gobff.app/api/v1/wallet/recharge/purchase"
         const val WALLET_BALANCE_ENDPOINT = "https://api.gobff.app/api/v1/wallet/balance"
+        const val DEFAULT_RETURN_URL = "https://shop.merchant.com"
+        const val DEFAULT_RECHARGE_DESCRIPTION = "Complete your payment"
         const val DEFAULT_COUNTRY_ISO = "IN"
         const val DEFAULT_INSTALLATION_ID = "android-device-1"
         const val DEFAULT_DISPLAY_NAME = "Android User"

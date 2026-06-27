@@ -1,5 +1,6 @@
 package com.example.bffandroid.screens
 
+import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -52,6 +53,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -62,9 +64,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.bffandroid.model.RechargeOption
-import com.example.bffandroid.model.RechargeUiState
+import com.example.bffandroid.data.model.RechargeOption
+import com.example.bffandroid.data.model.RechargeUiState
 import com.example.bffandroid.R
+import com.example.bffandroid.payment.JuspayCheckoutLauncher
 import com.example.bffandroid.ui.theme.BffAndroidTheme
 import com.example.bffandroid.ui.theme.GaretFontFamily
 import com.example.bffandroid.viewmodel.RechargeViewModel
@@ -92,6 +95,7 @@ fun RechargeScreen(
     var stage by remember { mutableStateOf(RechargeStage.Main) }
     var selectedCouponId by remember { mutableStateOf<String?>(null) }
     var pendingCouponCode by remember { mutableStateOf("") }
+    val context = LocalContext.current
     val selectedPack = rechargePacks.firstOrNull { it.id == rechargeUiState.selectedOptionId }
         ?: rechargePacks.firstOrNull()
 
@@ -110,21 +114,36 @@ fun RechargeScreen(
         }
     }
 
-    LaunchedEffect(stage, rechargeUiState.isQuoteLoading, rechargeUiState.isQuoteSuccessful) {
+    LaunchedEffect(stage, rechargeUiState.isPurchaseLoading, rechargeUiState.checkout) {
         if (stage == RechargeStage.Processing &&
-            !rechargeUiState.isQuoteLoading &&
-            !rechargeUiState.isQuoteSuccessful &&
-            rechargeUiState.quoteMessage == null
+            !rechargeUiState.isPurchaseLoading &&
+            !rechargeUiState.isPurchaseSuccessful &&
+            rechargeUiState.purchaseMessage == null
         ) {
-            rechargeViewModel.requestRechargeQuote(couponCode = pendingCouponCode)
+            rechargeViewModel.purchaseRecharge(couponCode = pendingCouponCode)
             return@LaunchedEffect
         }
 
-        if (stage == RechargeStage.Processing && !rechargeUiState.isQuoteLoading) {
-            stage = if (rechargeUiState.isQuoteSuccessful) {
-                RechargeStage.Success
-            } else {
-                RechargeStage.Main
+        val checkout = rechargeUiState.checkout
+        if (stage == RechargeStage.Processing &&
+            checkout != null &&
+            rechargeUiState.launchedCheckoutKey != checkout.launchKey
+        ) {
+            val activity = context as? Activity
+            if (activity == null) {
+                rechargeViewModel.markCheckoutLaunchFailed("Unable to open payment page")
+                stage = RechargeStage.Main
+                return@LaunchedEffect
+            }
+
+            when (val result = JuspayCheckoutLauncher.launch(activity, checkout)) {
+                JuspayCheckoutLauncher.LaunchResult.Launched -> {
+                    rechargeViewModel.markCheckoutLaunched(checkout.launchKey)
+                }
+                is JuspayCheckoutLauncher.LaunchResult.Failure -> {
+                    rechargeViewModel.markCheckoutLaunchFailed(result.message)
+                    stage = RechargeStage.Main
+                }
             }
         }
     }
@@ -151,7 +170,7 @@ fun RechargeScreen(
                 }
             )
             RechargeStage.Processing -> RechargeProcessingScreen(
-                statusMessage = rechargeUiState.quoteMessage
+                statusMessage = rechargeUiState.purchaseMessage
             )
             RechargeStage.Success -> RechargeSuccessScreen(
                 balance = 120,
