@@ -54,10 +54,12 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.bffandroid.R
 import com.example.bffandroid.ui.theme.BffAndroidTheme
 import com.example.bffandroid.ui.theme.FreedokaFontFamily
 import com.example.bffandroid.ui.theme.GaretFontFamily
+import com.example.bffandroid.viewmodel.LogoutViewModel
 
 private val SettingsPurple = Color(0xFFC471FF)
 private val SettingsAccent = Color(0xFF7D3CF0)
@@ -81,7 +83,8 @@ private enum class AccountManagementSheet {
 fun SettingsScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
-    onLogout: () -> Unit = {}
+    onLogout: () -> Unit = {},
+    logoutViewModel: LogoutViewModel = viewModel()
 ) {
     var page by remember { mutableStateOf(SettingsPage.Main) }
 
@@ -101,7 +104,7 @@ fun SettingsScreen(
             onHelpSupport = { page = SettingsPage.HelpSupport },
             onSuggestFeature = { page = SettingsPage.SuggestFeature },
             onAccountManagement = { page = SettingsPage.AccountManagement },
-            onLogout = onLogout,
+            onLogout = { logoutViewModel.logout(onLogout) },
             modifier = modifier
         )
 

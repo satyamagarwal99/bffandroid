@@ -65,7 +65,9 @@ import com.example.bffandroid.ui.theme.GaretFontFamily
 fun ManAvatarScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
-    onComplete: () -> Unit = {}
+    onComplete: (selectedAvatar: Int, nickname: String) -> Unit = { _, _ -> },
+    isSubmitting: Boolean = false,
+    submitError: String? = null
 ) {
     var selectedAvatar by remember { mutableIntStateOf(1) }
     var nickname by remember { mutableStateOf("") }
@@ -96,7 +98,9 @@ fun ManAvatarScreen(
                 selectedAvatar = selectedAvatar,
                 nickname = nickname,
                 onNicknameChange = { nickname = it },
-                onComplete = onComplete,
+                onComplete = { onComplete(selectedAvatar, nickname) },
+                isSubmitting = isSubmitting,
+                submitError = submitError,
                 modifier = Modifier.fillMaxSize()
             )
         } else {
@@ -174,6 +178,8 @@ private fun ManNicknameContent(
     nickname: String,
     onNicknameChange: (String) -> Unit,
     onComplete: () -> Unit,
+    isSubmitting: Boolean,
+    submitError: String?,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -204,8 +210,21 @@ private fun ManNicknameContent(
             value = nickname,
             onValueChange = onNicknameChange,
             onSubmit = onComplete,
+            enabled = !isSubmitting,
             modifier = Modifier.fillMaxWidth()
         )
+        if (isSubmitting || submitError != null) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = if (isSubmitting) "Saving profile..." else submitError.orEmpty(),
+                color = if (isSubmitting) Color.White else Color(0xFF4B0000),
+                fontSize = 12.sp,
+                lineHeight = 12.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center
+            )
+        }
         Spacer(modifier = Modifier.height(170.dp))
         Text(
             text = "I'll choose later",
@@ -215,7 +234,7 @@ private fun ManNicknameContent(
             fontFamily = GaretFontFamily,
             fontWeight = FontWeight.Medium,
             textDecoration = TextDecoration.Underline,
-            modifier = Modifier.clickable(onClick = onComplete)
+            modifier = Modifier.clickable(enabled = !isSubmitting, onClick = onComplete)
         )
         Spacer(modifier = Modifier.height(48.dp))
     }
@@ -498,6 +517,7 @@ private fun ManNicknameField(
     value: String,
     onValueChange: (String) -> Unit,
     onSubmit: () -> Unit,
+    enabled: Boolean,
     modifier: Modifier = Modifier
 ) {
     val shape = RoundedCornerShape(20.dp)
@@ -540,6 +560,7 @@ private fun ManNicknameField(
                 BasicTextField(
                     value = value,
                     onValueChange = onValueChange,
+                    enabled = enabled,
                     singleLine = true,
                     cursorBrush = SolidColor(Color.Black),
                     textStyle = TextStyle(
@@ -567,7 +588,7 @@ private fun ManNicknameField(
                     tint = Color(0xFF4A5AEF),
                     modifier = Modifier
                         .size(24.dp)
-                        .clickable(onClick = onSubmit)
+                        .clickable(enabled = enabled, onClick = onSubmit)
                 )
             }
         }

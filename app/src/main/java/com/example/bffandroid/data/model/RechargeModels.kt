@@ -102,6 +102,7 @@ data class RechargePurchaseResponse(
 
 data class RechargeOptionsResponse(
     @SerializedName("message") val message: String?,
+    @SerializedName("packs") val packs: List<RechargeOptionDto>?,
     @SerializedName("options") val options: List<RechargeOptionDto>?,
     @SerializedName("rechargeOptions") val rechargeOptions: List<RechargeOptionDto>?,
     @SerializedName("data") val data: RechargeOptionsContainer?,
@@ -109,6 +110,7 @@ data class RechargeOptionsResponse(
 )
 
 data class RechargeOptionsContainer(
+    @SerializedName("packs") val packs: List<RechargeOptionDto>?,
     @SerializedName("options") val options: List<RechargeOptionDto>?,
     @SerializedName("rechargeOptions") val rechargeOptions: List<RechargeOptionDto>?
 )
@@ -125,7 +127,9 @@ data class RechargeOptionDto(
     @SerializedName("price") val price: Int?,
     @SerializedName("amount") val amount: Int?,
     @SerializedName("amountInr") val amountInr: Int?,
+    @SerializedName("amountPaise") val amountPaise: Int?,
     @SerializedName("mrp") val mrp: Int?,
+    @SerializedName("badge") val badge: String?,
     @SerializedName("isPopular") val isPopular: Boolean?,
     @SerializedName("popular") val popular: Boolean?,
     @SerializedName("recommended") val recommended: Boolean?

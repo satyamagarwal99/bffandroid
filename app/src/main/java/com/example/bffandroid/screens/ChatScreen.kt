@@ -68,6 +68,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.bffandroid.R
+import com.example.bffandroid.ui.component.BffHeartChip
+import com.example.bffandroid.ui.component.BffBottomBar
+import com.example.bffandroid.ui.component.MainBottomTab
 import com.example.bffandroid.ui.theme.BffAndroidTheme
 import com.example.bffandroid.ui.theme.GaretFontFamily
 
@@ -76,11 +79,10 @@ private val ChatBlue = Color(0xFF335FAA)
 @Composable
 fun ChatScreen(
     modifier: Modifier = Modifier,
+    walletHearts: Int = 0,
     onBack: () -> Unit = {},
+    onRechargeRequested: () -> Unit = {},
     onChatSelected: (String, Int) -> Unit = { _, _ -> },
-    onConnectSelected: () -> Unit = {},
-    onGamesSelected: () -> Unit = {},
-    onHistorySelected: () -> Unit = {}
 ) {
     BackHandler(onBack = onBack)
 
@@ -105,6 +107,14 @@ fun ChatScreen(
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.FillBounds
         )
+        ChatTopBar(
+            walletHearts = walletHearts,
+            onBack = onBack,
+            onRechargeRequested = onRechargeRequested,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 48.dp, start = 20.dp, end = 20.dp)
+        )
 
         Box(
             modifier = Modifier
@@ -118,14 +128,14 @@ fun ChatScreen(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .padding(horizontal = 22.dp)
-                    .offset(y = 174.dp)
+                    .offset(y = 214.dp)
             )
 
             if (filteredMessages.isEmpty()) {
                 ChatEmptyState(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(top = 278.dp)
+                        .padding(top = 318.dp)
                 )
             } else {
                 ChatMessageList(
@@ -134,22 +144,40 @@ fun ChatScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 22.dp)
-                        .padding(top = 255.dp)
+                        .padding(top = 295.dp)
                 )
             }
         }
+    }
+}
 
-        ChatBottomBar(
-            selectedTab = ChatNavTab.Chat,
-            onTabSelected = { tab ->
-                when (tab) {
-                    ChatNavTab.Connect -> onConnectSelected()
-                    ChatNavTab.Games -> onGamesSelected()
-                    ChatNavTab.History -> onHistorySelected()
-                    else -> Unit
-                }
-            },
-            modifier = Modifier.align(Alignment.BottomCenter)
+@Composable
+private fun ChatTopBar(
+    walletHearts: Int,
+    onBack: () -> Unit,
+    onRechargeRequested: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+            contentDescription = "Back",
+            tint = Color.White,
+            modifier = Modifier
+                .size(24.dp)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onBack
+                )
+        )
+        BffHeartChip(
+            hearts = walletHearts,
+            onClick = onRechargeRequested
         )
     }
 }
@@ -165,7 +193,7 @@ private fun ChatHeader() {
             painter = painterResource(id = R.drawable.chat_screen_message),
             contentDescription = null,
             modifier = Modifier
-                .offset(x = 25.dp, y = 108.dp)
+                .offset(x = 25.dp, y = 138.dp)
                 .size(width = 42.52.dp, height = 36.21.dp),
             contentScale = ContentScale.Fit
         )
@@ -173,7 +201,7 @@ private fun ChatHeader() {
             painter = painterResource(id = R.drawable.chat_screen_legs),
             contentDescription = null,
             modifier = Modifier
-                .offset(x = 240.dp, y = 48.dp)
+                .offset(x = 240.dp, y = 78.dp)
                 .size(width = 23.dp, height = 24.dp)
                 .graphicsLayer { rotationZ = 11.46f },
             contentScale = ContentScale.Fit
@@ -182,7 +210,7 @@ private fun ChatHeader() {
             painter = painterResource(id = R.drawable.chat_screen_eyes),
             contentDescription = null,
             modifier = Modifier
-                .offset(x = 78.dp, y = 51.dp)
+                .offset(x = 78.dp, y = 81.dp)
                 .size(width = 31.59.dp, height = 24.dp)
                 .graphicsLayer { rotationZ = 11.46f },
             contentScale = ContentScale.Fit
@@ -192,20 +220,20 @@ private fun ChatHeader() {
             contentDescription = null,
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .offset(y = 78.dp)
+                .offset(y = 108.dp)
                 .size(width = 332.dp, height = 42.dp),
             contentScale = ContentScale.Fit
         )
         CurvedChatTagline(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .offset(y = 126.dp)
+                .offset(y = 156.dp)
         )
         Image(
             painter = painterResource(id = R.drawable.chat_screen_filled_sparkle),
             contentDescription = null,
             modifier = Modifier
-                .offset(x = 22.dp, y = 79.dp)
+                .offset(x = 22.dp, y = 109.dp)
                 .size(width = 38.32.dp, height = 18.dp),
             contentScale = ContentScale.Fit
         )
@@ -213,7 +241,7 @@ private fun ChatHeader() {
             painter = painterResource(id = R.drawable.chat_screen_sparkle),
             contentDescription = null,
             modifier = Modifier
-                .offset(x = 326.dp, y = 110.dp)
+                .offset(x = 326.dp, y = 140.dp)
                 .size(width = 18.32.dp, height = 18.dp),
             contentScale = ContentScale.Fit
         )
@@ -853,147 +881,6 @@ private fun PersonalChatComposer(
             )
         }
     }
-}
-
-@Composable
-private fun ChatBottomBar(
-    selectedTab: ChatNavTab,
-    onTabSelected: (ChatNavTab) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(99.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .height(88.dp)
-                .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
-                .background(Color.White)
-        )
-        Row(
-            verticalAlignment = Alignment.Top,
-            horizontalArrangement = Arrangement.SpaceAround,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .height(88.dp)
-        ) {
-            ChatNavTab.entries.forEach { tab ->
-                ChatBottomBarItem(
-                    tab = tab,
-                    isSelected = selectedTab == tab,
-                    onClick = { onTabSelected(tab) }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ChatBottomBarItem(
-    tab: ChatNavTab,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    val bubbleColor by animateColorAsState(
-        targetValue = if (isSelected) tab.tint.copy(alpha = 0.18f) else Color.Transparent,
-        animationSpec = spring(stiffness = 380f),
-        label = "chatBubbleColor"
-    )
-    val iconScale by animateFloatAsState(
-        targetValue = if (isSelected) 1.06f else 1f,
-        animationSpec = spring(dampingRatio = 0.62f, stiffness = 420f),
-        label = "chatIconScale"
-    )
-    val circleSize by animateDpAsState(
-        targetValue = if (isSelected) 56.dp else 40.dp,
-        animationSpec = spring(dampingRatio = 0.7f, stiffness = 450f),
-        label = "chatCircleSize"
-    )
-    val itemTopOffset by animateDpAsState(
-        targetValue = if (isSelected) (-11).dp else 12.dp,
-        animationSpec = spring(dampingRatio = 0.7f, stiffness = 450f),
-        label = "chatItemTopOffset"
-    )
-    val labelColor by animateColorAsState(
-        targetValue = if (isSelected) Color.Black else Color(0xFF7A7A7A),
-        label = "chatLabelColor"
-    )
-
-    Box(
-        modifier = Modifier
-            .size(width = 74.dp, height = 99.dp)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            )
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = itemTopOffset)
-        ) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(circleSize)
-                    .clip(CircleShape)
-                    .background(if (isSelected) bubbleColor else Color.Transparent)
-            ) {
-                if (isSelected) {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .padding(3.dp)
-                            .clip(CircleShape)
-                            .background(Color.White)
-                    )
-                }
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(if (isSelected) 46.dp else 40.dp)
-                        .clip(CircleShape)
-                        .background(tab.tint)
-                ) {
-                    Icon(
-                        imageVector = tab.icon,
-                        contentDescription = tab.label,
-                        tint = Color.White,
-                        modifier = Modifier
-                            .size(if (isSelected) 22.dp else 21.dp)
-                            .scale(iconScale)
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = tab.label,
-                color = labelColor,
-                fontSize = 12.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                maxLines = 1
-            )
-        }
-    }
-}
-
-private enum class ChatNavTab(
-    val label: String,
-    val icon: ImageVector,
-    val tint: Color
-) {
-    Connect("Connect", Icons.Default.Phone, Color(0xFFF5BE2E)),
-    Games("Games", Icons.Default.SportsEsports, Color(0xFF8D32F7)),
-    Chat("Chat", Icons.Default.ChatBubbleOutline, Color(0xFF196DFF)),
-    History("History", Icons.Default.History, Color(0xFFFF9518))
 }
 
 private data class ChatMessage(

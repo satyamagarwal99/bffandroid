@@ -29,23 +29,48 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.bffandroid.R
 import com.example.bffandroid.ui.theme.BffAndroidTheme
 import com.example.bffandroid.ui.theme.GaretFontFamily
+import com.example.bffandroid.viewmodel.OnboardingProfileViewModel
 
 @Composable
 fun GenderScreen(
     modifier: Modifier = Modifier,
-    onAudioStepRequested: () -> Unit = {}
+    onAudioStepRequested: () -> Unit = {},
+    onHomeRequested: () -> Unit = {},
+    profileViewModel: OnboardingProfileViewModel = viewModel()
 ) {
     var showManAvatar by remember { mutableStateOf(false) }
     var showWomenAvatar by remember { mutableStateOf(false) }
+    val updateProfileState = profileViewModel.uiState
+
+    fun submitProfile(gender: String, selectedAvatar: Int, nickname: String) {
+        val avatarPrefix = if (gender == GENDER_FEMALE) "women_avatar" else "man_avatar"
+        profileViewModel.updateProfile(
+            displayName = nickname,
+            gender = gender,
+            avatarUrl = "$avatarPrefix$selectedAvatar",
+            onSuccess = {
+                if (gender == GENDER_FEMALE) {
+                    onAudioStepRequested()
+                } else {
+                    onHomeRequested()
+                }
+            }
+        )
+    }
 
     if (showManAvatar) {
         ManAvatarScreen(
             modifier = modifier,
             onBack = { showManAvatar = false },
-            onComplete = onAudioStepRequested
+            onComplete = { selectedAvatar, nickname ->
+                submitProfile(GENDER_MALE, selectedAvatar, nickname)
+            },
+            isSubmitting = updateProfileState.isLoading,
+            submitError = updateProfileState.errorMessage
         )
         return
     }
@@ -54,7 +79,11 @@ fun GenderScreen(
         WomenAvatarScreen(
             modifier = modifier,
             onBack = { showWomenAvatar = false },
-            onComplete = onAudioStepRequested
+            onComplete = { selectedAvatar, nickname ->
+                submitProfile(GENDER_FEMALE, selectedAvatar, nickname)
+            },
+            isSubmitting = updateProfileState.isLoading,
+            submitError = updateProfileState.errorMessage
         )
         return
     }
@@ -150,3 +179,6 @@ private fun GenderScreenPreview() {
         GenderScreen()
     }
 }
+
+private const val GENDER_MALE = "MALE"
+private const val GENDER_FEMALE = "FEMALE"

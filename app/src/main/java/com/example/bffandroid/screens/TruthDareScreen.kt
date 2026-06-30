@@ -112,7 +112,9 @@ private data class TruthDareWheelSegment(
 @Composable
 fun TruthDareScreen(
     modifier: Modifier = Modifier,
-    onBack: () -> Unit = {}
+    walletHearts: Int = 0,
+    onBack: () -> Unit = {},
+    onRechargeRequested: () -> Unit = {}
 ) {
     var phase by remember { mutableStateOf(TruthDarePhase.Lobby) }
 
@@ -126,7 +128,9 @@ fun TruthDareScreen(
 
     when (phase) {
         TruthDarePhase.Lobby -> TruthDareLobbyScreen(
+            walletHearts = walletHearts,
             onBack = onBack,
+            onRechargeRequested = onRechargeRequested,
             onPlay = { phase = TruthDarePhase.Loading },
             modifier = modifier
         )
@@ -145,7 +149,9 @@ fun TruthDareScreen(
 
 @Composable
 private fun TruthDareLobbyScreen(
+    walletHearts: Int,
     onBack: () -> Unit,
+    onRechargeRequested: () -> Unit,
     onPlay: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -169,7 +175,11 @@ private fun TruthDareLobbyScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
         ) {
-            TruthDareLobbyHeader(onBack = onBack)
+            TruthDareLobbyHeader(
+                walletHearts = walletHearts,
+                onBack = onBack,
+                onRechargeRequested = onRechargeRequested
+            )
 
             Spacer(modifier = Modifier.height(40.dp))
             TruthDareSearchBar(
@@ -196,7 +206,9 @@ private fun TruthDareLobbyScreen(
 
 @Composable
 private fun TruthDareLobbyHeader(
+    walletHearts: Int,
     onBack: () -> Unit,
+    onRechargeRequested: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -231,7 +243,8 @@ private fun TruthDareLobbyHeader(
                 )
         )
         TruthDareHeartChip(
-            hearts = "45",
+            hearts = String.format("%,d", walletHearts),
+            onClick = onRechargeRequested,
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = 48.dp, end = 20.dp)
@@ -1677,10 +1690,19 @@ private fun randomTruthDarePrompt(kind: TruthDareKind): String {
 @Composable
 private fun TruthDareHeartChip(
     hearts: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {}
 ) {
     val shape = RoundedCornerShape(12.dp)
-    Box(modifier = modifier.size(width = 61.dp, height = 32.dp)) {
+    Box(
+        modifier = modifier
+            .size(width = 88.dp, height = 32.dp)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+    ) {
         Box(
             modifier = Modifier
                 .matchParentSize()

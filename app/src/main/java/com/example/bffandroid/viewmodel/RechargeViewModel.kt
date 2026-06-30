@@ -226,10 +226,13 @@ class RechargeViewModel(
     }
 
     private fun parseRechargeOptions(body: RechargeOptionsResponse): List<RechargeOption> {
-        val items = body.options
+        val items = body.packs
+            ?: body.options
             ?: body.rechargeOptions
+            ?: body.data?.packs
             ?: body.data?.options
             ?: body.data?.rechargeOptions
+            ?: body.wallet?.packs
             ?: body.wallet?.options
             ?: body.wallet?.rechargeOptions
             ?: emptyList()
@@ -237,7 +240,13 @@ class RechargeViewModel(
         return items.mapIndexedNotNull { index, item ->
             val hearts = (item.hearts ?: item.coins ?: item.value)?.takeIf { it > 0 }
                 ?: return@mapIndexedNotNull null
-            val price = (item.price ?: item.amount ?: item.amountInr ?: item.mrp)?.takeIf { it > 0 }
+            val price = (
+                item.price
+                    ?: item.amount
+                    ?: item.amountInr
+                    ?: item.amountPaise?.let { paise -> paise / 100 }
+                    ?: item.mrp
+                )?.takeIf { it > 0 }
                 ?: return@mapIndexedNotNull null
             val id = item.id?.takeIf { it.isNotBlank() }
                 ?: item.code?.takeIf { it.isNotBlank() }
@@ -255,7 +264,8 @@ class RechargeViewModel(
                 price = price,
                 isPopular = item.isPopular == true ||
                     item.popular == true ||
-                    item.recommended == true
+                    item.recommended == true ||
+                    item.badge.equals("POPULAR", ignoreCase = true)
             )
         }
     }

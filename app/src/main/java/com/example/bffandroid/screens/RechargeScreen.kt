@@ -80,6 +80,7 @@ private val RechargeProcessPurple = Color(0xFF4D13A5)
 @Composable
 fun RechargeScreen(
     modifier: Modifier = Modifier,
+    walletHearts: Int = 0,
     onBack: () -> Unit = {},
     rechargeViewModel: RechargeViewModel = viewModel()
 ) {
@@ -153,6 +154,7 @@ fun RechargeScreen(
             RechargeStage.Main, RechargeStage.Coupon -> RechargeMainContent(
                 selectedPack = selectedPack,
                 selectedPayment = selectedPayment,
+                walletHearts = walletHearts,
                 rechargePacks = rechargePacks,
                 rechargeUiState = rechargeUiState,
                 paymentMethods = paymentMethods,
@@ -173,7 +175,7 @@ fun RechargeScreen(
                 statusMessage = rechargeUiState.purchaseMessage
             )
             RechargeStage.Success -> RechargeSuccessScreen(
-                balance = 120,
+                balance = walletHearts,
                 onDismiss = {
                     rechargeViewModel.clearQuoteState()
                     stage = RechargeStage.Main
@@ -203,6 +205,7 @@ fun RechargeScreen(
 private fun RechargeMainContent(
     selectedPack: RechargePack?,
     selectedPayment: PaymentMethod,
+    walletHearts: Int,
     rechargePacks: List<RechargePack>,
     rechargeUiState: RechargeUiState,
     paymentMethods: List<PaymentMethod>,
@@ -225,7 +228,7 @@ private fun RechargeMainContent(
                 .padding(bottom = 28.dp)
         ) {
             RechargeHeader(
-                balance = 120,
+                balance = walletHearts,
                 onBack = onBack
             )
             Spacer(modifier = Modifier.height(22.dp))
@@ -1439,6 +1442,7 @@ private fun RechargeScreenPreview() {
         RechargeMainContent(
             selectedPack = previewPacks.first(),
             selectedPayment = payments.first(),
+            walletHearts = 120,
             rechargePacks = previewPacks,
             rechargeUiState = RechargeUiState(
                 isLoading = false,

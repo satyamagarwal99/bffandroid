@@ -6,5 +6,9 @@ object Constant {
     const val DEFAULT_DISPLAY_NAME = "Android User"
     const val DEFAULT_DATE_OF_BIRTH = "1995-01-01"
     const val ACCESS_TOKEN_KEY = "access_token"
+    const val REFRESH_TOKEN_KEY = "refresh_token"
+    const val ACCESS_TOKEN_EXPIRES_AT_KEY = "access_token_expires_at"
+    const val REFRESH_TOKEN_EXPIRES_AT_KEY = "refresh_token_expires_at"
+    const val INSTALLATION_ID_KEY = "installation_id"
     const val IS_USER_LOGGED_IN = "isUserLoggedIn"
 }

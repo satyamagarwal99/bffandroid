@@ -6,6 +6,7 @@ sealed class AppRoute(val route: String) {
     data object Gender : AppRoute("gender")
     data object Audio : AppRoute("audio")
     data object Home : AppRoute("home")
+    data object Home2 : AppRoute("home2")
     data object Profile : AppRoute("profile")
     data object Settings : AppRoute("settings")
     data object GiftVibe : AppRoute("gift_vibe")

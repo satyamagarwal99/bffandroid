@@ -13,6 +13,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -59,6 +61,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.bffandroid.R
+import com.example.bffandroid.ui.component.BffBottomBar
+import com.example.bffandroid.ui.component.MainBottomTab
 import com.example.bffandroid.ui.theme.BffAndroidTheme
 import com.example.bffandroid.ui.theme.FreedokaFontFamily
 import com.example.bffandroid.ui.theme.GaretFontFamily
@@ -66,11 +70,14 @@ import com.example.bffandroid.ui.theme.GaretFontFamily
 @Composable
 fun GameScreen(
     modifier: Modifier = Modifier,
+    walletHearts: Int = 0,
     onBack: () -> Unit = {},
     onConnectSelected: () -> Unit = {},
     onTruthDareSelected: () -> Unit = {},
-    onChatSelected: () -> Unit = {},
-    onHistorySelected: () -> Unit = {}
+    onHomeSelected: () -> Unit = {},
+    onHistorySelected: () -> Unit = {},
+    onProfileRequested: () -> Unit = {},
+    onRechargeRequested: () -> Unit = {}
 ) {
     BackHandler(onBack = onBack)
 
@@ -90,92 +97,122 @@ fun GameScreen(
             contentScale = ContentScale.FillBounds
         )
 
-        Image(
-            painter = painterResource(id = R.drawable.man_avatar1),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(start = 20.dp, top = 48.dp)
-                .size(44.dp)
-                .clip(RoundedCornerShape(8.dp))
-        )
+                .fillMaxSize()
+                .padding(bottom = 104.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(236.dp)
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.man_avatar1),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(start = 20.dp, top = 48.dp)
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onProfileRequested
+                        )
+                )
 
-        HeartChip(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 48.dp, end = 20.dp)
-        )
+                HeartChip(
+                    hearts = walletHearts,
+                    onClick = onRechargeRequested,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 48.dp, end = 20.dp)
+                )
 
-        GameHeader(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 122.dp)
-        )
-        CurvedChatTagline(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = 170.dp)
-        )
+                GameHeader(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 122.dp)
+                )
+                CurvedChatTagline(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .offset(y = 170.dp)
+                )
+            }
 
-        GameCard(
-            title = "TRUTH\nOR DARE",
-            cta = "Just",
-            price = "35",
-            imageRes = R.drawable.game_screen_truth_dare,
-            imageWidth = 146.dp,
-            imageHeight = 156.dp,
-            imageOffsetX = 187.dp,
-            imageOffsetY = (-24).dp,
-            gradient = Brush.linearGradient(
-                colors = listOf(Color(0xFFFC9071), Color(0xFFFD8461))
-            ),
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = 236.dp),
-            onClick = onTruthDareSelected
-        )
+            GameCard(
+                title = "TRUTH\nOR DARE",
+                cta = "Just",
+                price = "35",
+                imageRes = R.drawable.game_screen_truth_dare,
+                imageWidth = 146.dp,
+                imageHeight = 156.dp,
+                imageOffsetX = 187.dp,
+                imageOffsetY = (-24).dp,
+                gradient = Brush.linearGradient(
+                    colors = listOf(Color(0xFFFC9071), Color(0xFFFD8461))
+                ),
+                onClick = onTruthDareSelected
+            )
+            Spacer(modifier = Modifier.height(12.dp))
 
-        GameCard(
-            title = "UNO",
-            cta = "Coming soon",
-            imageRes = R.drawable.game_screen_uno,
-            imageWidth = 198.dp,
-            imageHeight = 148.dp,
-            imageOffsetX = 150.dp,
-            imageOffsetY = (-14).dp,
-            gradient = Brush.linearGradient(
-                colors = listOf(Color(0xFFB892EE), Color(0xFF9678F4))
-            ),
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = 414.dp)
-        )
+            GameCard(
+                title = "TIC TAC\nTOE",
+                cta = "Just",
+                price = "25",
+                imageRes = R.drawable.game_screen_tictactoe,
+                imageWidth = 168.dp,
+                imageHeight = 142.dp,
+                imageOffsetX = 178.dp,
+                imageOffsetY = (-4).dp,
+                gradient = Brush.linearGradient(
+                    colors = listOf(Color(0xFFF97AB9), Color(0xFFF15AA3))
+                )
+            )
+            Spacer(modifier = Modifier.height(12.dp))
 
-        GameCard(
-            title = "LUDO",
-            cta = "Coming soon",
-            imageRes = R.drawable.game_screen_ludo,
-            imageWidth = 197.dp,
-            imageHeight = 158.dp,
-            imageOffsetX = 152.dp,
-            imageOffsetY = (-4).dp,
-            gradient = Brush.linearGradient(
-                colors = listOf(Color(0xFF82B5F2), Color(0xFF6398EF))
-            ),
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = 590.dp)
-        )
+            GameCard(
+                title = "UNO",
+                cta = "Coming soon",
+                imageRes = R.drawable.game_screen_uno,
+                imageWidth = 198.dp,
+                imageHeight = 148.dp,
+                imageOffsetX = 150.dp,
+                imageOffsetY = (-14).dp,
+                gradient = Brush.linearGradient(
+                    colors = listOf(Color(0xFFB892EE), Color(0xFF9678F4))
+                )
+            )
+            Spacer(modifier = Modifier.height(12.dp))
 
-        GameBottomBar(
-            selectedTab = GameNavTab.Games,
+            GameCard(
+                title = "LUDO",
+                cta = "Coming soon",
+                imageRes = R.drawable.game_screen_ludo,
+                imageWidth = 197.dp,
+                imageHeight = 158.dp,
+                imageOffsetX = 152.dp,
+                imageOffsetY = (-4).dp,
+                gradient = Brush.linearGradient(
+                    colors = listOf(Color(0xFF82B5F2), Color(0xFF6398EF))
+                )
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+        BffBottomBar(
+            selectedTab = MainBottomTab.Games,
             onTabSelected = { tab ->
                 when (tab) {
-                    GameNavTab.Connect -> onConnectSelected()
-                    GameNavTab.Chat -> onChatSelected()
-                    GameNavTab.History -> onHistorySelected()
-                    GameNavTab.Games -> Unit
+                    MainBottomTab.Connect -> onConnectSelected()
+                    MainBottomTab.Home -> onHomeSelected()
+                    MainBottomTab.History -> onHistorySelected()
+                    else -> Unit
                 }
             },
             modifier = Modifier.align(Alignment.BottomCenter)
@@ -334,9 +371,21 @@ private fun GamePill(
 }
 
 @Composable
-private fun HeartChip(modifier: Modifier = Modifier) {
+private fun HeartChip(
+    hearts: Int,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {}
+) {
     val shape = RoundedCornerShape(12.dp)
-    Box(modifier = modifier.size(width = 61.dp, height = 32.dp)) {
+    Box(
+        modifier = modifier
+            .size(width = 88.dp, height = 32.dp)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+    ) {
         Box(
             modifier = Modifier
                 .matchParentSize()
@@ -361,7 +410,7 @@ private fun HeartChip(modifier: Modifier = Modifier) {
             )
             Spacer(modifier = Modifier.size(4.dp))
             Text(
-                text = "30",
+                text = String.format("%,d", hearts),
                 color = Color.Black,
                 fontSize = 14.sp,
                 fontFamily = GaretFontFamily,
@@ -388,44 +437,6 @@ private fun OptionalDrawableImage(
             modifier = modifier,
             contentScale = contentScale
         )
-    }
-}
-
-@Composable
-private fun GameBottomBar(
-    selectedTab: GameNavTab,
-    onTabSelected: (GameNavTab) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(99.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .height(88.dp)
-                .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
-                .background(Color.White)
-        )
-        Row(
-            verticalAlignment = Alignment.Top,
-            horizontalArrangement = Arrangement.SpaceAround,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .height(88.dp)
-        ) {
-            GameNavTab.entries.forEach { tab ->
-                GameBottomBarItem(
-                    tab = tab,
-                    isSelected = selectedTab == tab,
-                    onClick = { onTabSelected(tab) }
-                )
-            }
-        }
     }
 }
 
@@ -474,110 +485,6 @@ private fun CurvedChatTagline(
         }
     }
 }
-@Composable
-private fun GameBottomBarItem(
-    tab: GameNavTab,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    val bubbleColor by animateColorAsState(
-        targetValue = if (isSelected) tab.tint.copy(alpha = 0.18f) else Color.Transparent,
-        animationSpec = spring(stiffness = 380f),
-        label = "gameBubbleColor"
-    )
-    val iconScale by animateFloatAsState(
-        targetValue = if (isSelected) 1.06f else 1f,
-        animationSpec = spring(dampingRatio = 0.62f, stiffness = 420f),
-        label = "gameIconScale"
-    )
-    val circleSize by animateDpAsState(
-        targetValue = if (isSelected) 56.dp else 40.dp,
-        animationSpec = spring(dampingRatio = 0.7f, stiffness = 450f),
-        label = "gameCircleSize"
-    )
-    val itemTopOffset by animateDpAsState(
-        targetValue = if (isSelected) (-11).dp else 12.dp,
-        animationSpec = spring(dampingRatio = 0.7f, stiffness = 450f),
-        label = "gameItemTopOffset"
-    )
-    val labelColor by animateColorAsState(
-        targetValue = if (isSelected) Color.Black else Color(0xFF7A7A7A),
-        label = "gameLabelColor"
-    )
-
-    Box(
-        modifier = Modifier
-            .size(width = 74.dp, height = 99.dp)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            )
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = itemTopOffset)
-        ) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(circleSize)
-                    .clip(CircleShape)
-                    .background(if (isSelected) bubbleColor else Color.Transparent)
-            ) {
-                if (isSelected) {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .padding(3.dp)
-                            .clip(CircleShape)
-                            .background(Color.White)
-                    )
-                }
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(if (isSelected) 46.dp else 40.dp)
-                        .clip(CircleShape)
-                        .background(tab.tint)
-                ) {
-                    Icon(
-                        imageVector = tab.icon,
-                        contentDescription = tab.label,
-                        tint = Color.White,
-                        modifier = Modifier
-                            .size(if (isSelected) 22.dp else 21.dp)
-                            .scale(iconScale)
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = tab.label,
-                color = labelColor,
-                fontSize = 12.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                maxLines = 1,
-                textAlign = TextAlign.Center
-            )
-        }
-    }
-}
-
-private enum class GameNavTab(
-    val label: String,
-    val icon: ImageVector,
-    val tint: Color
-) {
-    Connect("Connect", Icons.Default.Phone, Color(0xFFF5BE2E)),
-    Games("Games", Icons.Default.SportsEsports, Color(0xFF8D32F7)),
-    Chat("Chat", Icons.Default.ChatBubbleOutline, Color(0xFF196DFF)),
-    History("History", Icons.Default.History, Color(0xFFFF9518))
-}
-
 @Preview(showBackground = true, widthDp = 393, heightDp = 852)
 @Composable
 private fun GameScreenPreview() {

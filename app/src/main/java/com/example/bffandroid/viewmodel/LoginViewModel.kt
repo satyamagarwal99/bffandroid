@@ -20,6 +20,7 @@ import com.example.bffandroid.data.model.OtpVerifyBody
 import com.example.bffandroid.data.MainRepository
 import com.example.bffandroid.utils.AppSession
 import com.example.bffandroid.utils.Constant
+import com.example.bffandroid.utils.TokenUtils
 import kotlinx.coroutines.launch
 
 class LoginViewModel(
@@ -195,13 +196,14 @@ class LoginViewModel(
                 isOtpVerifyLoading = true,
                 authStatusText = null
             )
+            val installationId = otpDeviceProvider.installationId()
 
             val body = OtpVerifyBody(
                 countryIso2 = uiState.countryIso.uppercase(),
                 phoneNumber = uiState.mobileNumber.filter { it.isDigit() },
                 otp = otp,
                 device = DeviceInfo(
-                    installationId = otpDeviceProvider.installationId(),
+                    installationId = installationId,
                     platform = Constant.DEVICE_PLATFORM,
                     deviceBrand = Build.BRAND.orEmpty().ifBlank { "Android" },
                     deviceModel = Build.MODEL.orEmpty().ifBlank { "Device" },
@@ -217,12 +219,13 @@ class LoginViewModel(
                     val responseBody = response.body()
                     if (response.isSuccessful && responseBody != null) {
                         AppSession.putBoolean(Constant.IS_USER_LOGGED_IN, true)
-                        responseBody.accessToken?.takeIf { it.isNotBlank() }
-                            ?.let {
-                                AppSession.putString(Constant.ACCESS_TOKEN_KEY,it)
-                            }
-                        /*responseBody.refreshToken?.takeIf { it.isNotBlank() }
-                            ?.let { authSessionStore.setRefreshToken(it) }*/
+                        TokenUtils.saveTokens(
+                            accessToken = responseBody.accessToken,
+                            refreshToken = responseBody.refreshToken,
+                            accessTokenExpiresAt = responseBody.accessTokenExpiresAt,
+                            refreshTokenExpiresAt = responseBody.refreshTokenExpiresAt,
+                            installationId = installationId
+                        )
                         uiState = uiState.copy(
                             isOtpVerifyLoading = false,
                             isAuthenticated = true,
@@ -254,11 +257,12 @@ class LoginViewModel(
                 authStatusText = null,
                 isAuthenticated = false
             )
+            val installationId = otpDeviceProvider.installationId()
             val body = GoogleAuthBody(
                 countryIso2 = uiState.countryIso.uppercase(),
-                idToken = "dev-google:${otpDeviceProvider.installationId()}",
+                idToken = "dev-google:$installationId",
                 device = DeviceInfo(
-                    installationId = otpDeviceProvider.installationId(),
+                    installationId = installationId,
                     platform = Constant.DEVICE_PLATFORM,
                     deviceBrand = Build.BRAND.orEmpty().ifBlank { "Android" },
                     deviceModel = Build.MODEL.orEmpty().ifBlank { "Device" },
@@ -276,9 +280,13 @@ class LoginViewModel(
                         (responseBody.success == true || responseBody.verified == true || !responseBody.accessToken.isNullOrBlank())
                     if (isSuccessful) {
                         AppSession.putBoolean(Constant.IS_USER_LOGGED_IN, true)
-                        responseBody?.accessToken?.takeIf { it.isNotBlank() }?.let {
-                            AppSession.putString(Constant.ACCESS_TOKEN_KEY, it)
-                        }
+                        TokenUtils.saveTokens(
+                            accessToken = responseBody?.accessToken,
+                            refreshToken = responseBody?.refreshToken,
+                            accessTokenExpiresAt = responseBody?.accessTokenExpiresAt,
+                            refreshTokenExpiresAt = responseBody?.refreshTokenExpiresAt,
+                            installationId = installationId
+                        )
                     }
                     uiState = uiState.copy(
                         isGoogleAuthLoading = false,

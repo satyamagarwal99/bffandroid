@@ -10,12 +10,14 @@ data class WalletBalanceResult(
 
 data class WalletUiState(
     val isLoading: Boolean = true,
+    val hearts: Int = 0,
     val amountInr: Int = 0,
     val errorMessage: String? = null
 )
 
 data class WalletBalanceResponse(
     @SerializedName("message") val message: String?,
+    @SerializedName("hearts") val hearts: Int?,
     @SerializedName("withdrawableAmount") val withdrawableAmount: Int?,
     @SerializedName("withdrawableBalance") val withdrawableBalance: Int?,
     @SerializedName("rewardBalance") val rewardBalance: Int?,
@@ -25,3 +27,5 @@ data class WalletBalanceResponse(
     @SerializedName("balance") val balance: Int?,
     @SerializedName("walletBalance") val walletBalance: Int?
 )
+
+fun heartsToInr(hearts: Int): Int = (hearts.coerceAtLeast(0) * 90) / 100

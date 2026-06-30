@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -67,28 +68,54 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.bffandroid.R
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.bffandroid.data.model.LanguageOption
+import com.example.bffandroid.data.model.VibeOption
+import com.example.bffandroid.data.model.defaultLanguageOptions
+import com.example.bffandroid.data.model.defaultVibeOptions
+import com.example.bffandroid.ui.component.BffBottomBar
+import com.example.bffandroid.ui.component.MainBottomTab
 import com.example.bffandroid.ui.theme.BffAndroidTheme
 import com.example.bffandroid.ui.theme.GaretFontFamily
+import com.example.bffandroid.viewmodel.HomeOptionsViewModel
+import com.example.bffandroid.viewmodel.UserProfileViewModel
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
-    onLogout: () -> Unit = {},
+    walletHearts: Int = 0,
     onCallRequested: (String) -> Unit = {},
     onFriendsRequested: () -> Unit = {},
     onRechargeRequested: () -> Unit = {},
-    onChatRequested: () -> Unit = {},
+    onHomeRequested: () -> Unit = {},
     onHistoryRequested: () -> Unit = {},
     onGamesRequested: () -> Unit = {},
-    onProfileRequested: () -> Unit = {}
+    onProfileRequested: () -> Unit = {},
+    homeOptionsViewModel: HomeOptionsViewModel = viewModel(),
+    userProfileViewModel: UserProfileViewModel = viewModel()
 ) {
-    var selectedTab by remember { mutableStateOf(HomeTab.Connect) }
+    val homeOptionsState = homeOptionsViewModel.uiState
+    val userProfileState = userProfileViewModel.uiState
+    var selectedTab by remember { mutableStateOf(MainBottomTab.Connect) }
     var openFilterSheet by remember { mutableStateOf<HomeFilterSheet?>(null) }
     var selectedLanguages by remember { mutableStateOf(setOf<String>()) }
     var selectedVibes by remember { mutableStateOf(setOf<String>()) }
     var callDragProgress by remember { mutableStateOf(0f) }
+
+    LaunchedEffect(Unit) {
+        homeOptionsViewModel.loadHomeOptions()
+        userProfileViewModel.loadProfile()
+    }
+
+    LaunchedEffect(userProfileState.languages) {
+        selectedLanguages = userProfileState.languages
+    }
+
+    LaunchedEffect(userProfileState.vibes) {
+        selectedVibes = userProfileState.vibes
+    }
 
     BackHandler(enabled = openFilterSheet != null) {
         openFilterSheet = null
@@ -121,6 +148,8 @@ fun HomeScreen(
                     }
             ) {
                 HomeHeader(
+                    walletHearts = walletHearts,
+                    avatarUrl = userProfileState.avatarUrl,
                     onFriendsClick = onFriendsRequested,
                     onRechargeClick = onRechargeRequested,
                     onProfileClick = onProfileRequested
@@ -154,13 +183,14 @@ fun HomeScreen(
         }
 
         // Bottom bar overlay
-        HomeBottomBar(
+        BffBottomBar(
             selectedTab = selectedTab,
             onTabSelected = { tab ->
                 when (tab) {
-                    HomeTab.Games -> onGamesRequested()
-                    HomeTab.Chat -> onChatRequested()
-                    HomeTab.History -> onHistoryRequested()
+                    MainBottomTab.Games -> onGamesRequested()
+                    MainBottomTab.Home -> onHomeRequested()
+                    MainBottomTab.History -> onHistoryRequested()
+                    MainBottomTab.Live -> selectedTab = tab
                     else -> {
                         selectedTab = tab
                     }
@@ -186,21 +216,31 @@ fun HomeScreen(
         when (openFilterSheet) {
             HomeFilterSheet.Language -> LanguageFilterSheet(
                 selectedLanguages = selectedLanguages,
+                languageOptions = homeOptionsState.languageOptions,
                 onLanguageSelected = { language ->
                     selectedLanguages = selectedLanguages.toggleValue(language)
                 },
                 onClear = { selectedLanguages = emptySet() },
-                onApply = { openFilterSheet = null },
+                onApply = {
+                    userProfileViewModel.saveLanguages(selectedLanguages) {
+                        openFilterSheet = null
+                    }
+                },
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
 
             HomeFilterSheet.Vibe -> VibeFilterSheet(
                 selectedVibes = selectedVibes,
+                vibeOptions = homeOptionsState.vibeOptions,
                 onVibeSelected = { vibe ->
                     selectedVibes = selectedVibes.toggleValue(vibe)
                 },
                 onClear = { selectedVibes = emptySet() },
-                onApply = { openFilterSheet = null },
+                onApply = {
+                    userProfileViewModel.saveVibes(selectedVibes) {
+                        openFilterSheet = null
+                    }
+                },
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
 
@@ -211,6 +251,8 @@ fun HomeScreen(
 
 @Composable
 private fun HomeHeader(
+    walletHearts: Int,
+    avatarUrl: String?,
     onFriendsClick: () -> Unit,
     onRechargeClick: () -> Unit,
     onProfileClick: () -> Unit
@@ -220,12 +262,11 @@ private fun HomeHeader(
         modifier = Modifier.fillMaxWidth()
     ) {
         Image(
-            painter = painterResource(id = R.drawable.man_avatar1),
+            painter = painterResource(id = avatarUrl.toAvatarRes()),
             contentDescription = null,
             modifier = Modifier
                 .size(44.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(Color.White)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -238,11 +279,42 @@ private fun HomeHeader(
         HeaderIconChip(
             icon = Icons.Default.Groups,
             containerColor = Color(0xFF5879FF),
-            modifier = Modifier.size(46.dp),
+            modifier = Modifier.size(32.dp),
             onClick = onFriendsClick
         )
         Spacer(modifier = Modifier.width(12.dp))
-        HeartCountChip(onClick = onRechargeClick)
+        HeartCountChip(hearts = walletHearts, onClick = onRechargeClick)
+    }
+}
+
+private fun String?.toAvatarRes(): Int {
+    val normalized = this?.trim().orEmpty()
+    return when {
+        normalized == "women_avatar1" -> R.drawable.women_avatar1
+        normalized == "women_avatar2" -> R.drawable.women_avatar2
+        normalized == "women_avatar3" -> R.drawable.women_avatar3
+        normalized == "women_avatar4" -> R.drawable.women_avatar4
+        normalized == "women_avatar5" -> R.drawable.women_avatar5
+        normalized == "women_avatar6" -> R.drawable.women_avatar6
+        normalized == "women_avatar7" -> R.drawable.women_avatar7
+        normalized == "women_avatar8" -> R.drawable.women_avatar8
+        normalized == "women_avatar9" -> R.drawable.women_avatar9
+        normalized == "women_avatar10" -> R.drawable.women_avatar10
+        normalized == "women_avatar11" -> R.drawable.women_avatar11
+        normalized == "women_avatar12" -> R.drawable.women_avatar12
+        normalized == "man_avatar1" -> R.drawable.man_avatar1
+        normalized == "man_avatar2" -> R.drawable.man_avatar2
+        normalized == "man_avatar3" -> R.drawable.man_avatar3
+        normalized == "man_avatar4" -> R.drawable.man_avatar4
+        normalized == "man_avatar5" -> R.drawable.man_avatar5
+        normalized == "man_avatar6" -> R.drawable.man_avatar6
+        normalized == "man_avatar7" -> R.drawable.man_avatar7
+        normalized == "man_avatar8" -> R.drawable.man_avatar8
+        normalized == "man_avatar9" -> R.drawable.man_avatar9
+        normalized == "man_avatar10" -> R.drawable.man_avatar10
+        normalized == "man_avatar11" -> R.drawable.man_avatar11
+        normalized == "man_avatar12" -> R.drawable.man_avatar12
+        else -> R.drawable.man_avatar1
     }
 }
 
@@ -254,7 +326,7 @@ private fun HeaderIconChip(
     iconTint: Color = Color.White,
     onClick: (() -> Unit)? = null
 ) {
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(12.dp)
 
     Box(
         modifier = modifier.then(
@@ -266,7 +338,7 @@ private fun HeaderIconChip(
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .offset(x = 3.dp, y = 3.dp)
+                .offset(x = 1.5.dp, y = 2.dp)
                 .clip(shape)
                 .background(Color.Black)
         )
@@ -288,18 +360,21 @@ private fun HeaderIconChip(
 }
 
 @Composable
-private fun HeartCountChip(onClick: () -> Unit) {
-    val shape = RoundedCornerShape(16.dp)
+private fun HeartCountChip(
+    hearts: Int,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(12.dp)
 
     Box(
         modifier = Modifier
-            .size(width = 88.dp, height = 44.dp)
+            .size(width = 88.dp, height = 32.dp)
             .clickable(onClick = onClick)
     ) {
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .offset(x = 3.dp, y = 3.dp)
+                .offset(x = 1.5.dp, y = 2.dp)
                 .clip(shape)
                 .background(Color.Black)
         )
@@ -310,17 +385,21 @@ private fun HeartCountChip(onClick: () -> Unit) {
                 .matchParentSize()
                 .clip(shape)
                 .background(Color.White)
+                .border(1.2.dp, Color.Black, shape)
+
         ) {
             Image(
                 painter = painterResource(id = R.drawable.single_heart),
                 contentDescription = null,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(20.dp),
+                contentScale = ContentScale.Fit
+
             )
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(4.dp))
             Text(
-                text = "30",
+                text = String.format("%,d", hearts),
                 color = Color.Black,
-                fontSize = 16.sp,
+                fontSize = 14.sp,
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Medium
             )
@@ -473,6 +552,7 @@ private fun HomeFilterChip(
 @Composable
 fun LanguageFilterSheet(
     selectedLanguages: Set<String>,
+    languageOptions: List<LanguageOption> = defaultLanguageOptions(),
     onLanguageSelected: (String) -> Unit,
     onClear: () -> Unit,
     onApply: () -> Unit,
@@ -492,7 +572,7 @@ fun LanguageFilterSheet(
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
         ) {
-            LanguageOptions.chunked(3).forEach { rowOptions ->
+            languageOptions.chunked(3).forEach { rowOptions ->
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -514,6 +594,7 @@ fun LanguageFilterSheet(
 @Composable
 fun VibeFilterSheet(
     selectedVibes: Set<String>,
+    vibeOptions: List<VibeOption> = defaultVibeOptions(),
     onVibeSelected: (String) -> Unit,
     onClear: () -> Unit,
     onApply: () -> Unit,
@@ -534,7 +615,7 @@ fun VibeFilterSheet(
                 .padding(horizontal = 24.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            VibeOptions.chunked(2).forEach { rowOptions ->
+            vibeOptions.chunked(2).forEach { rowOptions ->
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -614,9 +695,9 @@ private fun LanguageOptionCard(
     modifier: Modifier = Modifier
 ) {
     val selectedColor = when (option.id) {
-        "English" -> Color(0xFF473CB4)
-        "Tamil" -> Color(0xFF5DB8AE)
-        "Hindi" -> Color(0xFFB23BA1)
+        "ENGLISH" -> Color(0xFF473CB4)
+        "TAMIL" -> Color(0xFF5DB8AE)
+        "HINDI" -> Color(0xFFB23BA1)
         else -> Color(0xFF8B31A1)
     }
     val backgroundColor = if (isSelected) selectedColor else Color.White
@@ -1306,147 +1387,6 @@ private fun SwipeHint(
     }
 }
 
-@Composable
-private fun HomeBottomBar(
-    selectedTab: HomeTab,
-    onTabSelected: (HomeTab) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(99.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .height(88.dp)
-                .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
-                .background(Color.White)
-        )
-        Row(
-            verticalAlignment = Alignment.Top,
-            horizontalArrangement = Arrangement.SpaceAround,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .height(88.dp)
-        ) {
-            HomeTab.entries.forEach { tab ->
-                HomeBottomBarItem(
-                    tab = tab,
-                    isSelected = selectedTab == tab,
-                    onClick = { onTabSelected(tab) }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun HomeBottomBarItem(
-    tab: HomeTab,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    val bubbleColor by animateColorAsState(
-        targetValue = if (isSelected) tab.tint.copy(alpha = 0.18f) else Color.Transparent,
-        animationSpec = spring(stiffness = 380f),
-        label = "bubbleColor"
-    )
-    val iconScale by animateFloatAsState(
-        targetValue = if (isSelected) 1.06f else 1f,
-        animationSpec = spring(dampingRatio = 0.62f, stiffness = 420f),
-        label = "iconScale"
-    )
-    val circleSize by animateDpAsState(
-        targetValue = if (isSelected) 56.dp else 40.dp,
-        animationSpec = spring(dampingRatio = 0.7f, stiffness = 450f),
-        label = "circleSize"
-    )
-    val itemTopOffset by animateDpAsState(
-        targetValue = if (isSelected) (-11).dp else 12.dp,
-        animationSpec = spring(dampingRatio = 0.7f, stiffness = 450f),
-        label = "itemTopOffset"
-    )
-    val labelColor by animateColorAsState(
-        targetValue = if (isSelected) Color.Black else Color(0xFF7A7A7A),
-        label = "labelColor"
-    )
-
-    Box(
-        modifier = Modifier
-            .size(width = 74.dp, height = 99.dp)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            )
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = itemTopOffset)
-        ) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(circleSize)
-                    .clip(CircleShape)
-                    .background(if (isSelected) bubbleColor else Color.Transparent)
-            ) {
-                if (isSelected) {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .padding(3.dp)
-                            .clip(CircleShape)
-                            .background(Color.White)
-                    )
-                }
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(if (isSelected) 46.dp else 40.dp)
-                        .clip(CircleShape)
-                        .background(tab.tint)
-                ) {
-                    Icon(
-                        imageVector = tab.icon,
-                        contentDescription = tab.label,
-                        tint = Color.White,
-                        modifier = Modifier
-                            .size(if (isSelected) 22.dp else 21.dp)
-                            .scale(iconScale)
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = tab.label,
-                color = labelColor,
-                fontSize = 12.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                maxLines = 1
-            )
-        }
-    }
-}
-
-private enum class HomeTab(
-    val label: String,
-    val icon: ImageVector,
-    val tint: Color
-) {
-    Connect("Connect", Icons.Default.Phone, Color(0xFFF5BE2E)),
-    Games("Games", Icons.Default.SportsEsports, Color(0xFF8D32F7)),
-    Chat("Chat", Icons.Default.ChatBubbleOutline, Color(0xFF196DFF)),
-    History("History", Icons.Default.History, Color(0xFFFF9518))
-}
-
 private data class HomeProfile(
     val name: String,
     val avatarRes: Int,
@@ -1477,18 +1417,6 @@ private enum class HomeDragMode {
     Vertical
 }
 
-private data class LanguageOption(
-    val id: String,
-    val title: String,
-    val subtitle: String
-)
-
-private data class VibeOption(
-    val id: String,
-    val iconRes: Int,
-    val label: String
-)
-
 private fun Set<String>.toggleValue(value: String): Set<String> {
     return if (contains(value)) {
         this - value
@@ -1496,36 +1424,6 @@ private fun Set<String>.toggleValue(value: String): Set<String> {
         this + value
     }
 }
-
-private val LanguageOptions = listOf(
-    LanguageOption("English", "English", "English"),
-    LanguageOption("Malayalam", "Malayalam", "മലയാളം"),
-    LanguageOption("Tamil", "Tamil", "தமிழ்"),
-    LanguageOption("Hindi", "Hindi", "हिन्दी"),
-    LanguageOption("Marathi", "Marathi", "मराठी"),
-    LanguageOption("Punjabi", "Punjabi", "ਪੰਜਾਬੀ"),
-    LanguageOption("Bengali", "Bengali", "বাংলা"),
-    LanguageOption("Kannada", "Kannada", "ಕನ್ನಡ"),
-    LanguageOption("Gujarati", "Gujarati", "ગુજરાતી"),
-    LanguageOption("Telugu", "Telugu", "తెలుగు"),
-    LanguageOption("Urdu", "Urdu", "اردو"),
-    LanguageOption("Odia", "Odia", "ଓଡ଼ିଆ")
-)
-
-private val VibeOptions = listOf(
-    VibeOption("Friends", R.drawable.profile_screen_friend_sqaud, "Friends"),
-    VibeOption("Dating", R.drawable.vibe_dating, "Dating"),
-    VibeOption("Advice", R.drawable.vibe_advice, "Advice"),
-    VibeOption("Late Night", R.drawable.vibe_late_night, "Late Night"),
-    VibeOption("Breakup", R.drawable.vibe_breakup, "Breakup"),
-    VibeOption("Deep Talks", R.drawable.vibe_deep_talk, "Deep Talks"),
-    VibeOption("Movies", R.drawable.vibe_movie, "Movies"),
-    VibeOption("Timepass", R.drawable.vibe_timepass, "Timepass"),
-    VibeOption("Gaming", R.drawable.vibe_gaming, "Gaming"),
-    VibeOption("Astrology", R.drawable.vibe_astrology, "Astrology"),
-    VibeOption("Gossip", R.drawable.vibe_gossip, "Gossip"),
-    VibeOption("Antakshari", R.drawable.vibe_antakshari, "Antakshari")
-)
 
 private val HomeProfiles = listOf(
     HomeProfile(

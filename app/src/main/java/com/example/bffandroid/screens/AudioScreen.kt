@@ -57,9 +57,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.bffandroid.R
 import com.example.bffandroid.ui.theme.BffAndroidTheme
 import com.example.bffandroid.ui.theme.GaretFontFamily
+import com.example.bffandroid.viewmodel.VoiceVerificationViewModel
 import kotlinx.coroutines.delay
 import java.io.File
 
@@ -67,7 +69,8 @@ import java.io.File
 fun AudioScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
-    onDone: () -> Unit = {}
+    onDone: () -> Unit = {},
+    voiceVerificationViewModel: VoiceVerificationViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val isPreview = LocalInspectionMode.current
@@ -89,6 +92,7 @@ fun AudioScreen(
     var recorder by remember { mutableStateOf<MediaRecorder?>(null) }
     var outputFile by remember { mutableStateOf<File?>(null) }
     var recordingStartedAt by remember { mutableLongStateOf(0L) }
+    val voiceUiState = voiceVerificationViewModel.uiState
 
     BackHandler(onBack = onBack)
 
@@ -207,8 +211,14 @@ fun AudioScreen(
                         .offset(y = (-6).dp)
                 )
                 AudioPrimaryButton(
-                    text = "Good to go!",
-                    onClick = onDone,
+                    text = if (voiceUiState.isSubmitting) "Submitting..." else "Good to go!",
+                    enabled = !voiceUiState.isSubmitting,
+                    onClick = {
+                        voiceVerificationViewModel.submitVoiceVerification(
+                            file = outputFile,
+                            onSuccess = onDone
+                        )
+                    },
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .offset(y = (-52).dp)
@@ -271,9 +281,10 @@ fun AudioScreen(
             }
         }
 
-        if (!statusMessage.isNullOrBlank()) {
+        val messageText = voiceUiState.errorMessage ?: statusMessage
+        if (!messageText.isNullOrBlank()) {
             Text(
-                text = statusMessage.orEmpty(),
+                text = messageText,
                 color = Color.White,
                 fontSize = 12.sp,
                 lineHeight = 14.sp,
@@ -523,12 +534,13 @@ private fun AudioSuccessIllustration(modifier: Modifier = Modifier) {
 private fun AudioPrimaryButton(
     text: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
 ) {
     val shape = RoundedCornerShape(18.dp)
 
     Box(
-        modifier = modifier.clickable(onClick = onClick)
+        modifier = modifier.clickable(enabled = enabled, onClick = onClick)
     ) {
         Box(
             modifier = Modifier

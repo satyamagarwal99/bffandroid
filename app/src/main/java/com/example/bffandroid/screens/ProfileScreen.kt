@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,6 +24,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -35,6 +37,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,6 +49,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -58,27 +62,47 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.bffandroid.R
+import com.example.bffandroid.data.model.heartsToInr
 import com.example.bffandroid.ui.theme.BffAndroidTheme
 import com.example.bffandroid.ui.theme.GaretFontFamily
-import com.example.bffandroid.viewmodel.WalletViewModel
+import com.example.bffandroid.viewmodel.HomeOptionsViewModel
+import com.example.bffandroid.viewmodel.UserProfileViewModel
 
 private val ProfileCoral = Color(0xFFFF7171)
 
 @Composable
 fun ProfileScreen(
     modifier: Modifier = Modifier,
+    walletHearts: Int = 0,
     onBack: () -> Unit = {},
     onGiftVibeRequested: () -> Unit = {},
     onWalletRequested: () -> Unit = {},
     onRechargeRequested: () -> Unit = {},
     onSettingsRequested: () -> Unit = {},
-    walletViewModel: WalletViewModel = viewModel()
+    homeOptionsViewModel: HomeOptionsViewModel = viewModel(),
+    userProfileViewModel: UserProfileViewModel = viewModel()
 ) {
+    val homeOptionsState = homeOptionsViewModel.uiState
+    val userProfileState = userProfileViewModel.uiState
     var openSheet by remember { mutableStateOf<ProfileSheet?>(null) }
-    var selectedLanguages by remember { mutableStateOf(setOf("English", "Tamil", "Hindi")) }
-    var selectedVibes by remember { mutableStateOf(setOf("Dating", "Gaming")) }
+    var selectedLanguages by remember { mutableStateOf(setOf<String>()) }
+    var selectedVibes by remember { mutableStateOf(setOf<String>()) }
     var selectedInterests by remember { mutableStateOf(setOf("Gaming", "Memes", "Foodie", "Fashion", "Deep talks")) }
-    val walletBalance = walletViewModel.uiState.amountInr
+    var editingName by remember { mutableStateOf("") }
+    var editingAvatarUrl by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) {
+        homeOptionsViewModel.loadHomeOptions()
+        userProfileViewModel.loadProfile()
+    }
+
+    LaunchedEffect(userProfileState.languages) {
+        selectedLanguages = userProfileState.languages
+    }
+
+    LaunchedEffect(userProfileState.vibes) {
+        selectedVibes = userProfileState.vibes
+    }
 
     BackHandler {
         if (openSheet != null) {
@@ -110,13 +134,26 @@ fun ProfileScreen(
         ) {
             ProfileTopBar(
                 onBack = onBack,
-                walletBalance = walletBalance,
+                walletBalance = heartsToInr(walletHearts),
+                walletHearts = walletHearts,
                 onWalletRequested = onWalletRequested,
                 onRechargeRequested = onRechargeRequested,
                 onSettingsRequested = onSettingsRequested
             )
             Spacer(modifier = Modifier.height(48.dp))
-            ProfileIdentity()
+            ProfileIdentity(
+                displayName = userProfileState.displayName,
+                avatarUrl = userProfileState.avatarUrl,
+                onAvatarEditClick = {
+                    editingAvatarUrl = userProfileState.avatarUrl?.takeIf { it.isNotBlank() }
+                        ?: "women_avatar1"
+                    openSheet = ProfileSheet.Avatar
+                },
+                onNameEditClick = {
+                    editingName = userProfileState.displayName.orEmpty()
+                    openSheet = ProfileSheet.Name
+                }
+            )
             Spacer(modifier = Modifier.height(36.dp))
             ProfileInfoGrid(
                 onLanguageClick = { openSheet = ProfileSheet.Language },
@@ -145,18 +182,28 @@ fun ProfileScreen(
         when (openSheet) {
             ProfileSheet.Language -> LanguageFilterSheet(
                 selectedLanguages = selectedLanguages,
+                languageOptions = homeOptionsState.languageOptions,
                 onLanguageSelected = { selectedLanguages = selectedLanguages.toggleValue(it) },
                 onClear = { selectedLanguages = emptySet() },
-                onApply = { openSheet = null },
+                onApply = {
+                    userProfileViewModel.saveLanguages(selectedLanguages) {
+                        openSheet = null
+                    }
+                },
                 actionText = "Save",
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
 
             ProfileSheet.Vibe -> VibeFilterSheet(
                 selectedVibes = selectedVibes,
+                vibeOptions = homeOptionsState.vibeOptions,
                 onVibeSelected = { selectedVibes = selectedVibes.toggleValue(it) },
                 onClear = { selectedVibes = emptySet() },
-                onApply = { openSheet = null },
+                onApply = {
+                    userProfileViewModel.saveVibes(selectedVibes) {
+                        openSheet = null
+                    }
+                },
                 actionText = "Save",
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
@@ -173,6 +220,30 @@ fun ProfileScreen(
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
 
+            ProfileSheet.Avatar -> AvatarEditSheet(
+                selectedAvatarUrl = editingAvatarUrl,
+                onAvatarSelected = { editingAvatarUrl = it },
+                onSave = {
+                    userProfileViewModel.saveIdentity(avatarUrl = editingAvatarUrl) {
+                        openSheet = null
+                    }
+                },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+
+            ProfileSheet.Name -> NameEditSheet(
+                name = editingName,
+                onNameChange = { editingName = it },
+                onSave = {
+                    userProfileViewModel.saveIdentity(displayName = editingName) {
+                        openSheet = null
+                    }
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .imePadding()
+            )
+
             null -> Unit
         }
     }
@@ -182,6 +253,7 @@ fun ProfileScreen(
 private fun ProfileTopBar(
     onBack: () -> Unit,
     walletBalance: Int,
+    walletHearts: Int,
     onWalletRequested: () -> Unit,
     onRechargeRequested: () -> Unit,
     onSettingsRequested: () -> Unit
@@ -211,7 +283,7 @@ private fun ProfileTopBar(
         )
         Spacer(modifier = Modifier.width(12.dp))
         ProfileHeartChip(
-            text = "30",
+            text = String.format("%,d", walletHearts),
             onClick = onRechargeRequested
         )
         Spacer(modifier = Modifier.width(12.dp))
@@ -279,7 +351,7 @@ private fun ProfileHeartChip(
     val shape = RoundedCornerShape(10.dp)
     Box(
         modifier = Modifier
-            .size(width = 61.dp, height = 32.dp)
+            .size(width = 88.dp, height = 32.dp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -358,11 +430,16 @@ private fun ProfileSettingsChip(onClick: () -> Unit) {
 }
 
 @Composable
-private fun ProfileIdentity() {
+private fun ProfileIdentity(
+    displayName: String?,
+    avatarUrl: String?,
+    onAvatarEditClick: () -> Unit,
+    onNameEditClick: () -> Unit
+) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(modifier = Modifier.size(112.dp)) {
             Image(
-                painter = painterResource(id = R.drawable.women_avatar1),
+                painter = painterResource(id = avatarUrl.toProfileAvatarRes()),
                 contentDescription = null,
                 modifier = Modifier
                     .align(Alignment.Center)
@@ -379,6 +456,11 @@ private fun ProfileIdentity() {
                     .clip(CircleShape)
                     .background(Color(0xFFFFD33F))
                     .border(2.dp, Color.Black, CircleShape)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onAvatarEditClick
+                    )
             ) {
                 Icon(
                     imageVector = Icons.Default.Edit,
@@ -389,15 +471,72 @@ private fun ProfileIdentity() {
             }
         }
         Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "Alea",
-            color = Color.White,
-            fontSize = 24.sp,
-            fontFamily = GaretFontFamily,
-            fontWeight = FontWeight.Bold
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = displayName?.takeIf { it.isNotBlank() } ?: "Profile",
+                color = Color.White,
+                fontSize = 24.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFFFD33F))
+                    .border(1.5.dp, Color.Black, CircleShape)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onNameEditClick
+                    )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Edit name",
+                    tint = Color.Black,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        }
         Spacer(modifier = Modifier.height(16.dp))
         FriendSquadChip()
+    }
+}
+
+private fun String?.toProfileAvatarRes(): Int {
+    val normalized = this?.trim().orEmpty()
+    return when {
+        normalized == "women_avatar1" -> R.drawable.women_avatar1
+        normalized == "women_avatar2" -> R.drawable.women_avatar2
+        normalized == "women_avatar3" -> R.drawable.women_avatar3
+        normalized == "women_avatar4" -> R.drawable.women_avatar4
+        normalized == "women_avatar5" -> R.drawable.women_avatar5
+        normalized == "women_avatar6" -> R.drawable.women_avatar6
+        normalized == "women_avatar7" -> R.drawable.women_avatar7
+        normalized == "women_avatar8" -> R.drawable.women_avatar8
+        normalized == "women_avatar9" -> R.drawable.women_avatar9
+        normalized == "women_avatar10" -> R.drawable.women_avatar10
+        normalized == "women_avatar11" -> R.drawable.women_avatar11
+        normalized == "women_avatar12" -> R.drawable.women_avatar12
+        normalized == "man_avatar1" -> R.drawable.man_avatar1
+        normalized == "man_avatar2" -> R.drawable.man_avatar2
+        normalized == "man_avatar3" -> R.drawable.man_avatar3
+        normalized == "man_avatar4" -> R.drawable.man_avatar4
+        normalized == "man_avatar5" -> R.drawable.man_avatar5
+        normalized == "man_avatar6" -> R.drawable.man_avatar6
+        normalized == "man_avatar7" -> R.drawable.man_avatar7
+        normalized == "man_avatar8" -> R.drawable.man_avatar8
+        normalized == "man_avatar9" -> R.drawable.man_avatar9
+        normalized == "man_avatar10" -> R.drawable.man_avatar10
+        normalized == "man_avatar11" -> R.drawable.man_avatar11
+        normalized == "man_avatar12" -> R.drawable.man_avatar12
+        else -> R.drawable.women_avatar1
     }
 }
 
@@ -1070,6 +1209,210 @@ private fun GameStatsSheet(modifier: Modifier = Modifier) {
 }
 
 @Composable
+private fun AvatarEditSheet(
+    selectedAvatarUrl: String,
+    onAvatarSelected: (String) -> Unit,
+    onSave: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    ProfileEditSheetContainer(
+        title = "Choose your avatar",
+        onSave = onSave,
+        modifier = modifier.height(620.dp)
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(18.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            ProfileAvatarOptions.chunked(4).forEach { rowOptions ->
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    rowOptions.forEach { option ->
+                        ProfileAvatarOptionCard(
+                            avatarUrl = option,
+                            selected = selectedAvatarUrl == option,
+                            onClick = { onAvatarSelected(option) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileAvatarOptionCard(
+    avatarUrl: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(18.dp)
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .aspectRatio(1f)
+            .clip(shape)
+            .background(if (selected) Color(0xFFFFD33F) else Color(0xFFFFF3F5))
+            .border(if (selected) 2.dp else 1.dp, Color.Black, shape)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+            .padding(7.dp)
+    ) {
+        Image(
+            painter = painterResource(id = avatarUrl.toProfileAvatarRes()),
+            contentDescription = null,
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(CircleShape)
+                .background(Color.White),
+            contentScale = ContentScale.Crop
+        )
+        if (selected) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black)
+            ) {
+                Text(
+                    text = "✓",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NameEditSheet(
+    name: String,
+    onNameChange: (String) -> Unit,
+    onSave: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    ProfileEditSheetContainer(
+        title = "Edit your name",
+        onSave = onSave,
+        modifier = modifier.height(285.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+        ) {
+            val shape = RoundedCornerShape(14.dp)
+            BasicTextField(
+                value = name,
+                onValueChange = { onNameChange(it.take(30)) },
+                singleLine = true,
+                cursorBrush = SolidColor(ProfileCoral),
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    color = Color.Black,
+                    fontSize = 18.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp)
+                    .clip(shape)
+                    .background(Color(0xFFFFF3F5))
+                    .border(1.4.dp, Color.Black, shape)
+                    .padding(horizontal = 16.dp, vertical = 15.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProfileEditSheetContainer(
+    title: String,
+    onSave: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .background(Color.White)
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(top = 10.dp)
+                .size(width = 62.dp, height = 5.dp)
+                .align(Alignment.CenterHorizontally)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color(0xFFD7D7D7))
+        )
+        Spacer(modifier = Modifier.height(28.dp))
+        Text(
+            text = title,
+            color = Color.Black,
+            fontSize = 18.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(28.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) {
+            content()
+        }
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(58.dp)
+                .background(Color.White)
+                .border(0.5.dp, Color(0xFFE5E5E5), RoundedCornerShape(0.dp))
+                .padding(horizontal = 20.dp)
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .size(width = 132.dp, height = 40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFFFF6464))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onSave
+                    )
+            ) {
+                Text(
+                    text = "Save",
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun GameStatMiniCard(value: String, label: String) {
     val shape = RoundedCornerShape(8.dp)
     Box(modifier = Modifier.size(width = 108.dp, height = 70.dp)) {
@@ -1240,11 +1583,40 @@ private fun ProfileBottomSheetContainer(
 }
 
 private enum class ProfileSheet {
+    Avatar,
+    Name,
     Language,
     Interests,
     Vibe,
     GameStats
 }
+
+private val ProfileAvatarOptions = listOf(
+    "women_avatar1",
+    "women_avatar2",
+    "women_avatar3",
+    "women_avatar4",
+    "women_avatar5",
+    "women_avatar6",
+    "women_avatar7",
+    "women_avatar8",
+    "women_avatar9",
+    "women_avatar10",
+    "women_avatar11",
+    "women_avatar12",
+    "man_avatar1",
+    "man_avatar2",
+    "man_avatar3",
+    "man_avatar4",
+    "man_avatar5",
+    "man_avatar6",
+    "man_avatar7",
+    "man_avatar8",
+    "man_avatar9",
+    "man_avatar10",
+    "man_avatar11",
+    "man_avatar12"
+)
 
 private fun Set<String>.toggleValue(value: String): Set<String> {
     return if (contains(value)) this - value else this + value

@@ -57,7 +57,27 @@ data class GoogleAuthResponse(
     @SerializedName("verified") val verified: Boolean?,
     @SerializedName("message") val message: String?,
     @SerializedName("accessToken") val accessToken: String?,
-    @SerializedName("refreshToken") val refreshToken: String?
+    @SerializedName("refreshToken") val refreshToken: String?,
+    @SerializedName("accessTokenExpiresAt") val accessTokenExpiresAt: String?,
+    @SerializedName("refreshTokenExpiresAt") val refreshTokenExpiresAt: String?
+)
+
+data class RefreshTokenBody(
+    @SerializedName("refreshToken") val refreshToken: String,
+    @SerializedName("installationId") val installationId: String
+)
+
+data class RefreshTokenResponse(
+    @SerializedName("accessToken") val accessToken: String?,
+    @SerializedName("refreshToken") val refreshToken: String?,
+    @SerializedName("accessTokenExpiresAt") val accessTokenExpiresAt: String?,
+    @SerializedName("refreshTokenExpiresAt") val refreshTokenExpiresAt: String?,
+    @SerializedName("message") val message: String? = null
+)
+
+data class LogoutResponse(
+    @SerializedName("success") val success: Boolean? = null,
+    @SerializedName("message") val message: String? = null
 )
 
 data class AppVersionResponse(
@@ -138,4 +158,3 @@ class OtpDeviceProvider(private val context: Context) {
         const val DEFAULT_INSTALLATION_ID = "android-device"
     }
 }
-

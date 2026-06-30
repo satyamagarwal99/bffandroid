@@ -50,6 +50,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.bffandroid.R
+import com.example.bffandroid.ui.component.BffBottomBar
+import com.example.bffandroid.ui.component.BffHeartChip
+import com.example.bffandroid.ui.component.MainBottomTab
 import com.example.bffandroid.ui.theme.BffAndroidTheme
 import com.example.bffandroid.ui.theme.GaretFontFamily
 
@@ -58,10 +61,13 @@ private val HistoryOrange = Color(0xFFD87400)
 @Composable
 fun HistoryScreen(
     modifier: Modifier = Modifier,
+    walletHearts: Int = 0,
     onBack: () -> Unit = {},
+    onProfileRequested: () -> Unit = {},
+    onRechargeRequested: () -> Unit = {},
     onConnectSelected: () -> Unit = {},
     onGamesSelected: () -> Unit = {},
-    onChatSelected: () -> Unit = {}
+    onHomeSelected: () -> Unit = {}
 ) {
     BackHandler(onBack = onBack)
 
@@ -76,13 +82,20 @@ fun HistoryScreen(
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.FillBounds
         )
-
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(bottom = 88.dp)
                 .verticalScroll(rememberScrollState())
         ) {
+            Spacer(modifier = Modifier.height(48.dp))
+            HistoryTopBar(
+                walletHearts = walletHearts,
+                onProfileRequested = onProfileRequested,
+                onRechargeRequested = onRechargeRequested,
+                modifier = Modifier.padding(horizontal = 20.dp)
+            )
+            Spacer(modifier = Modifier.height(20.dp))
             HistoryTopArea()
             Spacer(modifier = Modifier.height(34.dp))
             HistoryTabs()
@@ -94,17 +107,50 @@ fun HistoryScreen(
             Spacer(modifier = Modifier.height(28.dp))
         }
 
-        HistoryBottomBar(
-            selectedTab = HistoryNavTab.History,
+        BffBottomBar(
+            selectedTab = MainBottomTab.History,
             onTabSelected = { tab ->
                 when (tab) {
-                    HistoryNavTab.Connect -> onConnectSelected()
-                    HistoryNavTab.Games -> onGamesSelected()
-                    HistoryNavTab.Chat -> onChatSelected()
+                    MainBottomTab.Connect -> onConnectSelected()
+                    MainBottomTab.Games -> onGamesSelected()
+                    MainBottomTab.Home -> onHomeSelected()
                     else -> Unit
                 }
             },
             modifier = Modifier.align(Alignment.BottomCenter)
+        )
+    }
+}
+
+@Composable
+private fun HistoryTopBar(
+    walletHearts: Int,
+    onProfileRequested: () -> Unit,
+    onRechargeRequested: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.man_avatar1),
+            contentDescription = "Profile",
+            modifier = Modifier
+                .size(44.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color.White)
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onProfileRequested
+                ),
+            contentScale = ContentScale.Crop
+        )
+        BffHeartChip(
+            hearts = walletHearts,
+            onClick = onRechargeRequested
         )
     }
 }
@@ -127,7 +173,7 @@ private fun HistoryTopArea() {
                 .align(Alignment.TopStart)
                 .offset(
                     x = 11.dp,
-                    y = 52.dp
+                    y = 12.dp
                 ),
             contentScale = ContentScale.FillBounds
         )
@@ -303,147 +349,6 @@ private fun HistoryDurationPill(text: String) {
             fontWeight = FontWeight.Medium
         )
     }
-}
-
-@Composable
-private fun HistoryBottomBar(
-    selectedTab: HistoryNavTab,
-    onTabSelected: (HistoryNavTab) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(99.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .height(88.dp)
-                .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
-                .background(Color.White)
-        )
-        Row(
-            verticalAlignment = Alignment.Top,
-            horizontalArrangement = Arrangement.SpaceAround,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .height(88.dp)
-        ) {
-            HistoryNavTab.entries.forEach { tab ->
-                HistoryBottomBarItem(
-                    tab = tab,
-                    isSelected = selectedTab == tab,
-                    onClick = { onTabSelected(tab) }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun HistoryBottomBarItem(
-    tab: HistoryNavTab,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    val bubbleColor by animateColorAsState(
-        targetValue = if (isSelected) tab.tint.copy(alpha = 0.18f) else Color.Transparent,
-        animationSpec = spring(stiffness = 380f),
-        label = "historyBubbleColor"
-    )
-    val iconScale by animateFloatAsState(
-        targetValue = if (isSelected) 1.06f else 1f,
-        animationSpec = spring(dampingRatio = 0.62f, stiffness = 420f),
-        label = "historyIconScale"
-    )
-    val circleSize by animateDpAsState(
-        targetValue = if (isSelected) 56.dp else 40.dp,
-        animationSpec = spring(dampingRatio = 0.7f, stiffness = 450f),
-        label = "historyCircleSize"
-    )
-    val itemTopOffset by animateDpAsState(
-        targetValue = if (isSelected) (-11).dp else 12.dp,
-        animationSpec = spring(dampingRatio = 0.7f, stiffness = 450f),
-        label = "historyItemTopOffset"
-    )
-    val labelColor by animateColorAsState(
-        targetValue = if (isSelected) Color.Black else Color(0xFF7A7A7A),
-        label = "historyLabelColor"
-    )
-
-    Box(
-        modifier = Modifier
-            .size(width = 74.dp, height = 99.dp)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            )
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = itemTopOffset)
-        ) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(circleSize)
-                    .clip(CircleShape)
-                    .background(if (isSelected) bubbleColor else Color.Transparent)
-            ) {
-                if (isSelected) {
-                    Box(
-                        modifier = Modifier
-                            .matchParentSize()
-                            .padding(3.dp)
-                            .clip(CircleShape)
-                            .background(Color.White)
-                    )
-                }
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(if (isSelected) 46.dp else 40.dp)
-                        .clip(CircleShape)
-                        .background(tab.tint)
-                ) {
-                    Icon(
-                        imageVector = tab.icon,
-                        contentDescription = tab.label,
-                        tint = Color.White,
-                        modifier = Modifier
-                            .size(if (isSelected) 22.dp else 21.dp)
-                            .scale(iconScale)
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = tab.label,
-                color = labelColor,
-                fontSize = 12.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                maxLines = 1
-            )
-        }
-    }
-}
-
-private enum class HistoryNavTab(
-    val label: String,
-    val icon: ImageVector,
-    val tint: Color
-) {
-    Connect("Connect", Icons.Default.Phone, Color(0xFFF5BE2E)),
-    Games("Games", Icons.Default.SportsEsports, Color(0xFF8D32F7)),
-    Chat("Chat", Icons.Default.ChatBubbleOutline, Color(0xFF196DFF)),
-    History("History", Icons.Default.History, Color(0xFFFF9518))
 }
 
 private data class HistoryCall(
