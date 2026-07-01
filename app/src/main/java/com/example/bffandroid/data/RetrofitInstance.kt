@@ -5,13 +5,13 @@ import com.example.bffandroid.utils.AppSession
 import com.example.bffandroid.utils.Constant
 import com.example.bffandroid.utils.TokenUtils
 import com.google.gson.Gson
+import android.util.Log
 import okhttp3.Authenticator
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
-import okhttp3.Route
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -19,6 +19,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 object RetrofitInstance {
+    private const val TAG = "RetrofitInstance"
     private const val BASE_URL = "https://api.gobff.app/api/v1/"
     private const val TIMEOUT_SECONDS = 5L
     private const val AUTHORIZATION_HEADER = "Authorization"
@@ -50,6 +51,8 @@ object RetrofitInstance {
 
     private val tokenAuthenticator = Authenticator { _, response ->
         if (responseCount(response) >= 2 || response.request.url.encodedPath.contains("/auth/refresh")) {
+            Log.w(TAG, "Authenticator refusing retry path=${response.request.url.encodedPath} count=${responseCount(response)}; clearing session")
+            AppSession.logSnapshot("authenticator-before-clear")
             AppSession.clear()
             return@Authenticator null
         }
@@ -92,12 +95,19 @@ object RetrofitInstance {
         synchronized(refreshLock) {
             val currentToken = TokenUtils.getAccessToken()
             if (currentToken.isNotBlank() && currentToken != requestToken) {
+                Log.d(TAG, "Using token refreshed by another request")
                 return currentToken
             }
 
             val refreshToken = AppSession.getString(Constant.REFRESH_TOKEN_KEY).orEmpty()
             val installationId = AppSession.getString(Constant.INSTALLATION_ID_KEY).orEmpty()
             if (refreshToken.isBlank() || installationId.isBlank()) {
+                Log.w(
+                    TAG,
+                    "Cannot refresh access token: refreshTokenMissing=${refreshToken.isBlank()} " +
+                        "installationIdMissing=${installationId.isBlank()}; clearing session"
+                )
+                AppSession.logSnapshot("refreshAccessToken-missing-data")
                 AppSession.clear()
                 return null
             }
@@ -119,13 +129,19 @@ object RetrofitInstance {
                 refreshClient.newCall(request).execute().use { refreshResponse ->
                     val responseBody = refreshResponse.body?.string().orEmpty()
                     if (!refreshResponse.isSuccessful) {
-                        AppSession.clear()
+                        Log.w(TAG, "Refresh failed status=${refreshResponse.code}; clearing session")
+                        AppSession.logSnapshot("refreshAccessToken-http-${refreshResponse.code}")
+                        if (refreshResponse.code == 400 || refreshResponse.code == 401 || refreshResponse.code == 403) {
+                            AppSession.clear()
+                        }
                         return@use null
                     }
 
                     val tokenResponse = gson.fromJson(responseBody, RefreshTokenResponse::class.java)
                     val accessToken = tokenResponse.accessToken?.takeIf { it.isNotBlank() }
                     if (accessToken == null) {
+                        Log.w(TAG, "Refresh response missing access token; clearing session")
+                        AppSession.logSnapshot("refreshAccessToken-missing-access")
                         AppSession.clear()
                         return@use null
                     }
@@ -138,10 +154,12 @@ object RetrofitInstance {
                         installationId = installationId
                     )
                     AppSession.putBoolean(Constant.IS_USER_LOGGED_IN, true)
+                    AppSession.logSnapshot("refreshAccessToken-success")
                     accessToken
                 }
             }.getOrElse {
-                AppSession.clear()
+                Log.e(TAG, "Refresh request failed; keeping existing session for retry", it)
+                AppSession.logSnapshot("refreshAccessToken-exception-keep-session")
                 null
             }
         }

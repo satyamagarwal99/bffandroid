@@ -8,18 +8,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.bffandroid.data.MainRepository
 import com.example.bffandroid.data.model.CountryIsoProvider
 import com.example.bffandroid.data.model.CountryLoginConfig
+import com.example.bffandroid.data.model.DeviceInfo
 import com.example.bffandroid.data.model.GoogleAuthBody
 import com.example.bffandroid.data.model.LoginMethod
 import com.example.bffandroid.data.model.LoginUiState
-import com.example.bffandroid.data.model.DeviceInfo
-import com.example.bffandroid.data.model.OtpDeviceProvider
 import com.example.bffandroid.data.model.OtpRequestBody
 import com.example.bffandroid.data.model.OtpVerifyBody
-import com.example.bffandroid.data.MainRepository
 import com.example.bffandroid.utils.AppSession
 import com.example.bffandroid.utils.Constant
+import com.example.bffandroid.utils.OtpDeviceProvider
 import com.example.bffandroid.utils.TokenUtils
 import kotlinx.coroutines.launch
 
@@ -105,39 +105,6 @@ class LoginViewModel(
         }
     }
 
-/*    private fun requestOtp() {
-        val phoneNumber = uiState.mobileNumber.filter { it.isDigit() }
-        if (phoneNumber.isBlank()) {
-            uiState = uiState.copy(authStatusText = "Enter your phone number")
-            return
-        }
-
-        viewModelScope.launch {
-            Log.d(TAG, "Starting OTP request")
-            uiState = uiState.copy(
-                isOtpRequestLoading = true,
-                authStatusText = null,
-                otpDebugText = null,
-                isAuthenticated = false
-            )
-            val result = authRepository.requestOtp(
-                countryIso = uiState.countryIso,
-                phoneNumber = phoneNumber,
-                installationId = otpDeviceProvider.installationId()
-            )
-            Log.d(TAG, "OTP request completed: debugOtp=${result.debugOtp}, message=${result.message}")
-            uiState = uiState.copy(
-                showOtp = result.isSuccessful,
-                isOtpRequestLoading = false,
-                otpDebugText = result.debugOtp?.let { "OTP: $it" },
-                authStatusText = when {
-                    result.debugOtp != null -> "OTP sent"
-                    result.isSuccessful -> result.message ?: "OTP sent"
-                    else -> result.message ?: "Unable to request OTP"
-                }
-            )
-        }
-    }*/
 
     private fun requestOtp() {
         val phoneNumber = uiState.mobileNumber.filter { it.isDigit() }
@@ -196,14 +163,13 @@ class LoginViewModel(
                 isOtpVerifyLoading = true,
                 authStatusText = null
             )
-            val installationId = otpDeviceProvider.installationId()
 
             val body = OtpVerifyBody(
                 countryIso2 = uiState.countryIso.uppercase(),
                 phoneNumber = uiState.mobileNumber.filter { it.isDigit() },
                 otp = otp,
                 device = DeviceInfo(
-                    installationId = installationId,
+                    installationId = otpDeviceProvider.installationId(),
                     platform = Constant.DEVICE_PLATFORM,
                     deviceBrand = Build.BRAND.orEmpty().ifBlank { "Android" },
                     deviceModel = Build.MODEL.orEmpty().ifBlank { "Device" },
@@ -224,8 +190,9 @@ class LoginViewModel(
                             refreshToken = responseBody.refreshToken,
                             accessTokenExpiresAt = responseBody.accessTokenExpiresAt,
                             refreshTokenExpiresAt = responseBody.refreshTokenExpiresAt,
-                            installationId = installationId
+                            installationId = otpDeviceProvider.installationId()
                         )
+                        AppSession.logSnapshot("LoginViewModel.otp.success")
                         uiState = uiState.copy(
                             isOtpVerifyLoading = false,
                             isAuthenticated = true,
@@ -250,6 +217,7 @@ class LoginViewModel(
     }
 
     private fun authenticateWithGoogle() {
+        val installationId = otpDeviceProvider.installationId()
         viewModelScope.launch {
             Log.d(TAG, "Starting Google auth")
             uiState = uiState.copy(
@@ -257,12 +225,11 @@ class LoginViewModel(
                 authStatusText = null,
                 isAuthenticated = false
             )
-            val installationId = otpDeviceProvider.installationId()
             val body = GoogleAuthBody(
                 countryIso2 = uiState.countryIso.uppercase(),
-                idToken = "dev-google:$installationId",
+                idToken = "dev-google:${otpDeviceProvider.installationId()}",
                 device = DeviceInfo(
-                    installationId = installationId,
+                    installationId = otpDeviceProvider.installationId(),
                     platform = Constant.DEVICE_PLATFORM,
                     deviceBrand = Build.BRAND.orEmpty().ifBlank { "Android" },
                     deviceModel = Build.MODEL.orEmpty().ifBlank { "Device" },
@@ -287,6 +254,7 @@ class LoginViewModel(
                             refreshTokenExpiresAt = responseBody?.refreshTokenExpiresAt,
                             installationId = installationId
                         )
+                        AppSession.logSnapshot("LoginViewModel.google.success")
                     }
                     uiState = uiState.copy(
                         isGoogleAuthLoading = false,

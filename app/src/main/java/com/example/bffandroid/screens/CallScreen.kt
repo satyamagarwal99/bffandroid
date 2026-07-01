@@ -1,7 +1,11 @@
 package com.example.bffandroid.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
 import androidx.compose.foundation.Image
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,6 +37,7 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -50,6 +55,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -57,9 +63,12 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.core.content.ContextCompat
 import com.example.bffandroid.R
 import com.example.bffandroid.ui.theme.BffAndroidTheme
 import com.example.bffandroid.ui.theme.GaretFontFamily
+import com.example.bffandroid.viewmodel.CallViewModel
 import kotlinx.coroutines.delay
 
 private val CallYellow = Color(0xFFF5B120)
@@ -68,11 +77,14 @@ private val CallYellow = Color(0xFFF5B120)
 fun CallScreen(
     personName: String,
     onBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    callViewModel: CallViewModel = viewModel()
 ) {
+    val context = LocalContext.current
+    val uiState = callViewModel.uiState
     var countdown by remember { mutableIntStateOf(3) }
     var callSecondsRemaining by remember { mutableIntStateOf(4 * 60 + 59) }
-    var isConnected by remember { mutableStateOf(false) }
+    val isConnected = uiState.isRtcJoined
     var showAddTimeSheet by remember { mutableStateOf(false) }
     var showGiftSheet by remember { mutableStateOf(false) }
     var showGameSheet by remember { mutableStateOf(false) }
@@ -80,6 +92,24 @@ fun CallScreen(
     var selectedAddTimeOption by remember { mutableStateOf(AddTimeOptions.first()) }
     var sendingGift by remember { mutableStateOf<GiftItem?>(null) }
     var giftDeliveryPhase by remember { mutableStateOf<GiftDeliveryPhase?>(null) }
+    var hasAudioPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.RECORD_AUDIO
+            ) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasAudioPermission = isGranted
+    }
+
+    fun leaveAndClose() {
+        callViewModel.leaveCall()
+        onBack()
+    }
 
     BackHandler {
         when {
@@ -87,17 +117,32 @@ fun CallScreen(
             showGiftSheet -> showGiftSheet = false
             showAddTimeSheet -> showAddTimeSheet = false
             showFeedbackPopup -> showFeedbackPopup = false
-            else -> onBack()
+            else -> leaveAndClose()
         }
     }
 
-    LaunchedEffect(personName) {
-        isConnected = false
+    LaunchedEffect(personName, hasAudioPermission) {
+        if (hasAudioPermission) {
+            callViewModel.createRandomOneToOneAudioCall(
+                title = "$personName Audio Call"
+            )
+        } else {
+            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            callViewModel.leaveCall()
+        }
+    }
+
+    LaunchedEffect(personName, isConnected) {
+        if (isConnected) return@LaunchedEffect
         for (value in 3 downTo 1) {
             countdown = value
             delay(1_000L)
         }
-        isConnected = true
     }
 
     LaunchedEffect(isConnected, personName) {
@@ -140,14 +185,30 @@ fun CallScreen(
                 onTimerClick = { showAddTimeSheet = true },
                 onGiftClick = { showGiftSheet = true },
                 onGameClick = { showGameSheet = true },
-                onEndCall = { showFeedbackPopup = true },
+                isMuted = uiState.isMuted,
+                isSpeakerEnabled = uiState.isSpeakerEnabled,
+                onMuteToggle = { callViewModel.setMuted(!uiState.isMuted) },
+                onSpeakerToggle = { callViewModel.setSpeakerEnabled(!uiState.isSpeakerEnabled) },
+                onVideoClick = { callViewModel.requestVideoUpgrade() },
+                onEndCall = {
+                    callViewModel.leaveCall()
+                    showFeedbackPopup = true
+                },
                 modifier = Modifier.fillMaxSize()
             )
         } else {
             ConnectingCallContent(
                 personName = personName,
                 countdown = countdown,
-                onBack = onBack,
+                statusText = when {
+                    !hasAudioPermission -> "Microphone permission needed"
+                    uiState.errorMessage != null -> uiState.errorMessage
+                    uiState.isCreatingRoom -> "Creating room..."
+                    uiState.isFetchingRtcToken -> "Fetching secure call token..."
+                    uiState.isJoiningRtc -> "Joining audio..."
+                    else -> "Connecting..."
+                },
+                onBack = ::leaveAndClose,
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -228,6 +289,7 @@ fun CallScreen(
 private fun ConnectingCallContent(
     personName: String,
     countdown: Int,
+    statusText: String?,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -251,11 +313,13 @@ private fun ConnectingCallContent(
             )
             Spacer(modifier = Modifier.height(14.dp))
             Text(
-                text = "Connecting in...",
+                text = statusText ?: "Connecting...",
                 color = Color(0xFF8B6814),
                 fontSize = 17.sp,
                 fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 24.dp)
             )
         }
 
@@ -320,6 +384,11 @@ private fun ActiveCallContent(
     onTimerClick: () -> Unit,
     onGiftClick: () -> Unit,
     onGameClick: () -> Unit,
+    isMuted: Boolean,
+    isSpeakerEnabled: Boolean,
+    onMuteToggle: () -> Unit,
+    onSpeakerToggle: () -> Unit,
+    onVideoClick: () -> Unit,
     onEndCall: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -399,6 +468,11 @@ private fun ActiveCallContent(
         }
 
         CallControls(
+            isMuted = isMuted,
+            isSpeakerEnabled = isSpeakerEnabled,
+            onMuteToggle = onMuteToggle,
+            onSpeakerToggle = onSpeakerToggle,
+            onVideoClick = onVideoClick,
             onEndCall = onEndCall,
             modifier = Modifier.align(Alignment.BottomCenter)
         )
@@ -1703,6 +1777,11 @@ private fun CallActionBubble(
 
 @Composable
 private fun CallControls(
+    isMuted: Boolean,
+    isSpeakerEnabled: Boolean,
+    onMuteToggle: () -> Unit,
+    onSpeakerToggle: () -> Unit,
+    onVideoClick: () -> Unit,
     onEndCall: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1717,9 +1796,20 @@ private fun CallControls(
             .background(Color.White)
             .border(2.dp, Color.Black, RoundedCornerShape(18.dp))
     ) {
-        CallControlIcon(iconRes = R.drawable.call_screen_mic)
-        CallControlIcon(iconRes = R.drawable.call_screen_speaker)
-        CallControlIcon(iconRes = R.drawable.call_screen_camera)
+        CallControlIcon(
+            iconRes = R.drawable.call_screen_mic,
+            isSelected = isMuted,
+            onClick = onMuteToggle
+        )
+        CallControlIcon(
+            iconRes = R.drawable.call_screen_speaker,
+            isSelected = isSpeakerEnabled,
+            onClick = onSpeakerToggle
+        )
+        CallControlIcon(
+            iconRes = R.drawable.call_screen_camera,
+            onClick = onVideoClick
+        )
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
@@ -1739,13 +1829,28 @@ private fun CallControls(
 }
 
 @Composable
-private fun CallControlIcon(iconRes: Int) {
-    Image(
-        painter = painterResource(id = iconRes),
-        contentDescription = null,
-        modifier = Modifier.size(40.dp),
-        contentScale = ContentScale.Fit
-    )
+private fun CallControlIcon(
+    iconRes: Int,
+    isSelected: Boolean = false,
+    onClick: (() -> Unit)? = null
+) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(46.dp)
+            .clip(CircleShape)
+            .background(if (isSelected) Color(0xFFFFE4E4) else Color.Transparent)
+            .clickable(enabled = onClick != null) { onClick?.invoke() }
+    ) {
+        Image(
+            painter = painterResource(id = iconRes),
+            contentDescription = null,
+            modifier = Modifier
+                .size(40.dp)
+                .alpha(if (isSelected) 0.58f else 1f),
+            contentScale = ContentScale.Fit
+        )
+    }
 }
 
 private data class AddTimeOption(

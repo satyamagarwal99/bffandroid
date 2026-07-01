@@ -1,17 +1,22 @@
 package com.example.bffandroid.navigation
 
+import android.util.Log
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.bffandroid.R
 import com.example.bffandroid.data.MainRepository
 import com.example.bffandroid.screens.AudioScreen
@@ -22,8 +27,8 @@ import com.example.bffandroid.screens.GameScreen
 import com.example.bffandroid.screens.GenderScreen
 import com.example.bffandroid.screens.GiftVibeScreen
 import com.example.bffandroid.screens.HistoryScreen
-import com.example.bffandroid.screens.HomeScreen2
 import com.example.bffandroid.screens.HomeScreen
+import com.example.bffandroid.screens.HomeScreen2
 import com.example.bffandroid.screens.LoginScreen
 import com.example.bffandroid.screens.PersonalChatScreen
 import com.example.bffandroid.screens.ProfileScreen
@@ -34,18 +39,23 @@ import com.example.bffandroid.screens.TruthDareScreen
 import com.example.bffandroid.screens.WalletScreen
 import com.example.bffandroid.utils.AppSession
 import com.example.bffandroid.utils.Constant
-import com.example.bffandroid.viewmodel.WalletViewModel
+import com.example.bffandroid.utils.TokenUtils
+import com.example.bffandroid.viewmodel.MainViewModel
 import com.example.bffandroid.viewmodel.UserProfileViewModel
+import com.example.bffandroid.viewmodel.WalletViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private const val SPLASH_DURATION_MS = 2_000L
+private const val TAG = "AppNavGraph"
 
 @Composable
 fun AppNavGraph(
     navController: NavHostController = rememberNavController()
 ) {
     val mainRepository = remember { MainRepository() }
+    val mainViewModel: MainViewModel = viewModel()
+    val lifecycleOwner = LocalLifecycleOwner.current
     val walletViewModel: WalletViewModel = viewModel()
     val userProfileViewModel: UserProfileViewModel = viewModel()
     val coroutineScope = rememberCoroutineScope()
@@ -53,6 +63,33 @@ fun AppNavGraph(
     var activeCallName by remember { mutableStateOf("Anshu") }
     var activeChatName by remember { mutableStateOf("Anshu") }
     var activeChatAvatar by remember { mutableStateOf(R.drawable.women_avatar3) }
+    var initialAppOpenDispatched by remember { mutableStateOf(false) }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> {
+                    if (initialAppOpenDispatched) {
+                        mainViewModel.onAppOpen()
+                    } else {
+                        initialAppOpenDispatched = true
+                    }
+                }
+                Lifecycle.Event.ON_STOP -> mainViewModel.onAppClose()
+                else -> Unit
+            }
+        }
+
+        lifecycleOwner.lifecycle.addObserver(observer)
+        if (!initialAppOpenDispatched) {
+            initialAppOpenDispatched = true
+            mainViewModel.onAppOpen()
+        }
+
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     NavHost(
         navController = navController,
@@ -60,18 +97,27 @@ fun AppNavGraph(
     ) {
         composable(AppRoute.Splash.route) {
             LaunchedEffect(Unit) {
+                AppSession.logSnapshot("Splash.start")
                 runCatching {
                     mainRepository.getAppVersion(Constant.DEVICE_PLATFORM, Constant.APP_VERSION)
+                }.onFailure { error ->
+                    Log.w(TAG, "App version check failed during splash", error)
                 }
-                if (AppSession.getBoolean(Constant.IS_USER_LOGGED_IN)) {
+                val hasStoredSession = TokenUtils.hasStoredSession()
+                if (hasStoredSession) {
                     walletViewModel.loadWalletBalance()
                 }
                 delay(SPLASH_DURATION_MS)
-                val nextRoute = if (AppSession.getBoolean(Constant.IS_USER_LOGGED_IN)) {
-                    if (userProfileViewModel.refreshProfile()) AppRoute.Home2.route else AppRoute.Gender.route
+                val hasSessionAfterSplash = TokenUtils.hasStoredSession()
+                val nextRoute = if (hasSessionAfterSplash) {
+                    val hasProfile = userProfileViewModel.refreshProfile()
+                    Log.d(TAG, "Splash profile refresh result=$hasProfile")
+                    if (hasProfile) AppRoute.Home2.route else AppRoute.Gender.route
                 } else {
                     AppRoute.Login.route
                 }
+                AppSession.logSnapshot("Splash.navigate.$nextRoute")
+                Log.d(TAG, "Splash navigating to $nextRoute")
                 navController.navigate(nextRoute) {
                     popUpTo(AppRoute.Splash.route) { inclusive = true }
                     launchSingleTop = true
@@ -179,6 +225,8 @@ fun AppNavGraph(
             SettingsScreen(
                 onBack = navController::navigateUp,
                 onLogout = {
+                    mainViewModel.onAppClose()
+                    AppSession.clear()
                     navController.navigate(AppRoute.Login.route) {
                         popUpTo(0)
                         launchSingleTop = true
@@ -209,6 +257,9 @@ fun AppNavGraph(
                     activeChatAvatar = avatarRes
                     navController.navigateSingleTop(AppRoute.PersonalChat)
                 },
+                /*onConnectSelected = { navController.navigateHome() },
+                onGamesSelected = { navController.navigateSingleTop(AppRoute.Games) },
+                onHistorySelected = { navController.navigateSingleTop(AppRoute.History) }*/
             )
         }
 
@@ -269,7 +320,7 @@ fun AppNavGraph(
         composable(AppRoute.Call.route) {
             CallScreen(
                 personName = activeCallName,
-                onBack = navController::navigateUp
+                onBack = { navController.navigateHome() }
             )
         }
     }

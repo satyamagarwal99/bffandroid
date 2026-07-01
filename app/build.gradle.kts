@@ -62,4 +62,5 @@ dependencies {
     implementation(libs.logging.interceptor)
 
     implementation(libs.androidx.security.crypto)
+    implementation(libs.agora.rtc)
 }
