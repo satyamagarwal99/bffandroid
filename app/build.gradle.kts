@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.bffandroid"
+    namespace = "com.gobff.getfriends"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.bffandroid"
+        applicationId = "com.gobff.getfriends"
         minSdk = 29
         targetSdk = 36
         versionCode = 1
