@@ -2,7 +2,10 @@ package com.example.bffandroid.data
 
 import com.example.bffandroid.data.model.AppVersionResponse
 import com.example.bffandroid.data.model.CountryLoginConfig
+import com.example.bffandroid.data.model.ConnectUserResponse
 import com.example.bffandroid.data.model.CreateRoomBody
+import com.example.bffandroid.data.model.GameCatalogItemDto
+import com.example.bffandroid.data.model.GiftCatalogResponse
 import com.example.bffandroid.data.model.GoogleAuthBody
 import com.example.bffandroid.data.model.GoogleAuthResponse
 import com.example.bffandroid.data.model.HomeOptionsResponse
@@ -68,6 +71,12 @@ class MainRepository(
 
     suspend fun getRechargeOptions(bearerToken: String): Response<RechargeOptionsResponse> =
         apiService.getRechargeOptions(bearerToken)
+
+    suspend fun getGiftCatalog(bearerToken: String): Response<GiftCatalogResponse> =
+        apiService.getGiftCatalog(bearerToken)
+
+    suspend fun getGameCatalog(bearerToken: String): Response<List<GameCatalogItemDto>> =
+        apiService.getGameCatalog(bearerToken)
 
     suspend fun getRechargeQuote(
         bearerToken: String,
@@ -159,6 +168,11 @@ class MainRepository(
     suspend fun getHomeOptions(
         bearerToken: String
     ): Response<HomeOptionsResponse> = apiService.getHomeOptions(bearerToken)
+
+    suspend fun getConnectUsers(
+        bearerToken: String,
+        size: Int = 10
+    ): Response<List<ConnectUserResponse>> = apiService.getConnectUsers(bearerToken, size)
 
     suspend fun submitVoiceVerification(
         bearerToken: String,

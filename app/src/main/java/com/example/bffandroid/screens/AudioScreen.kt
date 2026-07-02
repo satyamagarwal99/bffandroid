@@ -96,21 +96,35 @@ fun AudioScreen(
 
     BackHandler(onBack = onBack)
 
-    fun resolveRecording() {
+    fun resolveRecordingAndSubmit() {
         val durationSeconds = ((SystemClock.elapsedRealtime() - recordingStartedAt) / 1000L).toInt()
         elapsedSeconds = durationSeconds.coerceAtMost(MAX_RECORDING_SECONDS)
-        audioStage = if (durationSeconds >= MIN_SUCCESS_SECONDS) {
-            AudioStage.Success
-        } else {
-            AudioStage.Retry
+        if (durationSeconds < MIN_SUCCESS_SECONDS) {
+            audioStage = AudioStage.Retry
+            statusMessage = null
+            return
         }
-        statusMessage = null
+
+        audioStage = AudioStage.Retry
+        statusMessage = "Checking your voice..."
+        voiceVerificationViewModel.submitVoiceVerification(
+            file = outputFile,
+            onResult = { verified ->
+                if (verified) {
+                    audioStage = AudioStage.Success
+                    statusMessage = null
+                } else {
+                    audioStage = AudioStage.Retry
+                    statusMessage = "Verification pending. Please retry."
+                }
+            }
+        )
     }
 
     fun stopRecording() {
         val currentRecorder = recorder ?: return
         runCatching { currentRecorder.stop() }
-            .onSuccess { resolveRecording() }
+            .onSuccess { resolveRecordingAndSubmit() }
             .onFailure {
                 audioStage = AudioStage.Retry
                 statusMessage = "No worries! Let's try that again."
@@ -124,7 +138,7 @@ fun AudioScreen(
         if (!hasAudioPermission) return
 
         outputFile?.delete()
-        val file = File.createTempFile("voice_sample_", ".m4a", context.cacheDir)
+        val file = File.createTempFile("voice_sample_", ".mp3", context.cacheDir)
         outputFile = file
         elapsedSeconds = 0
         statusMessage = null
@@ -142,6 +156,23 @@ fun AudioScreen(
 
         recordingStartedAt = SystemClock.elapsedRealtime()
         audioStage = AudioStage.Recording
+    }
+
+    LaunchedEffect(
+        voiceUiState.isStatusLoading,
+        voiceUiState.isVerified,
+        voiceUiState.isVoiceRecorded,
+        voiceUiState.status
+    ) {
+        if (voiceUiState.isStatusLoading || audioStage == AudioStage.Recording || voiceUiState.isSubmitting) {
+            return@LaunchedEffect
+        }
+
+        audioStage = when {
+            voiceUiState.isVerified -> AudioStage.Success
+            voiceUiState.isVoiceRecorded || voiceUiState.status.isVoiceVerificationPending() -> AudioStage.Retry
+            else -> audioStage
+        }
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -211,14 +242,9 @@ fun AudioScreen(
                         .offset(y = (-6).dp)
                 )
                 AudioPrimaryButton(
-                    text = if (voiceUiState.isSubmitting) "Submitting..." else "Good to go!",
-                    enabled = !voiceUiState.isSubmitting,
-                    onClick = {
-                        voiceVerificationViewModel.submitVoiceVerification(
-                            file = outputFile,
-                            onSuccess = onDone
-                        )
-                    },
+                    text = "Good to go!",
+                    enabled = voiceUiState.isVerified,
+                    onClick = onDone,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .offset(y = (-52).dp)
@@ -256,6 +282,7 @@ fun AudioScreen(
                 AudioRecordButton(
                     recording = false,
                     onClick = {
+                        if (voiceUiState.isSubmitting) return@AudioRecordButton
                         if (hasAudioPermission) {
                             runCatching { startRecording() }
                                 .onFailure {
@@ -269,7 +296,11 @@ fun AudioScreen(
                     modifier = Modifier.align(Alignment.Center).offset(y = 98.dp)
                 )
                 Text(
-                    text = if (audioStage == AudioStage.Retry) "Tap to Record again" else "Tap to Record",
+                    text = when {
+                        voiceUiState.isSubmitting -> "Submitting..."
+                        audioStage == AudioStage.Retry -> "Tap to Record again"
+                        else -> "Tap to Record"
+                    },
                     color = Color.White,
                     fontSize = 16.sp,
                     lineHeight = 16.sp,
@@ -571,6 +602,10 @@ private fun AudioPrimaryButton(
 private fun formatElapsedSeconds(seconds: Int): String {
     val clamped = seconds.coerceIn(0, MAX_RECORDING_SECONDS)
     return "0:${clamped.toString().padStart(2, '0')}"
+}
+
+private fun String?.isVoiceVerificationPending(): Boolean {
+    return this?.trim()?.uppercase() == "PENDING"
 }
 
 private enum class AudioStage {

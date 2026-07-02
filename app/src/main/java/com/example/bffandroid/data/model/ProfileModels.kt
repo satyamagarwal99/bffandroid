@@ -29,6 +29,11 @@ data class UserProfileResponse(
     @SerializedName("gender") val gender: String? = null,
     @SerializedName("avatarUrl") val avatarUrl: String? = null,
     @SerializedName("bio") val bio: String? = null,
+    @SerializedName("voiceVerificationStatus") val voiceVerificationStatus: String? = null,
+    @SerializedName("voiceVerificationRequired") val voiceVerificationRequired: Boolean? = null,
+    @SerializedName("voiceVerificationMethod") val voiceVerificationMethod: String? = null,
+    @SerializedName("voiceVerificationCheckedAt") val voiceVerificationCheckedAt: String? = null,
+    @SerializedName("voiceSampleReference") val voiceSampleReference: String? = null,
     @SerializedName("languages") val languages: List<String>? = null,
     @SerializedName("vibes") val vibes: List<String>? = null
 )
@@ -41,6 +46,11 @@ data class UserProfileUiState(
     val gender: String? = null,
     val avatarUrl: String? = null,
     val bio: String? = null,
+    val voiceVerificationStatus: String? = null,
+    val voiceVerificationRequired: Boolean = false,
+    val voiceVerificationMethod: String? = null,
+    val voiceVerificationCheckedAt: String? = null,
+    val voiceSampleReference: String? = null,
     val languages: Set<String> = emptySet(),
     val vibes: Set<String> = emptySet()
 )
@@ -51,6 +61,7 @@ data class UpdateProfileUiState(
 )
 
 data class VoiceVerificationResponse(
+    @SerializedName("isVoiceRecorded") val isVoiceRecorded: Boolean?,
     @SerializedName("success") val success: Boolean?,
     @SerializedName("status") val status: String?,
     @SerializedName("message") val message: String?,
@@ -59,6 +70,7 @@ data class VoiceVerificationResponse(
 )
 
 data class VoiceVerificationStatusResponse(
+    @SerializedName("isVoiceRecorded") val isVoiceRecorded: Boolean?,
     @SerializedName("status") val status: String?,
     @SerializedName("message") val message: String?,
     @SerializedName("verified") val verified: Boolean?,
@@ -69,6 +81,7 @@ data class VoiceVerificationStatusResponse(
 data class VoiceVerificationUiState(
     val isStatusLoading: Boolean = false,
     val isSubmitting: Boolean = false,
+    val isVoiceRecorded: Boolean = false,
     val status: String? = null,
     val isVerified: Boolean = false,
     val errorMessage: String? = null

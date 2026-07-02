@@ -9,11 +9,26 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -37,6 +52,8 @@ import com.example.bffandroid.screens.SettingsScreen
 import com.example.bffandroid.screens.SplashScreen
 import com.example.bffandroid.screens.TruthDareScreen
 import com.example.bffandroid.screens.WalletScreen
+import com.example.bffandroid.ui.component.BffBottomBar
+import com.example.bffandroid.ui.component.MainBottomTab
 import com.example.bffandroid.utils.AppSession
 import com.example.bffandroid.utils.Constant
 import com.example.bffandroid.utils.TokenUtils
@@ -48,6 +65,8 @@ import kotlinx.coroutines.launch
 
 private const val SPLASH_DURATION_MS = 2_000L
 private const val TAG = "AppNavGraph"
+private val MIN_BOTTOM_BAR_CONTENT_PADDING = 0.dp
+private val MAX_BOTTOM_BAR_CONTENT_PADDING = 0.dp
 
 @Composable
 fun AppNavGraph(
@@ -56,6 +75,7 @@ fun AppNavGraph(
     val mainRepository = remember { MainRepository() }
     val mainViewModel: MainViewModel = viewModel()
     val lifecycleOwner = LocalLifecycleOwner.current
+    val configuration = LocalConfiguration.current
     val walletViewModel: WalletViewModel = viewModel()
     val userProfileViewModel: UserProfileViewModel = viewModel()
     val coroutineScope = rememberCoroutineScope()
@@ -64,6 +84,11 @@ fun AppNavGraph(
     var activeChatName by remember { mutableStateOf("Anshu") }
     var activeChatAvatar by remember { mutableStateOf(R.drawable.women_avatar3) }
     var initialAppOpenDispatched by remember { mutableStateOf(false) }
+    val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+    val selectedBottomTab = currentRoute.toMainBottomTab()
+    val adaptiveBottomPadding = (configuration.screenHeightDp.dp * 0.035f)
+        .coerceIn(MIN_BOTTOM_BAR_CONTENT_PADDING, MAX_BOTTOM_BAR_CONTENT_PADDING)
+    val appBottomBarContentPadding = if (selectedBottomTab == null) 0.dp else adaptiveBottomPadding
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -91,10 +116,15 @@ fun AppNavGraph(
         }
     }
 
-    NavHost(
-        navController = navController,
-        startDestination = AppRoute.Splash.route
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        NavHost(
+            navController = navController,
+            startDestination = AppRoute.Splash.route,
+            modifier = Modifier
+                .fillMaxSize()
+                .navigationBarsPadding()
+                .padding(bottom = appBottomBarContentPadding)
+        ) {
         composable(AppRoute.Splash.route) {
             LaunchedEffect(Unit) {
                 AppSession.logSnapshot("Splash.start")
@@ -112,7 +142,10 @@ fun AppNavGraph(
                 val nextRoute = if (hasSessionAfterSplash) {
                     val hasProfile = userProfileViewModel.refreshProfile()
                     Log.d(TAG, "Splash profile refresh result=$hasProfile")
-                    if (hasProfile) AppRoute.Home2.route else AppRoute.Gender.route
+                    resolvePostAuthRoute(
+                        hasProfile = hasProfile,
+                        requiresVoiceVerification = userProfileViewModel.shouldCompleteVoiceVerification()
+                    )
                 } else {
                     AppRoute.Login.route
                 }
@@ -131,11 +164,11 @@ fun AppNavGraph(
                 onSkipLogin = { navController.navigateSingleTop(AppRoute.Gender) },
                 onAuthenticated = {
                     coroutineScope.launch {
-                        val nextRoute = if (userProfileViewModel.refreshProfile()) {
-                            AppRoute.Home2.route
-                        } else {
-                            AppRoute.Gender.route
-                        }
+                        val hasProfile = userProfileViewModel.refreshProfile()
+                        val nextRoute = resolvePostAuthRoute(
+                            hasProfile = hasProfile,
+                            requiresVoiceVerification = userProfileViewModel.shouldCompleteVoiceVerification()
+                        )
                         navController.navigate(nextRoute) {
                             popUpTo(AppRoute.Login.route) { inclusive = true }
                             launchSingleTop = true
@@ -184,7 +217,17 @@ fun AppNavGraph(
         composable(AppRoute.Home2.route) {
             LaunchedEffect(Unit) {
                 walletViewModel.loadWalletBalance()
-                userProfileViewModel.loadProfile()
+                val hasProfile = userProfileViewModel.refreshProfile()
+                val nextRoute = resolvePostAuthRoute(
+                    hasProfile = hasProfile,
+                    requiresVoiceVerification = userProfileViewModel.shouldCompleteVoiceVerification()
+                )
+                if (nextRoute != AppRoute.Home2.route) {
+                    navController.navigate(nextRoute) {
+                        popUpTo(AppRoute.Home2.route) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
             }
             HomeScreen2(
                 walletHearts = walletHearts,
@@ -323,6 +366,53 @@ fun AppNavGraph(
                 onBack = { navController.navigateHome() }
             )
         }
+        }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .windowInsetsBottomHeight(WindowInsets.navigationBars)
+                .background(Color.White)
+        )
+
+        selectedBottomTab?.let { selectedTab ->
+            BffBottomBar(
+                selectedTab = selectedTab,
+                onTabSelected = { tab ->
+                    when (tab) {
+                        MainBottomTab.Home -> navController.navigateHome()
+                        MainBottomTab.Connect -> navController.navigateSingleTop(AppRoute.Home)
+                        MainBottomTab.Games -> navController.navigateSingleTop(AppRoute.Games)
+                        MainBottomTab.History -> navController.navigateSingleTop(AppRoute.History)
+                        MainBottomTab.Live -> Unit
+                    }
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+            )
+        }
+    }
+}
+
+private fun String?.toMainBottomTab(): MainBottomTab? =
+    when (this) {
+        AppRoute.Home2.route -> MainBottomTab.Home
+        AppRoute.Home.route -> MainBottomTab.Connect
+        AppRoute.Games.route -> MainBottomTab.Games
+        AppRoute.History.route -> MainBottomTab.History
+        else -> null
+    }
+
+private fun resolvePostAuthRoute(
+    hasProfile: Boolean,
+    requiresVoiceVerification: Boolean
+): String {
+    return when {
+        !hasProfile -> AppRoute.Gender.route
+        requiresVoiceVerification -> AppRoute.Audio.route
+        else -> AppRoute.Home2.route
     }
 }
 

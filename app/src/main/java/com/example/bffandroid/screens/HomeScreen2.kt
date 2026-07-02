@@ -50,8 +50,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.bffandroid.R
-import com.example.bffandroid.ui.component.BffBottomBar
-import com.example.bffandroid.ui.component.MainBottomTab
 import com.example.bffandroid.ui.theme.BffAndroidTheme
 import com.example.bffandroid.ui.theme.GaretFontFamily
 
@@ -116,6 +114,11 @@ fun HomeScreen2(
                     modifier = Modifier
                         .padding(top = 26.dp, bottom = 116.dp)
                 ) {
+                    HomeScreen2SectionHeader(title = "⭐ Star Friends")
+                    Spacer(modifier = Modifier.height(18.dp))
+                    HomeScreen2StarFriendRow()
+
+                    Spacer(modifier = Modifier.height(30.dp))
                     HomeScreen2SectionHeader(title = "Friends Online")
                     Spacer(modifier = Modifier.height(18.dp))
                     HomeScreen2FriendRow()
@@ -136,19 +139,6 @@ fun HomeScreen2(
             }
         }
 
-        BffBottomBar(
-            selectedTab = MainBottomTab.Home,
-            onTabSelected = { tab ->
-                when (tab) {
-                    MainBottomTab.Home -> onHomeSelected()
-                    MainBottomTab.Connect -> onConnectSelected()
-                    MainBottomTab.Games -> onGamesSelected()
-                    MainBottomTab.History -> onHistorySelected()
-                    MainBottomTab.Live -> onLiveSelected()
-                }
-            },
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
     }
 }
 
@@ -360,6 +350,93 @@ private fun HomeScreen2SectionHeader(
                 contentDescription = null,
                 tint = Color.Black,
                 modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun HomeScreen2StarFriendRow() {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(20.dp),
+        modifier = Modifier
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp)
+    ) {
+        HomeScreen2StarFriendCard(name = "Anshu", avatarRes = R.drawable.women_avatar1)
+        HomeScreen2StarFriendCard(name = "Dev", avatarRes = R.drawable.women_avatar3)
+        HomeScreen2StarFriendCard(name = "Priya", avatarRes = R.drawable.women_avatar1)
+    }
+}
+
+@Composable
+private fun HomeScreen2StarFriendCard(name: String, avatarRes: Int) {
+    val shape = RoundedCornerShape(8.dp)
+    Box(
+        modifier = Modifier.size(width = 130.dp, height = 140.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(x = 2.dp, y = 3.dp)
+                .clip(shape)
+                .background(Color.Black)
+        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(Color(0xFFFFE7A0))
+                .border(1.dp, Color.White, shape)
+                .padding(top = 13.dp, start = 12.dp, end = 12.dp, bottom = 10.dp)
+        ) {
+            Box {
+                Image(
+                    painter = painterResource(id = avatarRes),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(58.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = 1.dp, y = (-1).dp)
+                        .size(14.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF24B64F))
+                        .border(2.dp, Color.White, CircleShape)
+                )
+            }
+            Spacer(modifier = Modifier.height(7.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = name,
+                    color = Color.Black,
+                    fontSize = 13.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "✦",
+                    color = Color(0xFFFF4F93),
+                    fontSize = 13.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            HomeScreen2PillButton(
+                text = "Call expert",
+                icon = Icons.Filled.Call,
+                modifier = Modifier.fillMaxWidth()
             )
         }
     }

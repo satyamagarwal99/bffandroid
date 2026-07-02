@@ -2,7 +2,10 @@ package com.example.bffandroid.data
 
 import com.example.bffandroid.data.model.AppVersionResponse
 import com.example.bffandroid.data.model.CountryLoginConfig
+import com.example.bffandroid.data.model.ConnectUserResponse
 import com.example.bffandroid.data.model.CreateRoomBody
+import com.example.bffandroid.data.model.GameCatalogItemDto
+import com.example.bffandroid.data.model.GiftCatalogResponse
 import com.example.bffandroid.data.model.GoogleAuthBody
 import com.example.bffandroid.data.model.GoogleAuthResponse
 import com.example.bffandroid.data.model.HomeOptionsResponse
@@ -41,6 +44,7 @@ import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Part
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 interface ApiService {
     @GET("auth/countries/{countryIso}")
@@ -94,6 +98,16 @@ interface ApiService {
     suspend fun getRechargeOptions(
         @Header("Authorization") bearerToken: String
     ): Response<RechargeOptionsResponse>
+
+    @GET("gifts/catalog")
+    suspend fun getGiftCatalog(
+        @Header("Authorization") bearerToken: String
+    ): Response<GiftCatalogResponse>
+
+    @GET("games/catalog")
+    suspend fun getGameCatalog(
+        @Header("Authorization") bearerToken: String
+    ): Response<List<GameCatalogItemDto>>
 
     @POST("wallet/recharge/quote")
     suspend fun getRechargeQuote(
@@ -188,6 +202,12 @@ interface ApiService {
     suspend fun getHomeOptions(
         @Header("Authorization") bearerToken: String
     ): Response<HomeOptionsResponse>
+
+    @GET("home/connect/users")
+    suspend fun getConnectUsers(
+        @Header("Authorization") bearerToken: String,
+        @Query("size") size: Int = 10
+    ): Response<List<ConnectUserResponse>>
 
     @Multipart
     @POST("home/profile/voice-verification")

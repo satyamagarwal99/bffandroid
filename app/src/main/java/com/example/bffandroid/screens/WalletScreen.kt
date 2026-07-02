@@ -100,7 +100,7 @@ fun WalletScreen(
                     sheet = if (panVerified) WalletSheet.Withdraw else WalletSheet.PanVerification
                 }
             )
-            WalletTransactionHistory(transactions = emptyList())
+            WalletTransactionHistory(hasTransactions = balanceAmount > 0)
         }
 
         if (sheet != null) {
@@ -411,7 +411,7 @@ private fun TrustItem(
 }
 
 @Composable
-private fun WalletTransactionHistory(transactions: List<WalletTransaction>) {
+private fun WalletTransactionHistory(hasTransactions: Boolean) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -425,7 +425,7 @@ private fun WalletTransactionHistory(transactions: List<WalletTransaction>) {
             fontFamily = GaretFontFamily,
             fontWeight = FontWeight.Bold
         )
-        if (transactions.isEmpty()) {
+        if (!hasTransactions) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
@@ -452,7 +452,13 @@ private fun WalletTransactionHistory(transactions: List<WalletTransaction>) {
             }
         } else {
             Spacer(modifier = Modifier.height(20.dp))
-            transactions.forEach {
+            listOf(
+                WalletTransaction("Withdrawal", "12 Jun 2026, 06:30 PM", "₹150", "Completed", Color(0xFF39B86B), Color(0xFFE3F7E9)),
+                WalletTransaction("Withdrawal", "20 Aug 2026, 02:15 PM", "₹350", "Failed", Color(0xFFE95151), Color(0xFFF0E7FF)),
+                WalletTransaction("Withdrawal", "05 Sep 2026, 11:00 AM", "₹500", "Completed", Color(0xFF39B86B), Color(0xFFFFF0C8)),
+                WalletTransaction("Withdrawal", "05 Sep 2026, 11:00 AM", "₹500", "Completed", Color(0xFF39B86B), Color(0xFFDDF9F5)),
+                WalletTransaction("Withdrawal", "05 Sep 2026, 11:00 AM", "₹500", "Completed", Color(0xFF39B86B), Color(0xFFE3F7E9))
+            ).forEach {
                 TransactionRow(it)
             }
         }

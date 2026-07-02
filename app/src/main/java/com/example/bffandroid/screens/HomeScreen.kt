@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.Icon
@@ -69,14 +70,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.bffandroid.R
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.bffandroid.data.model.ConnectUserResponse
 import com.example.bffandroid.data.model.LanguageOption
 import com.example.bffandroid.data.model.VibeOption
 import com.example.bffandroid.data.model.defaultLanguageOptions
 import com.example.bffandroid.data.model.defaultVibeOptions
-import com.example.bffandroid.ui.component.BffBottomBar
-import com.example.bffandroid.ui.component.MainBottomTab
 import com.example.bffandroid.ui.theme.BffAndroidTheme
 import com.example.bffandroid.ui.theme.GaretFontFamily
+import com.example.bffandroid.viewmodel.HomeScreenViewModel
 import com.example.bffandroid.viewmodel.HomeOptionsViewModel
 import com.example.bffandroid.viewmodel.UserProfileViewModel
 import kotlinx.coroutines.launch
@@ -94,18 +95,26 @@ fun HomeScreen(
     onGamesRequested: () -> Unit = {},
     onProfileRequested: () -> Unit = {},
     homeOptionsViewModel: HomeOptionsViewModel = viewModel(),
+    homeScreenViewModel: HomeScreenViewModel = viewModel(),
     userProfileViewModel: UserProfileViewModel = viewModel()
 ) {
     val homeOptionsState = homeOptionsViewModel.uiState
+    val connectUsersState = homeScreenViewModel.connectUsersUiState
     val userProfileState = userProfileViewModel.uiState
-    var selectedTab by remember { mutableStateOf(MainBottomTab.Connect) }
+    val carouselProfiles = remember(connectUsersState.users) {
+        connectUsersState.users.toHomeProfiles()
+    }
+    val hasConnectUsers = carouselProfiles.isNotEmpty()
+    val showEmptyConnectState = connectUsersState.hasLoaded && !connectUsersState.isLoading && !hasConnectUsers
     var openFilterSheet by remember { mutableStateOf<HomeFilterSheet?>(null) }
     var selectedLanguages by remember { mutableStateOf(setOf<String>()) }
     var selectedVibes by remember { mutableStateOf(setOf<String>()) }
     var callDragProgress by remember { mutableStateOf(0f) }
+    var notifyWhenHostAvailable by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         homeOptionsViewModel.loadHomeOptions()
+        homeScreenViewModel.loadConnectUsers()
         userProfileViewModel.loadProfile()
     }
 
@@ -154,16 +163,18 @@ fun HomeScreen(
                     onRechargeClick = onRechargeRequested,
                     onProfileClick = onProfileRequested
                 )
-                Spacer(modifier = Modifier.height(30.dp))
-                HomeTitle()
-                Spacer(modifier = Modifier.height(24.dp))
-                HomeFilters(
-                    languageCount = selectedLanguages.size,
-                    vibeCount = selectedVibes.size,
-                    onLanguageClick = { openFilterSheet = HomeFilterSheet.Language },
-                    onVibeClick = { openFilterSheet = HomeFilterSheet.Vibe }
-                )
-                Spacer(modifier = Modifier.height(0.dp))
+                if (hasConnectUsers) {
+                    Spacer(modifier = Modifier.height(30.dp))
+                    HomeTitle()
+                    Spacer(modifier = Modifier.height(24.dp))
+                    HomeFilters(
+                        languageCount = selectedLanguages.size,
+                        vibeCount = selectedVibes.size,
+                        onLanguageClick = { openFilterSheet = HomeFilterSheet.Language },
+                        onVibeClick = { openFilterSheet = HomeFilterSheet.Vibe }
+                    )
+                    Spacer(modifier = Modifier.height(0.dp))
+                }
             }
 
             // Card stack that fills remaining space
@@ -172,32 +183,31 @@ fun HomeScreen(
                     .fillMaxWidth()
                     .weight(1f)
             ) {
-                HomeCardStack(
-                    onCallRequested = { profile -> onCallRequested(profile.name) },
-                    onCallDragProgress = { callDragProgress = it }
-                )
+                if (hasConnectUsers) {
+                    HomeCardStack(
+                        profiles = carouselProfiles,
+                        onCallRequested = { profile -> onCallRequested(profile.name) },
+                        onCallDragProgress = { callDragProgress = it }
+                    )
+                } else if (showEmptyConnectState) {
+                    LaunchedEffect(Unit) {
+                        callDragProgress = 0f
+                    }
+                    EmptyConnectState(
+                        notifyEnabled = notifyWhenHostAvailable,
+                        onNotifyChange = { notifyWhenHostAvailable = it },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    LaunchedEffect(Unit) {
+                        callDragProgress = 0f
+                    }
+                }
             }
 
             // Bottom bar space - no extra space needed
             Spacer(modifier = Modifier.height(88.dp))
         }
-
-        // Bottom bar overlay
-        BffBottomBar(
-            selectedTab = selectedTab,
-            onTabSelected = { tab ->
-                when (tab) {
-                    MainBottomTab.Games -> onGamesRequested()
-                    MainBottomTab.Home -> onHomeRequested()
-                    MainBottomTab.History -> onHistoryRequested()
-                    MainBottomTab.Live -> selectedTab = tab
-                    else -> {
-                        selectedTab = tab
-                    }
-                }
-            },
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
 
         if (openFilterSheet != null) {
             Box(
@@ -832,10 +842,16 @@ private fun FilterSheetActions(
 
 @Composable
 private fun HomeCardStack(
+    profiles: List<HomeProfile>,
     onCallRequested: (HomeProfile) -> Unit,
     onCallDragProgress: (Float) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val carouselProfiles = profiles
+    if (carouselProfiles.isEmpty()) {
+        onCallDragProgress(0f)
+        return
+    }
     var activeIndex by remember { mutableStateOf(0) }
     var activeDragMode by remember { mutableStateOf(HomeDragMode.Undecided) }
     val wheelProgress = remember { Animatable(0f) }
@@ -847,11 +863,15 @@ private fun HomeCardStack(
     val progress = wheelProgress.value
     val callProgress = (pullDownOffset.value / callThresholdPx).coerceIn(0f, 1f)
     onCallDragProgress(callProgress)
-    val previousProfile = HomeProfiles[(activeIndex - 1 + HomeProfiles.size) % HomeProfiles.size]
-    val currentProfile = HomeProfiles[activeIndex]
-    val nextProfile = HomeProfiles[(activeIndex + 1) % HomeProfiles.size]
-    val farPreviousProfile = HomeProfiles[(activeIndex - 2 + HomeProfiles.size) % HomeProfiles.size]
-    val farNextProfile = HomeProfiles[(activeIndex + 2) % HomeProfiles.size]
+    LaunchedEffect(carouselProfiles) {
+        activeIndex = activeIndex.coerceIn(0, carouselProfiles.lastIndex)
+    }
+    val currentIndex = activeIndex.coerceIn(0, carouselProfiles.lastIndex)
+    val previousProfile = carouselProfiles[(currentIndex - 1 + carouselProfiles.size) % carouselProfiles.size]
+    val currentProfile = carouselProfiles[currentIndex]
+    val nextProfile = carouselProfiles[(currentIndex + 1) % carouselProfiles.size]
+    val farPreviousProfile = carouselProfiles[(currentIndex - 2 + carouselProfiles.size) % carouselProfiles.size]
+    val farNextProfile = carouselProfiles[(currentIndex + 2) % carouselProfiles.size]
 
     Box(
         modifier = modifier
@@ -964,7 +984,7 @@ private fun HomeCardStack(
                                             -1f,
                                             animationSpec = spring(dampingRatio = 0.86f, stiffness = 240f)
                                         )
-                                        activeIndex = (activeIndex + 1) % HomeProfiles.size
+                                        activeIndex = (currentIndex + 1) % carouselProfiles.size
                                         wheelProgress.snapTo(0f)
                                         pullDownOffset.snapTo(0f)
                                         onCallDragProgress(0f)
@@ -976,7 +996,7 @@ private fun HomeCardStack(
                                             1f,
                                             animationSpec = spring(dampingRatio = 0.86f, stiffness = 240f)
                                         )
-                                        activeIndex = (activeIndex - 1 + HomeProfiles.size) % HomeProfiles.size
+                                        activeIndex = (currentIndex - 1 + carouselProfiles.size) % carouselProfiles.size
                                         wheelProgress.snapTo(0f)
                                         pullDownOffset.snapTo(0f)
                                         onCallDragProgress(0f)
@@ -1019,8 +1039,145 @@ private fun HomeCardStack(
             progress = callProgress,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .offset(y = (-8).dp)
+                .offset(y = (-18).dp)
                 .padding(horizontal = 20.dp)
+        )
+    }
+}
+
+@Composable
+private fun EmptyConnectState(
+    notifyEnabled: Boolean,
+    onNotifyChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+            .padding(horizontal = 28.dp)
+            .padding(top = 78.dp)
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.no_host_connect_screen),
+            contentDescription = null,
+            modifier = Modifier.size(width = 283.dp, height = 227.dp),
+            contentScale = ContentScale.Fit
+        )
+        Spacer(modifier = Modifier.height(28.dp))
+        Text(
+            text = "No hosts available right now",
+            color = Color.White,
+            fontSize = 23.sp,
+            lineHeight = 27.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "All our hosts are busy at the moment.\nPlease try again in a few minutes!",
+            color = Color.White.copy(alpha = 0.82f),
+            fontSize = 16.sp,
+            lineHeight = 27.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(48.dp))
+        NotifyWhenHostAvailableCard(
+            enabled = notifyEnabled,
+            onToggle = { onNotifyChange(!notifyEnabled) },
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+private fun NotifyWhenHostAvailableCard(
+    enabled: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(16.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .height(86.dp)
+            .clip(shape)
+            .background(Color.White.copy(alpha = 0.10f))
+            .border(1.dp, Color.White.copy(alpha = 0.34f), shape)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onToggle
+            )
+            .padding(horizontal = 15.dp)
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(52.dp)
+                .clip(CircleShape)
+                .background(Color(0xFFF9BF25))
+        ) {
+            Icon(
+                imageVector = Icons.Default.Notifications,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(27.dp)
+            )
+        }
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(
+            text = "We'll notify you when\na host becomes available.",
+            color = Color.White,
+            fontSize = 14.sp,
+            lineHeight = 19.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f)
+        )
+        SmoothNotifyToggle(
+            enabled = enabled,
+            onToggle = onToggle
+        )
+    }
+}
+
+@Composable
+private fun SmoothNotifyToggle(
+    enabled: Boolean,
+    onToggle: () -> Unit
+) {
+    val trackColor by animateColorAsState(
+        targetValue = if (enabled) Color(0xFF02C96B) else Color(0xFF84369A),
+        label = "notifyTrackColor"
+    )
+    val thumbOffset by animateDpAsState(
+        targetValue = if (enabled) 30.dp else 2.dp,
+        animationSpec = spring(dampingRatio = 0.82f, stiffness = 360f),
+        label = "notifyThumbOffset"
+    )
+
+    Box(
+        modifier = Modifier
+            .size(width = 62.dp, height = 34.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(trackColor)
+            .border(1.5.dp, Color.White, RoundedCornerShape(20.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onToggle
+            )
+            .padding(2.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .offset(x = thumbOffset)
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(Color.White)
         )
     }
 }
@@ -1405,6 +1562,108 @@ private data class HomeProfileTag(
     val text: String,
     val accent: Color
 )
+
+private fun List<ConnectUserResponse>.toHomeProfiles(): List<HomeProfile> {
+    return map { user ->
+        HomeProfile(
+            name = user.displayName?.takeIf { it.isNotBlank() } ?: "Someone",
+            avatarRes = user.avatarUrl.toAvatarRes(),
+            headerColor = user.headerColor(),
+            languages = user.languages.toHomeProfileLanguages(),
+            tags = user.vibes.toHomeProfileTags(),
+            prompt = user.prompt.toPromptText()
+        )
+    }
+}
+
+private fun ConnectUserResponse.headerColor(): Color {
+    val palette = listOf(
+        Color(0xFFFCC02E),
+        Color(0xFF79B6FF),
+        Color(0xFFCEFB42),
+        Color(0xFFFF9BD1),
+        Color(0xFFE071F2)
+    )
+    val seed = (userId ?: displayName ?: avatarUrl).orEmpty().hashCode() and Int.MAX_VALUE
+    return palette[seed % palette.size]
+}
+
+private fun List<String>?.toHomeProfileLanguages(): List<HomeProfileLanguage> {
+    return orEmpty()
+        .mapNotNull { code ->
+            val label = code.languageLabel()
+            label?.let { HomeProfileLanguage(it, languageColor(code)) }
+        }
+        .take(2)
+        .ifEmpty {
+            listOf(
+                HomeProfileLanguage("அ Tamil", Color(0xFF38AFA4)),
+                HomeProfileLanguage("अ Hindi", Color(0xFFB53CA6))
+            )
+        }
+}
+
+private fun String.languageLabel(): String? {
+    return when (trim().uppercase()) {
+        "ENGLISH" -> "English"
+        "TAMIL" -> "அ Tamil"
+        "HINDI" -> "अ Hindi"
+        "MALAYALAM" -> "മ Malayalam"
+        "KANNADA" -> "ಕ Kannada"
+        "MARATHI" -> "म Marathi"
+        "PUNJABI" -> "ਪ Punjabi"
+        "BENGALI" -> "ব Bengali"
+        "GUJARATI" -> "ગુ Gujarati"
+        "TELUGU" -> "తె Telugu"
+        "URDU" -> "Urdu"
+        "ODIA" -> "ଓ Odia"
+        else -> takeIf { it.isNotBlank() }?.replaceFirstChar { char ->
+            if (char.isLowerCase()) char.titlecase() else char.toString()
+        }
+    }
+}
+
+private fun languageColor(code: String): Color {
+    return when (code.trim().uppercase()) {
+        "ENGLISH", "TAMIL", "MALAYALAM", "KANNADA" -> Color(0xFF38AFA4)
+        else -> Color(0xFFB53CA6)
+    }
+}
+
+private fun List<String>?.toHomeProfileTags(): List<HomeProfileTag> {
+    val accents = listOf(Color(0xFFFF625A), Color(0xFF7E45FF), Color(0xFFCC63FF))
+    return orEmpty()
+        .take(3)
+        .mapIndexedNotNull { index, vibe ->
+            val label = vibe.vibeLabel()
+            label?.let { HomeProfileTag("# $it", accents[index % accents.size]) }
+        }
+        .ifEmpty {
+            listOf(
+                HomeProfileTag("# Frndship", Color(0xFFFF625A)),
+                HomeProfileTag("# Game", Color(0xFF7E45FF)),
+                HomeProfileTag("# Foodie", Color(0xFFCC63FF))
+            )
+        }
+}
+
+private fun String.vibeLabel(): String? {
+    return trim()
+        .takeIf { it.isNotBlank() }
+        ?.lowercase()
+        ?.split("_", "-", " ")
+        ?.filter { it.isNotBlank() }
+        ?.joinToString(" ") { word ->
+            word.replaceFirstChar { char ->
+                if (char.isLowerCase()) char.titlecase() else char.toString()
+            }
+        }
+}
+
+private fun String?.toPromptText(): String {
+    val cleanPrompt = this?.takeIf { it.isNotBlank() } ?: "Tell me the best thing that happened today."
+    return "\"$cleanPrompt\""
+}
 
 private enum class HomeFilterSheet {
     Language,

@@ -27,5 +27,3 @@ data class WalletBalanceResponse(
     @SerializedName("balance") val balance: Int?,
     @SerializedName("walletBalance") val walletBalance: Int?
 )
-
-fun heartsToInr(hearts: Int): Int = (hearts.coerceAtLeast(0) * 90) / 100

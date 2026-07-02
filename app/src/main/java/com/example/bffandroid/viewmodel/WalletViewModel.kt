@@ -8,7 +8,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.bffandroid.data.model.WalletUiState
 import com.example.bffandroid.data.MainRepository
-import com.example.bffandroid.data.model.heartsToInr
 import com.example.bffandroid.utils.TokenUtils
 import kotlinx.coroutines.launch
 
@@ -40,14 +39,13 @@ class WalletViewModel(
             runCatching { mainRepository.getWalletBalance(token) }
                 .onSuccess { response ->
                     val body = response.body()
-                    val hearts = if (response.isSuccessful && body != null) {
-                        body.hearts ?: uiState.hearts
-                    } else {
-                        uiState.hearts
-                    }
                     uiState = uiState.copy(
                         isLoading = false,
-                        hearts = hearts,
+                        hearts = if (response.isSuccessful && body != null) {
+                            body.hearts ?: uiState.hearts
+                        } else {
+                            uiState.hearts
+                        },
                         amountInr = if (response.isSuccessful && body != null) {
                             body.withdrawableAmount
                                 ?: body.withdrawableBalance
@@ -57,7 +55,7 @@ class WalletViewModel(
                                 ?: body.amount
                                 ?: body.balance
                                 ?: body.walletBalance
-                                ?: heartsToInr(hearts)
+                                ?: 0
                         } else {
                             0
                         },

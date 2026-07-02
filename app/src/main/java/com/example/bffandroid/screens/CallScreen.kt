@@ -66,9 +66,17 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.core.content.ContextCompat
 import com.example.bffandroid.R
+import com.example.bffandroid.data.model.GameCatalogItemDto
+import com.example.bffandroid.data.model.GiftCatalogResponse
+import com.example.bffandroid.data.model.GiftCategoryDto
+import com.example.bffandroid.data.model.GiftItemDto
 import com.example.bffandroid.ui.theme.BffAndroidTheme
 import com.example.bffandroid.ui.theme.GaretFontFamily
 import com.example.bffandroid.viewmodel.CallViewModel
+import com.example.bffandroid.viewmodel.GameCatalogUiState
+import com.example.bffandroid.viewmodel.GameCatalogViewModel
+import com.example.bffandroid.viewmodel.GiftCatalogUiState
+import com.example.bffandroid.viewmodel.GiftCatalogViewModel
 import kotlinx.coroutines.delay
 
 private val CallYellow = Color(0xFFF5B120)
@@ -78,7 +86,9 @@ fun CallScreen(
     personName: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    callViewModel: CallViewModel = viewModel()
+    callViewModel: CallViewModel = viewModel(),
+    giftCatalogViewModel: GiftCatalogViewModel = viewModel(),
+    gameCatalogViewModel: GameCatalogViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val uiState = callViewModel.uiState
@@ -92,6 +102,8 @@ fun CallScreen(
     var selectedAddTimeOption by remember { mutableStateOf(AddTimeOptions.first()) }
     var sendingGift by remember { mutableStateOf<GiftItem?>(null) }
     var giftDeliveryPhase by remember { mutableStateOf<GiftDeliveryPhase?>(null) }
+    val giftCatalogUiState = giftCatalogViewModel.uiState
+    val gameCatalogUiState = gameCatalogViewModel.uiState
     var hasAudioPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -163,6 +175,18 @@ fun CallScreen(
         delay(1_400L)
         sendingGift = null
         giftDeliveryPhase = null
+    }
+
+    LaunchedEffect(showGiftSheet) {
+        if (showGiftSheet) {
+            giftCatalogViewModel.loadGiftCatalog(forceRefresh = giftCatalogUiState.catalog == null)
+        }
+    }
+
+    LaunchedEffect(showGameSheet) {
+        if (showGameSheet) {
+            gameCatalogViewModel.loadGameCatalog(forceRefresh = gameCatalogUiState.games.isEmpty())
+        }
     }
 
     Box(
@@ -240,6 +264,7 @@ fun CallScreen(
                     .clickable { showGiftSheet = false }
             )
             GiftBottomSheet(
+                giftCatalogUiState = giftCatalogUiState,
                 onDismiss = { showGiftSheet = false },
                 onSendGift = { gift ->
                     showGiftSheet = false
@@ -257,6 +282,7 @@ fun CallScreen(
                     .clickable { showGameSheet = false }
             )
             GameBottomSheet(
+                gameCatalogUiState = gameCatalogUiState,
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
@@ -701,13 +727,16 @@ private fun AddTimeOptionRow(
 
 @Composable
 private fun GameBottomSheet(
+    gameCatalogUiState: GameCatalogUiState,
     modifier: Modifier = Modifier
 ) {
+    val games = gameCatalogUiState.games.toGameCatalogItems()
+    val sheetHeight = if (games.size > 3) 430.dp else 330.dp
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
             .fillMaxWidth()
-            .height(330.dp)
+            .height(sheetHeight)
             .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .background(Color.White)
             .padding(horizontal = 30.dp)
@@ -743,24 +772,37 @@ private fun GameBottomSheet(
             verticalAlignment = Alignment.Top,
             modifier = Modifier.fillMaxWidth()
         ) {
-            GameOptionCard(
-                iconRes = R.drawable.game_truth_dare,
-                title = "Truth/Dare",
-                comingSoon = false,
-                modifier = Modifier.weight(1f)
-            )
-            GameOptionCard(
-                iconRes = R.drawable.game_uno,
-                title = "Uno",
-                comingSoon = true,
-                modifier = Modifier.weight(1f)
-            )
-            GameOptionCard(
-                iconRes = R.drawable.game_ludo,
-                title = "Ludo",
-                comingSoon = true,
-                modifier = Modifier.weight(1f)
-            )
+            games.take(3).forEach { game ->
+                GameOptionCard(
+                    iconRes = game.iconRes,
+                    title = game.title,
+                    comingSoon = !game.isAvailable,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            repeat(3 - games.take(3).size) {
+                Spacer(modifier = Modifier.weight(1f))
+            }
+        }
+        if (games.size > 3) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(26.dp),
+                verticalAlignment = Alignment.Top,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                games.drop(3).take(3).forEach { game ->
+                    GameOptionCard(
+                        iconRes = game.iconRes,
+                        title = game.title,
+                        comingSoon = !game.isAvailable,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                repeat(3 - games.drop(3).take(3).size) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
         }
     }
 }
@@ -812,7 +854,7 @@ private fun GameOptionCard(
                     fontFamily = GaretFontFamily,
                     fontWeight = FontWeight.Normal,
                     textAlign = TextAlign.Center,
-                    maxLines = 1,
+                    maxLines = 2,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 9.dp)
@@ -836,149 +878,224 @@ private fun GameOptionCard(
 
 @Composable
 private fun GiftBottomSheet(
+    giftCatalogUiState: GiftCatalogUiState,
     onDismiss: () -> Unit,
     onSendGift: (GiftItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val catalogContent = giftCatalogUiState.catalog.toGiftCatalogUiContent()
     val giftQuantities = remember { mutableStateMapOf<String, Int>() }
     var sheetDragOffset by remember { mutableStateOf(0f) }
-    val totalHearts = 150
-    val spentHearts = AllGiftItems.sumOf { item ->
-        item.price * (giftQuantities[item.name] ?: 0)
+    val allGiftItems = catalogContent.allItems
+    val spentHearts = allGiftItems.sumOf { item ->
+        item.price * (giftQuantities[item.code] ?: 0)
     }
-    val heartsRemaining = (totalHearts - spentHearts).coerceAtLeast(0)
-    val selectedGift = AllGiftItems.firstOrNull { item -> (giftQuantities[item.name] ?: 0) > 0 }
+    val heartsRemaining = (catalogContent.heartBalance - spentHearts).coerceAtLeast(0)
+    val selectedGifts = allGiftItems
+        .mapNotNull { item ->
+            val quantity = giftQuantities[item.code] ?: 0
+            if (quantity > 0) SelectedGiftItem(item, quantity) else null
+        }
 
     fun incrementGift(item: GiftItem) {
         if (heartsRemaining >= item.price) {
-            giftQuantities[item.name] = (giftQuantities[item.name] ?: 0) + 1
+            giftQuantities[item.code] = (giftQuantities[item.code] ?: 0) + 1
         }
     }
 
     fun decrementGift(item: GiftItem) {
-        val currentQuantity = giftQuantities[item.name] ?: 0
+        val currentQuantity = giftQuantities[item.code] ?: 0
         when {
-            currentQuantity > 1 -> giftQuantities[item.name] = currentQuantity - 1
-            currentQuantity == 1 -> giftQuantities.remove(item.name)
+            currentQuantity > 1 -> giftQuantities[item.code] = currentQuantity - 1
+            currentQuantity == 1 -> giftQuantities.remove(item.code)
         }
     }
 
-    Column(
+    Box(
         modifier = modifier
             .graphicsLayer { translationY = sheetDragOffset }
             .fillMaxWidth()
             .fillMaxHeight(0.78f)
             .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .background(Color.White)
-            .verticalScroll(rememberScrollState())
     ) {
-        GiftTopPanel(
-            quantities = giftQuantities,
-            onIncrement = ::incrementGift,
-            onDecrement = ::decrementGift,
-            dragModifier = Modifier.pointerInput(Unit) {
-                detectDragGestures(
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        sheetDragOffset = (sheetDragOffset + dragAmount.y).coerceAtLeast(0f)
-                    },
-                    onDragEnd = {
-                        if (sheetDragOffset > 120f) {
-                            onDismiss()
-                        } else {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+        ) {
+            GiftTopPanel(
+                featuredItems = catalogContent.featuredItems,
+                quantities = giftQuantities,
+                onIncrement = ::incrementGift,
+                onDecrement = ::decrementGift,
+                dragModifier = Modifier.pointerInput(Unit) {
+                    detectDragGestures(
+                        onDrag = { change, dragAmount ->
+                            change.consume()
+                            sheetDragOffset = (sheetDragOffset + dragAmount.y).coerceAtLeast(0f)
+                        },
+                        onDragEnd = {
+                            if (sheetDragOffset > 120f) {
+                                onDismiss()
+                            } else {
+                                sheetDragOffset = 0f
+                            }
+                        },
+                        onDragCancel = {
                             sheetDragOffset = 0f
                         }
-                    },
-                    onDragCancel = {
-                        sheetDragOffset = 0f
-                    }
-                )
+                    )
+                }
+            )
+            GiftHeartsDivider(hearts = heartsRemaining)
+            catalogContent.sections.forEachIndexed { index, section ->
+                GiftSectionTitle(icon = section.icon, text = section.title)
+                Spacer(modifier = Modifier.height(12.dp))
+                if (section.layout == GiftSectionLayout.LoveRow) {
+                    GiftLoveRow(
+                        items = section.items,
+                        quantities = giftQuantities,
+                        onIncrement = ::incrementGift,
+                        onDecrement = ::decrementGift
+                    )
+                } else {
+                    GiftSmallGrid(
+                        items = section.items,
+                        quantities = giftQuantities,
+                        onIncrement = ::incrementGift,
+                        onDecrement = ::decrementGift
+                    )
+                }
+                Spacer(modifier = Modifier.height(if (index == catalogContent.sections.lastIndex) 24.dp else 22.dp))
             }
-        )
-        GiftHeartsDivider(hearts = heartsRemaining)
-        GiftSectionTitle(icon = "🛍️", text = "Treat Her to...")
-        Spacer(modifier = Modifier.height(12.dp))
-        GiftSmallGrid(
-            items = TreatGiftItems,
-            quantities = giftQuantities,
-            onIncrement = ::incrementGift,
-            onDecrement = ::decrementGift
-        )
-        Spacer(modifier = Modifier.height(22.dp))
-        GiftSectionTitle(icon = "🌹", text = "Send some love")
-        Spacer(modifier = Modifier.height(12.dp))
-        GiftLoveRow(
-            items = LoveGiftItems,
-            quantities = giftQuantities,
-            onIncrement = ::incrementGift,
-            onDecrement = ::decrementGift
-        )
-        Spacer(modifier = Modifier.height(22.dp))
-        GiftSectionTitle(icon = "🎁", text = "Let me Buy you a...")
-        Spacer(modifier = Modifier.height(12.dp))
-        GiftSmallGrid(
-            items = BuyGiftItems,
-            quantities = giftQuantities,
-            onIncrement = ::incrementGift,
-            onDecrement = ::decrementGift
-        )
-        Spacer(modifier = Modifier.height(24.dp))
-        GiftSendButton(
-            enabled = selectedGift != null,
-            onClick = {
-                selectedGift?.let(onSendGift)
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 42.dp)
-        )
-        Spacer(modifier = Modifier.height(30.dp))
+            Spacer(modifier = Modifier.height(if (selectedGifts.isEmpty()) 30.dp else 116.dp))
+        }
+
+        if (selectedGifts.isNotEmpty()) {
+            GiftSelectionSendBar(
+                selectedGifts = selectedGifts,
+                totalHearts = spentHearts,
+                onSend = { onSendGift(selectedGifts.first().gift) },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
     }
 }
 
 @Composable
-private fun GiftSendButton(
-    enabled: Boolean,
-    onClick: () -> Unit,
+private fun GiftSelectionSendBar(
+    selectedGifts: List<SelectedGiftItem>,
+    totalHearts: Int,
+    onSend: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
-            .height(54.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(if (enabled) Color(0xFFFFC940) else Color(0xFFE0E0E0))
-            .border(1.5.dp, Color.Black.copy(alpha = if (enabled) 1f else 0.25f), RoundedCornerShape(16.dp))
-            .clickable(enabled = enabled, onClick = onClick)
+            .fillMaxWidth()
+            .height(78.dp)
+            .shadow(12.dp, RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp), clip = false)
+            .background(Color.White)
+            .padding(horizontal = 30.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .offset(x = 4.dp, y = 4.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color.Black.copy(alpha = if (enabled) 1f else 0.12f))
-        )
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-            modifier = Modifier
-                .matchParentSize()
-                .clip(RoundedCornerShape(16.dp))
-                .background(if (enabled) Color(0xFFFFC940) else Color(0xFFE0E0E0))
-                .border(1.5.dp, Color.Black.copy(alpha = if (enabled) 1f else 0.25f), RoundedCornerShape(16.dp))
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.weight(1f)
         ) {
-            Text(
-                text = "Send",
-                color = if (enabled) Color.Black else Color(0xFF8D8D8D),
-                fontSize = 18.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.width(18.dp))
+            selectedGifts.take(3).forEach { selectedGift ->
+                SelectedGiftPreview(selectedGift = selectedGift)
+            }
+            val hiddenCount = selectedGifts.size - 3
+            if (hiddenCount > 0) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFF4F4F4))
+                        .border(1.dp, Color(0xFFD0D0D0), CircleShape)
+                ) {
+                    Text(
+                        text = "+$hiddenCount",
+                        color = Color.Black,
+                        fontSize = 12.sp,
+                        fontFamily = GaretFontFamily,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+        Box(
+            modifier = Modifier
+                .height(44.dp)
+                .width(1.dp)
+                .background(Color(0xFFE3E3E3))
+        )
+        Spacer(modifier = Modifier.width(20.dp))
+        Text(text = "❤", color = Color(0xFFFF477A), fontSize = 27.sp)
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = totalHearts.toString(),
+            color = Color.Black,
+            fontSize = 18.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.width(20.dp))
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(54.dp)
+                .clip(CircleShape)
+                .background(Color(0xFFFFB51F))
+                .border(1.4.dp, Color.Black, CircleShape)
+                .clickable(onClick = onSend)
+        ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
-                tint = if (enabled) Color.Black else Color(0xFF8D8D8D),
-                modifier = Modifier.size(28.dp)
+                tint = Color.Black,
+                modifier = Modifier.size(34.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SelectedGiftPreview(selectedGift: SelectedGiftItem) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(50.dp)
+            .clip(CircleShape)
+            .background(Color(0xFFFFFBEC))
+            .border(1.3.dp, Color(0xFFFFB51F), CircleShape)
+    ) {
+        Image(
+            painter = painterResource(id = selectedGift.gift.imageRes),
+            contentDescription = null,
+            modifier = Modifier.size(42.dp),
+            contentScale = ContentScale.Fit
+        )
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = 4.dp, y = (-4).dp)
+                .size(19.dp)
+                .clip(CircleShape)
+                .background(Color(0xFFFFB51F))
+                .border(1.dp, Color.Black, CircleShape)
+        ) {
+            Text(
+                text = selectedGift.quantity.toString(),
+                color = Color.Black,
+                fontSize = 11.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
             )
         }
     }
@@ -1041,11 +1158,14 @@ private fun GiftDeliveryOverlay(
 
 @Composable
 private fun GiftTopPanel(
+    featuredItems: List<GiftItem>,
     quantities: Map<String, Int>,
     onIncrement: (GiftItem) -> Unit,
     onDecrement: (GiftItem) -> Unit,
     dragModifier: Modifier = Modifier
 ) {
+    val firstGift = featuredItems.getOrNull(0) ?: KissGiftItem
+    val secondGift = featuredItems.getOrNull(1) ?: HugGiftItem
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -1090,29 +1210,29 @@ private fun GiftTopPanel(
                 .size(width = 361.dp, height = 117.dp)
         ) {
             GiftHeroCard(
-                item = KissGiftItem,
-                title = "A kiss",
-                subtitle = "One little kiss\nwon't hurt",
+                item = firstGift,
+                title = firstGift.name,
+                subtitle = firstGift.subtitle.orEmpty(),
                 background = Brush.linearGradient(
                     colors = listOf(Color(0xFFF5B0D1), Color(0xFFF395C3))
                 ),
                 titleColor = Color(0xFFE82977),
-                quantity = quantities[KissGiftItem.name] ?: 0,
-                onIncrement = { onIncrement(KissGiftItem) },
-                onDecrement = { onDecrement(KissGiftItem) },
+                quantity = quantities[firstGift.code] ?: 0,
+                onIncrement = { onIncrement(firstGift) },
+                onDecrement = { onDecrement(firstGift) },
                 modifier = Modifier.weight(1f)
             )
             GiftHeroCard(
-                item = HugGiftItem,
-                title = "A Hug",
-                subtitle = "I could really\nuse one",
+                item = secondGift,
+                title = secondGift.name,
+                subtitle = secondGift.subtitle.orEmpty(),
                 background = Brush.linearGradient(
                     colors = listOf(Color(0xFFFDD293), Color(0xFFF6B872))
                 ),
                 titleColor = Color(0xFFFF5B00),
-                quantity = quantities[HugGiftItem.name] ?: 0,
-                onIncrement = { onIncrement(HugGiftItem) },
-                onDecrement = { onDecrement(HugGiftItem) },
+                quantity = quantities[secondGift.code] ?: 0,
+                onIncrement = { onIncrement(secondGift) },
+                onDecrement = { onDecrement(secondGift) },
                 modifier = Modifier.weight(1f)
             )
         }
@@ -1259,7 +1379,7 @@ private fun GiftSmallGrid(
                     ) {
                         GiftProductCard(
                             item = item,
-                            quantity = quantities[item.name] ?: 0,
+                            quantity = quantities[item.code] ?: 0,
                             onIncrement = { onIncrement(item) },
                             onDecrement = { onDecrement(item) },
                             modifier = Modifier.size(width = 110.dp, height = 118.dp)
@@ -1290,7 +1410,7 @@ private fun GiftLoveRow(
         items.forEach { item ->
             GiftLoveCard(
                 item = item,
-                quantity = quantities[item.name] ?: 0,
+                quantity = quantities[item.code] ?: 0,
                 onIncrement = { onIncrement(item) },
                 onDecrement = { onDecrement(item) },
                 modifier = Modifier
@@ -1488,15 +1608,17 @@ private fun GiftPriceLine(
             fontFamily = GaretFontFamily,
             fontWeight = FontWeight.Bold
         )
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(
-            text = item.oldPrice.toString(),
-            color = Color(0xFF8E8E8E),
-            fontSize = 11.sp,
-            fontFamily = GaretFontFamily,
-            fontWeight = FontWeight.Medium,
-            textDecoration = TextDecoration.LineThrough
-        )
+        item.oldPrice?.let { oldPrice ->
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = oldPrice.toString(),
+                color = Color(0xFF8E8E8E),
+                fontSize = 11.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Medium,
+                textDecoration = TextDecoration.LineThrough
+            )
+        }
     }
 }
 
@@ -1859,10 +1981,27 @@ private data class AddTimeOption(
 )
 
 private data class GiftItem(
+    val code: String,
     val name: String,
     val imageRes: Int,
     val price: Int,
-    val oldPrice: Int
+    val oldPrice: Int?,
+    val subtitle: String? = null
+)
+
+private data class SelectedGiftItem(
+    val gift: GiftItem,
+    val quantity: Int
+)
+
+private data class GameCatalogItem(
+    val code: String,
+    val title: String,
+    val iconRes: Int,
+    val description: String?,
+    val minPlayers: Int?,
+    val maxPlayers: Int?,
+    val isAvailable: Boolean
 )
 
 private val GiftItem.deliveryLabel: String
@@ -1871,6 +2010,28 @@ private val GiftItem.deliveryLabel: String
 private enum class GiftDeliveryPhase {
     Delivering,
     Arrived
+}
+
+private data class GiftCatalogUiContent(
+    val heartBalance: Int,
+    val featuredItems: List<GiftItem>,
+    val sections: List<GiftSection>
+) {
+    val allItems: List<GiftItem>
+        get() = featuredItems + sections.flatMap { it.items }
+}
+
+private data class GiftSection(
+    val code: String,
+    val title: String,
+    val icon: String,
+    val layout: GiftSectionLayout,
+    val items: List<GiftItem>
+)
+
+private enum class GiftSectionLayout {
+    Grid,
+    LoveRow
 }
 
 private data class FeedbackRating(
@@ -1885,31 +2046,220 @@ private val AddTimeOptions = listOf(
     AddTimeOption(minutes = 30, hearts = 300)
 )
 
-private val KissGiftItem = GiftItem("Kiss", R.drawable.gift_kiss_person, price = 200, oldPrice = 200)
-private val HugGiftItem = GiftItem("Hug", R.drawable.gift_hug_person, price = 100, oldPrice = 100)
+private val DefaultGameCatalogItems = listOf(
+    GameCatalogItem(
+        code = "TRUTH_OR_DARE",
+        title = "Truth/Dare",
+        iconRes = R.drawable.game_truth_dare,
+        description = null,
+        minPlayers = 2,
+        maxPlayers = 2,
+        isAvailable = true
+    ),
+    GameCatalogItem(
+        code = "TIC_TAC_TOE",
+        title = "Tic Tac Toe",
+        iconRes = R.drawable.game_screen_tictactoe,
+        description = null,
+        minPlayers = 2,
+        maxPlayers = 2,
+        isAvailable = true
+    ),
+    GameCatalogItem(
+        code = "UNO",
+        title = "Uno",
+        iconRes = R.drawable.game_uno,
+        description = null,
+        minPlayers = null,
+        maxPlayers = null,
+        isAvailable = false
+    ),
+    GameCatalogItem(
+        code = "LUDO",
+        title = "Ludo",
+        iconRes = R.drawable.game_ludo,
+        description = null,
+        minPlayers = null,
+        maxPlayers = null,
+        isAvailable = false
+    )
+)
+
+private fun List<GameCatalogItemDto>.toGameCatalogItems(): List<GameCatalogItem> {
+    if (isEmpty()) return DefaultGameCatalogItems
+
+    return mapNotNull { it.toGameCatalogItem() }
+        .ifEmpty { DefaultGameCatalogItems }
+}
+
+private fun GameCatalogItemDto.toGameCatalogItem(): GameCatalogItem? {
+    val gameCode = code ?: return null
+    val gameTitle = title ?: return null
+
+    return GameCatalogItem(
+        code = gameCode,
+        title = gameTitle,
+        iconRes = iconKey.toGameDrawableRes(gameCode),
+        description = description,
+        minPlayers = minPlayers,
+        maxPlayers = maxPlayers,
+        isAvailable = true
+    )
+}
+
+private fun String?.toGameDrawableRes(gameCode: String): Int =
+    when (this ?: gameCode) {
+        "game_truth_dare", "TRUTH_OR_DARE" -> R.drawable.game_truth_dare
+        "game_tic_tac_toe", "TIC_TAC_TOE" -> R.drawable.game_screen_tictactoe
+        "game_uno", "UNO" -> R.drawable.game_uno
+        "game_ludo", "LUDO" -> R.drawable.game_ludo
+        else -> R.drawable.call_screen_games
+    }
+
+private val KissGiftItem = GiftItem(
+    code = "KISS",
+    name = "A kiss",
+    imageRes = R.drawable.gift_kiss_person,
+    price = 200,
+    oldPrice = null,
+    subtitle = "One little kiss won't hurt"
+)
+private val HugGiftItem = GiftItem(
+    code = "HUG",
+    name = "A Hug",
+    imageRes = R.drawable.gift_hug_person,
+    price = 100,
+    oldPrice = null,
+    subtitle = "I could really use one"
+)
 
 private val TreatGiftItems = listOf(
-    GiftItem("Garam chai", R.drawable.gift_chai, price = 20, oldPrice = 45),
-    GiftItem("Ice cream", R.drawable.gift_icecream, price = 25, oldPrice = 64),
-    GiftItem("Maggie", R.drawable.gift_maggie, price = 30, oldPrice = 55),
-    GiftItem("Momo", R.drawable.gift_momo, price = 40, oldPrice = 75),
-    GiftItem("Coffee", R.drawable.gift_coffee, price = 50, oldPrice = 65),
-    GiftItem("Pizza", R.drawable.gift_pizza, price = 100, oldPrice = 180),
-    GiftItem("Biriyani", R.drawable.gift_biryani, price = 100, oldPrice = 200)
+    GiftItem("GARAM_CHAI", "Garam chai", R.drawable.gift_chai, price = 20, oldPrice = 45),
+    GiftItem("ICE_CREAM", "Ice cream", R.drawable.gift_icecream, price = 25, oldPrice = 64),
+    GiftItem("MAGGIE", "Maggie", R.drawable.gift_maggie, price = 30, oldPrice = 55),
+    GiftItem("MOMO", "Momo", R.drawable.gift_momo, price = 40, oldPrice = 75),
+    GiftItem("COFFEE", "Coffee", R.drawable.gift_coffee, price = 50, oldPrice = 65),
+    GiftItem("PIZZA", "Pizza", R.drawable.gift_pizza, price = 100, oldPrice = 180),
+    GiftItem("BIRYANI", "Biriyani", R.drawable.gift_biryani, price = 100, oldPrice = 200)
 )
 
 private val LoveGiftItems = listOf(
-    GiftItem("Yellow Rose", R.drawable.gift_yellow_rose, price = 5, oldPrice = 10),
-    GiftItem("Red Rose", R.drawable.gift_red_rose, price = 10, oldPrice = 20)
+    GiftItem("YELLOW_ROSE", "Yellow Rose", R.drawable.gift_yellow_rose, price = 5, oldPrice = 10),
+    GiftItem("RED_ROSE", "Red Rose", R.drawable.gift_red_rose, price = 10, oldPrice = 20)
 )
 
 private val BuyGiftItems = listOf(
-    GiftItem("Teddy bear", R.drawable.gift_teddy, price = 100, oldPrice = 250),
-    GiftItem("Perfume", R.drawable.gift_perfume, price = 200, oldPrice = 400),
-    GiftItem("Lipstick", R.drawable.gift_lipstick, price = 200, oldPrice = 350)
+    GiftItem("TEDDY_BEAR", "Teddy bear", R.drawable.gift_teddy, price = 100, oldPrice = 250),
+    GiftItem("PERFUME", "Perfume", R.drawable.gift_perfume, price = 200, oldPrice = 400),
+    GiftItem("LIPSTICK", "Lipstick", R.drawable.gift_lipstick, price = 200, oldPrice = 350)
 )
 
-private val AllGiftItems = listOf(KissGiftItem, HugGiftItem) + TreatGiftItems + LoveGiftItems + BuyGiftItems
+private val DefaultGiftCatalogContent = GiftCatalogUiContent(
+    heartBalance = 150,
+    featuredItems = listOf(KissGiftItem, HugGiftItem),
+    sections = listOf(
+        GiftSection(
+            code = "TREAT_HER",
+            title = "Treat Her to...",
+            icon = "🛍️",
+            layout = GiftSectionLayout.Grid,
+            items = TreatGiftItems
+        ),
+        GiftSection(
+            code = "SEND_LOVE",
+            title = "Send some love",
+            icon = "🌹",
+            layout = GiftSectionLayout.LoveRow,
+            items = LoveGiftItems
+        ),
+        GiftSection(
+            code = "BUY_YOU",
+            title = "Let me Buy you a...",
+            icon = "🎁",
+            layout = GiftSectionLayout.Grid,
+            items = BuyGiftItems
+        )
+    )
+)
+
+private fun GiftCatalogResponse?.toGiftCatalogUiContent(): GiftCatalogUiContent {
+    val categories = this?.categories.orEmpty()
+    if (categories.isEmpty()) return DefaultGiftCatalogContent
+
+    val featuredItems = categories
+        .firstOrNull { it.code == "FEATURED" }
+        ?.items
+        .orEmpty()
+        .mapNotNull { it.toGiftItem() }
+        .ifEmpty { DefaultGiftCatalogContent.featuredItems }
+
+    val sections = categories
+        .filterNot { it.code == "FEATURED" }
+        .mapNotNull { it.toGiftSection() }
+        .ifEmpty { DefaultGiftCatalogContent.sections }
+
+    return GiftCatalogUiContent(
+        heartBalance = this?.heartBalance ?: DefaultGiftCatalogContent.heartBalance,
+        featuredItems = featuredItems,
+        sections = sections
+    )
+}
+
+private fun GiftCategoryDto.toGiftSection(): GiftSection? {
+    val categoryCode = code ?: return null
+    val giftItems = items.orEmpty().mapNotNull { it.toGiftItem() }
+    if (giftItems.isEmpty()) return null
+
+    return GiftSection(
+        code = categoryCode,
+        title = title.orEmpty(),
+        icon = iconKey.toGiftCategoryIcon(categoryCode),
+        layout = if (categoryCode == "SEND_LOVE") GiftSectionLayout.LoveRow else GiftSectionLayout.Grid,
+        items = giftItems
+    )
+}
+
+private fun GiftItemDto.toGiftItem(): GiftItem? {
+    val giftCode = code ?: return null
+    val giftTitle = title ?: return null
+    val price = heartPrice ?: return null
+
+    return GiftItem(
+        code = giftCode,
+        name = giftTitle,
+        imageRes = imageKey.toGiftDrawableRes(giftCode),
+        price = price,
+        oldPrice = originalHeartPrice,
+        subtitle = subtitle
+    )
+}
+
+private fun String?.toGiftCategoryIcon(categoryCode: String): String =
+    when (this ?: categoryCode) {
+        "gift_category_treat", "TREAT_HER" -> "🛍️"
+        "gift_category_rose", "SEND_LOVE" -> "🌹"
+        "gift_category_premium", "BUY_YOU" -> "🎁"
+        else -> "🎁"
+    }
+
+private fun String?.toGiftDrawableRes(giftCode: String): Int =
+    when (this ?: giftCode) {
+        "gift_kiss", "KISS" -> R.drawable.gift_kiss_person
+        "gift_hug", "HUG" -> R.drawable.gift_hug_person
+        "gift_chai", "GARAM_CHAI" -> R.drawable.gift_chai
+        "gift_ice_cream", "ICE_CREAM" -> R.drawable.gift_icecream
+        "gift_maggie", "MAGGIE" -> R.drawable.gift_maggie
+        "gift_momo", "MOMO" -> R.drawable.gift_momo
+        "gift_coffee", "COFFEE" -> R.drawable.gift_coffee
+        "gift_pizza", "PIZZA" -> R.drawable.gift_pizza
+        "gift_biryani", "BIRYANI" -> R.drawable.gift_biryani
+        "gift_yellow_rose", "YELLOW_ROSE" -> R.drawable.gift_yellow_rose
+        "gift_red_rose", "RED_ROSE" -> R.drawable.gift_red_rose
+        "gift_teddy", "TEDDY_BEAR" -> R.drawable.gift_teddy
+        "gift_perfume", "PERFUME" -> R.drawable.gift_perfume
+        "gift_lipstick", "LIPSTICK" -> R.drawable.gift_lipstick
+        else -> R.drawable.call_screen_gift
+    }
 
 private val FeedbackRatings = listOf(
     FeedbackRating("😡", "Very poor", Color(0xFFE23D3D)),

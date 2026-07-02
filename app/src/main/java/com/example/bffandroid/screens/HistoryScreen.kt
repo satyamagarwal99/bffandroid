@@ -50,9 +50,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.bffandroid.R
-import com.example.bffandroid.ui.component.BffBottomBar
 import com.example.bffandroid.ui.component.BffHeartChip
-import com.example.bffandroid.ui.component.MainBottomTab
 import com.example.bffandroid.ui.theme.BffAndroidTheme
 import com.example.bffandroid.ui.theme.GaretFontFamily
 
@@ -107,18 +105,6 @@ fun HistoryScreen(
             Spacer(modifier = Modifier.height(28.dp))
         }
 
-        BffBottomBar(
-            selectedTab = MainBottomTab.History,
-            onTabSelected = { tab ->
-                when (tab) {
-                    MainBottomTab.Connect -> onConnectSelected()
-                    MainBottomTab.Games -> onGamesSelected()
-                    MainBottomTab.Home -> onHomeSelected()
-                    else -> Unit
-                }
-            },
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
     }
 }
 

@@ -61,8 +61,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.bffandroid.R
-import com.example.bffandroid.ui.component.BffBottomBar
-import com.example.bffandroid.ui.component.MainBottomTab
 import com.example.bffandroid.ui.theme.BffAndroidTheme
 import com.example.bffandroid.ui.theme.FreedokaFontFamily
 import com.example.bffandroid.ui.theme.GaretFontFamily
@@ -205,18 +203,6 @@ fun GameScreen(
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        BffBottomBar(
-            selectedTab = MainBottomTab.Games,
-            onTabSelected = { tab ->
-                when (tab) {
-                    MainBottomTab.Connect -> onConnectSelected()
-                    MainBottomTab.Home -> onHomeSelected()
-                    MainBottomTab.History -> onHistorySelected()
-                    else -> Unit
-                }
-            },
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
     }
 }
 

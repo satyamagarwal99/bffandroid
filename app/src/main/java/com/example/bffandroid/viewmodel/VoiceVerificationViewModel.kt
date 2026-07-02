@@ -44,10 +44,12 @@ class VoiceVerificationViewModel(
             runCatching { mainRepository.getVoiceVerificationStatus(token) }
                 .onSuccess { response ->
                     val body = response.body()
+                    val status = body?.status
                     uiState = uiState.copy(
                         isStatusLoading = false,
-                        status = body?.status,
-                        isVerified = body?.verified == true,
+                        status = status,
+                        isVoiceRecorded = body?.isVoiceRecorded == true,
+                        isVerified = body?.verified == true || status.isVoiceVerificationSuccessful(),
                         errorMessage = if (response.isSuccessful) {
                             null
                         } else {
@@ -66,11 +68,12 @@ class VoiceVerificationViewModel(
 
     fun submitVoiceVerification(
         file: File?,
-        onSuccess: () -> Unit
+        onResult: (Boolean) -> Unit
     ) {
         if (uiState.isSubmitting) return
         if (file == null || !file.exists()) {
             uiState = uiState.copy(errorMessage = "Please record your voice again")
+            onResult(false)
             return
         }
 
@@ -81,15 +84,16 @@ class VoiceVerificationViewModel(
                     isSubmitting = false,
                     errorMessage = "Login token missing"
                 )
+                onResult(false)
                 return@launch
             }
 
             uiState = uiState.copy(isSubmitting = true, errorMessage = null)
 
-            val requestBody = file.asRequestBody("audio/mp4".toMediaTypeOrNull())
+            val requestBody = file.asRequestBody("audio/mpeg".toMediaTypeOrNull())
             val filePart = MultipartBody.Part.createFormData(
                 name = "file",
-                filename = file.name,
+                filename = file.nameWithoutExtension + ".mp3",
                 body = requestBody
             )
 
@@ -97,18 +101,22 @@ class VoiceVerificationViewModel(
                 .onSuccess { response ->
                     val body = response.body()
                     if (response.isSuccessful) {
+                        val status = body?.status
+                        val isVerified = body?.verified == true || status.isVoiceVerificationSuccessful()
                         uiState = uiState.copy(
                             isSubmitting = false,
-                            status = body?.status ?: uiState.status,
-                            isVerified = body?.verified == true || uiState.isVerified,
+                            status = status ?: uiState.status,
+                            isVoiceRecorded = body?.isVoiceRecorded == true || uiState.isVoiceRecorded,
+                            isVerified = isVerified || uiState.isVerified,
                             errorMessage = null
                         )
-                        onSuccess()
+                        onResult(isVerified)
                     } else {
                         uiState = uiState.copy(
                             isSubmitting = false,
                             errorMessage = body?.message ?: "Unable to submit voice"
                         )
+                        onResult(false)
                     }
                 }
                 .onFailure { error ->
@@ -116,7 +124,19 @@ class VoiceVerificationViewModel(
                         isSubmitting = false,
                         errorMessage = error.message ?: "Unable to submit voice"
                     )
+                    onResult(false)
                 }
         }
+    }
+}
+
+private fun String?.isVoiceVerificationSuccessful(): Boolean {
+    return when (this?.trim()?.uppercase()) {
+        "SUCCESS",
+        "SUCCESSFUL",
+        "COMPLETED",
+        "COMPLETE",
+        "VERIFIED" -> true
+        else -> false
     }
 }

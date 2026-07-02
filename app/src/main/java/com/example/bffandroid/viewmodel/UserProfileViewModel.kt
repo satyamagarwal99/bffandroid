@@ -174,14 +174,27 @@ class UserProfileViewModel(
             gender = profile.gender,
             avatarUrl = profile.avatarUrl,
             bio = profile.bio,
+            voiceVerificationStatus = profile.voiceVerificationStatus,
+            voiceVerificationRequired = profile.voiceVerificationRequired == true,
+            voiceVerificationMethod = profile.voiceVerificationMethod,
+            voiceVerificationCheckedAt = profile.voiceVerificationCheckedAt,
+            voiceSampleReference = profile.voiceSampleReference,
             languages = profile.languages?.normalizedSet().orEmpty(),
             vibes = profile.vibes?.normalizedSet().orEmpty()
         )
     }
 
+    fun shouldCompleteVoiceVerification(): Boolean {
+        return uiState.voiceVerificationRequired && uiState.voiceVerificationStatus.isVoiceVerificationPending()
+    }
+
     private fun hasRequiredProfileData(): Boolean {
         return !uiState.displayName.isNullOrBlank() && !uiState.avatarUrl.isNullOrBlank()
     }
+}
+
+private fun String?.isVoiceVerificationPending(): Boolean {
+    return this?.trim()?.uppercase() == "PENDING"
 }
 
 private fun List<String>.normalizedSet(): Set<String> {
