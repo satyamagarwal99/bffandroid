@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "983244246888",
+    "project_id": "bff-appnew",
+    "storage_bucket": "bff-appnew.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:983244246888:android:443386c4c8be771d0350dd",
+        "android_client_info": {
+          "package_name": "com.gobff.getfriends"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyASX3wk632teY__S_iYm-ZvY9YN1Kj_8V4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
