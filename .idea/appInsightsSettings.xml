@@ -22,10 +22,10 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="PLACEHOLDER" />
-                  <option name="mobileSdkAppId" value="" />
-                  <option name="projectId" value="" />
-                  <option name="projectNumber" value="" />
+                  <option name="appId" value="com.gobff.getfriends" />
+                  <option name="mobileSdkAppId" value="1:983244246888:android:443386c4c8be771d0350dd" />
+                  <option name="projectId" value="bff-appnew" />
+                  <option name="projectNumber" value="983244246888" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />

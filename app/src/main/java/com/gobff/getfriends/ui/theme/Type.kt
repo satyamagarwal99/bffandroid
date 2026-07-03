@@ -9,14 +9,18 @@ import androidx.compose.ui.unit.sp
 import com.gobff.getfriends.R
 
 val GaretFontFamily = FontFamily(
-    Font(R.font.garet_book, FontWeight.Medium),
-    Font(R.font.garet_heavy, FontWeight.Bold),
-    Font(R.font.garet_heavy, FontWeight.ExtraBold)
+    Font(R.font.garet_book, FontWeight.Normal),
+    Font(R.font.garet_medium, FontWeight.Medium),
+    Font(R.font.garet_bold, FontWeight.Bold),
+    Font(R.font.garet_heavy, FontWeight.ExtraBold),
+    Font(R.font.garet_heavy, FontWeight.Black),
 )
 
 val FreedokaFontFamily = FontFamily(
     Font(R.font.fredoka, FontWeight.Normal),
-            Font(R.font.fredoka_bold, FontWeight.Bold)
+            Font(R.font.fredoka_bold, FontWeight.Bold),
+            Font(R.font.fredoka_semibold, FontWeight.SemiBold)
+
 )
 
 // Set of Material typography styles to start with

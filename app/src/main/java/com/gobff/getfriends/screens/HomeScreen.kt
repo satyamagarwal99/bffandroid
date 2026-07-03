@@ -75,6 +75,8 @@ import com.gobff.getfriends.data.model.LanguageOption
 import com.gobff.getfriends.data.model.VibeOption
 import com.gobff.getfriends.data.model.defaultLanguageOptions
 import com.gobff.getfriends.data.model.defaultVibeOptions
+import com.gobff.getfriends.ui.component.BffHeartChip
+import com.gobff.getfriends.ui.component.HandDrawnCardShape
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.GaretFontFamily
 import com.gobff.getfriends.viewmodel.HomeScreenViewModel
@@ -293,7 +295,7 @@ private fun HomeHeader(
             onClick = onFriendsClick
         )
         Spacer(modifier = Modifier.width(12.dp))
-        HeartCountChip(hearts = walletHearts, onClick = onRechargeClick)
+        BffHeartChip(hearts = walletHearts, onClick = onRechargeClick)
     }
 }
 
@@ -364,54 +366,6 @@ private fun HeaderIconChip(
                 contentDescription = null,
                 tint = iconTint,
                 modifier = Modifier.size(23.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun HeartCountChip(
-    hearts: Int,
-    onClick: () -> Unit
-) {
-    val shape = RoundedCornerShape(12.dp)
-
-    Box(
-        modifier = Modifier
-            .size(width = 88.dp, height = 32.dp)
-            .clickable(onClick = onClick)
-    ) {
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .offset(x = 1.5.dp, y = 2.dp)
-                .clip(shape)
-                .background(Color.Black)
-        )
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-            modifier = Modifier
-                .matchParentSize()
-                .clip(shape)
-                .background(Color.White)
-                .border(1.2.dp, Color.Black, shape)
-
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.single_heart),
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                contentScale = ContentScale.Fit
-
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(
-                text = String.format("%,d", hearts),
-                color = Color.Black,
-                fontSize = 14.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Medium
             )
         }
     }
@@ -662,6 +616,11 @@ private fun FilterSheetContainer(
             .height(526.dp)
             .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .background(Color.White)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {}
+            )
     ) {
         Box(
             modifier = Modifier
@@ -712,15 +671,16 @@ private fun LanguageOptionCard(
     }
     val backgroundColor = if (isSelected) selectedColor else Color.White
     val textColor = if (isSelected) Color.White else Color(0xFF3A3A3A)
+    val shape = HandDrawnCardShape
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
         modifier = modifier
             .height(78.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(shape)
             .background(backgroundColor)
-            .border(1.4.dp, Color(0xFF222222), RoundedCornerShape(8.dp))
+            .border(1.4.dp, Color(0xFF222222), shape)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -755,13 +715,15 @@ private fun VibeOptionCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val shape = HandDrawnCardShape
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .height(64.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(shape)
             .background(if (isSelected) Color(0xFFEFA0CF) else Color.White)
-            .border(1.4.dp, Color(0xFF222222), RoundedCornerShape(8.dp))
+            .border(1.4.dp, Color(0xFF222222), shape)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -1170,10 +1132,11 @@ private fun SmoothNotifyToggle(
                 indication = null,
                 onClick = onToggle
             )
-            .padding(2.dp)
+            .padding(2.dp, end = 3.dp)
     ) {
         Box(
             modifier = Modifier
+                .align(Alignment.CenterStart)
                 .offset(x = thumbOffset)
                 .size(28.dp)
                 .clip(CircleShape)

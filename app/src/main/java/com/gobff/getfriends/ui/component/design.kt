@@ -199,7 +199,7 @@ fun BffHeartChip(
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {}
 ) {
-    val shape = RoundedCornerShape(12.dp)
+    val shape = HeartChipShape
     Box(
         modifier = modifier
             .size(width = 88.dp, height = 32.dp)
@@ -212,7 +212,7 @@ fun BffHeartChip(
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .offset(x = 2.dp, y = 2.dp)
+                .offset(x = 1.5.dp, y = 1.5.dp)
                 .clip(shape)
                 .background(Color.Black)
         )

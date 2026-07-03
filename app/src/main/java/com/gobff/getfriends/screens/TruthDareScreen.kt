@@ -63,6 +63,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gobff.getfriends.R
+import com.gobff.getfriends.ui.component.BffHeartChip
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.FreedokaFontFamily
 import com.gobff.getfriends.ui.theme.GaretFontFamily
@@ -242,8 +243,8 @@ private fun TruthDareLobbyHeader(
                     onClick = onBack
                 )
         )
-        TruthDareHeartChip(
-            hearts = String.format("%,d", walletHearts),
+        BffHeartChip(
+            hearts = walletHearts,
             onClick = onRechargeRequested,
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -1685,56 +1686,6 @@ private fun randomTruthDarePrompt(kind: TruthDareKind): String {
         )
     }
     return prompts.random()
-}
-
-@Composable
-private fun TruthDareHeartChip(
-    hearts: String,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit = {}
-) {
-    val shape = RoundedCornerShape(12.dp)
-    Box(
-        modifier = modifier
-            .size(width = 88.dp, height = 32.dp)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            )
-    ) {
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .offset(x = 1.5.dp, y = 2.dp)
-                .clip(shape)
-                .background(Color.Black)
-        )
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-            modifier = Modifier
-                .matchParentSize()
-                .clip(shape)
-                .background(Color.White)
-                .border(1.2.dp, Color.Black, shape)
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.single_heart),
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                contentScale = ContentScale.Fit
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(
-                text = hearts,
-                color = Color.Black,
-                fontSize = 14.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Medium
-            )
-        }
-    }
 }
 
 @Composable

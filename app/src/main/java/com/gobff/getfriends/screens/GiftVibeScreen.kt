@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
@@ -43,6 +44,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gobff.getfriends.R
+import com.gobff.getfriends.ui.component.HandDrawnCardShape
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.GaretFontFamily
 
@@ -66,18 +68,7 @@ fun GiftVibeScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             GiftVibeHeader(onBack = onBack)
-            Spacer(modifier = Modifier.height(34.dp))
-            GiftVibeSearchBar(
-                modifier = Modifier
-                    .padding(horizontal = 24.dp)
-                    .fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(34.dp))
-            GiftVibeGrid(
-                modifier = Modifier
-                    .padding(horizontal = 24.dp)
-                    .padding(bottom = 28.dp)
-            )
+            GiftVibeGiftSection()
         }
     }
 }
@@ -87,23 +78,16 @@ private fun GiftVibeHeader(onBack: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(330.dp)
-            .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
-            .background(GiftVibeCoral)
+            .height(390.dp)
+            .background(Color.White)
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.profile_screen_bg_objects),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.FillBounds
-        )
         Icon(
             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
             contentDescription = "Back",
-            tint = Color.White,
+            tint = Color.Black,
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(start = 24.dp, top = 48.dp)
+                .padding(start = 20.dp, top = 48.dp)
                 .size(24.dp)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -111,24 +95,17 @@ private fun GiftVibeHeader(onBack: () -> Unit) {
                     onClick = onBack
                 )
         )
-        Image(
-            painter = painterResource(id = R.drawable.gift_vibe_header),
-            contentDescription = null,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 96.dp)
-                .size(width = 270.dp, height = 60.dp),
-            contentScale = ContentScale.Fit
-        )
+        Image( painter = painterResource(id = R.drawable.gift_vibe_header), contentDescription = null, modifier = Modifier .align(Alignment.TopCenter) .padding(top = 96.dp) .size(width = 270.dp, height = 60.dp), contentScale = ContentScale.Fit )
+
         Text(
             text = "Little surprise from friends",
-            color = Color.White,
-            fontSize = 13.sp,
+            color = Color(0xFF4A4A4A),
+            fontSize = 15.sp,
             fontFamily = GaretFontFamily,
             fontWeight = FontWeight.Medium,
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 155.dp)
+                .padding(top = 202.dp)
         )
         Row(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -136,11 +113,44 @@ private fun GiftVibeHeader(onBack: () -> Unit) {
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
-                .padding(bottom = 38.dp)
+                .padding(bottom = 42.dp)
         ) {
             GiftVibeStatCard("Total Gifts", "123", Color(0xFFFF5F21), Modifier.weight(1f))
             GiftVibeStatCard("Hearts Earned", "6,720", Color(0xFFFF4D92), Modifier.weight(1f))
             GiftVibeStatCard("Unique Gifts", "42", Color(0xFFFFA90F), Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun GiftVibeGiftSection(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .background(GiftVibeCoral)
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.profile_screen_bg_objects),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.FillBounds
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 40.dp, bottom = 28.dp)
+        ) {
+            GiftVibeSearchBar(
+                modifier = Modifier
+                    .padding(horizontal = 24.dp)
+                    .fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(34.dp))
+            GiftVibeGrid(
+                modifier = Modifier
+                    .padding(horizontal = 24.dp)
+            )
         }
     }
 }
@@ -152,7 +162,7 @@ private fun GiftVibeStatCard(
     valueColor: Color,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(10.dp)
+    val shape = HandDrawnCardShape
     Box(modifier = modifier.height(74.dp)) {
         Box(
             modifier = Modifier
@@ -168,7 +178,7 @@ private fun GiftVibeStatCard(
                 .matchParentSize()
                 .clip(shape)
                 .background(Color(0xFFFFF5EA))
-                .border(1.2.dp, Color.Black, shape)
+                .border(1.dp, Color.Black, shape)
         ) {
             Text(
                 text = title,
@@ -197,7 +207,7 @@ private fun GiftVibeSearchBar(modifier: Modifier = Modifier) {
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .offset(x = 4.dp, y = 5.dp)
+                .offset(x = 2.5.dp, y = 3.dp)
                 .clip(shape)
                 .background(Color.Black)
         )
@@ -276,7 +286,7 @@ private fun GiftVibeCard(item: GiftVibeItem, modifier: Modifier = Modifier) {
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .offset(x = 3.dp, y = 4.dp)
+                .offset(x = 1.5.dp, y = 2.dp)
                 .clip(shape)
                 .background(Color.Black)
         )
@@ -285,7 +295,7 @@ private fun GiftVibeCard(item: GiftVibeItem, modifier: Modifier = Modifier) {
                 .matchParentSize()
                 .clip(shape)
                 .background(Color.White)
-                .border(1.2.dp, Color.Black, shape)
+                .border(1.dp, Color.Black, shape)
         ) {
             Image(
                 painter = painterResource(id = item.imageRes),
@@ -346,7 +356,7 @@ private fun GiftVibeCard(item: GiftVibeItem, modifier: Modifier = Modifier) {
                     fontSize = 10.sp,
                     fontFamily = GaretFontFamily,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.offset(y = (-3f).dp)
+                    modifier = Modifier.offset(y = (-1f).dp)
                 )
             }
         }

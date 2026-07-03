@@ -20,17 +20,12 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.ChatBubbleOutline
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -44,13 +39,16 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gobff.getfriends.R
+import com.gobff.getfriends.ui.component.BffHeartChip
+import com.gobff.getfriends.ui.component.HandDrawnCardShape
+import com.gobff.getfriends.ui.component.HeartChipShape
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
+import com.gobff.getfriends.ui.theme.FreedokaFontFamily
 import com.gobff.getfriends.ui.theme.GaretFontFamily
 
 private val HomeScreen2Pink = Color(0xFFFF639C)
@@ -96,7 +94,6 @@ fun HomeScreen2(
                 onProfileClick = onProfileRequested,
                 onRechargeRequested = onRechargeRequested
             )
-
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -114,7 +111,10 @@ fun HomeScreen2(
                     modifier = Modifier
                         .padding(top = 26.dp, bottom = 116.dp)
                 ) {
-                    HomeScreen2SectionHeader(title = "⭐ Star Friends")
+                    HomeScreen2SectionHeader(
+                        title = "Star Friends",
+                        showStarIcon = true
+                    )
                     Spacer(modifier = Modifier.height(18.dp))
                     HomeScreen2StarFriendRow()
 
@@ -136,7 +136,7 @@ fun HomeScreen2(
                     Spacer(modifier = Modifier.height(18.dp))
                     HomeScreen2GameRow(onTruthDareSelected = onTruthDareSelected)
                 }
-            }
+                }
         }
 
     }
@@ -153,7 +153,7 @@ private fun HomeScreen2TopSection(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(250.dp)
+            .height(226.dp)
             .background(Color.White)
     ) {
         Image(
@@ -182,7 +182,7 @@ private fun HomeScreen2TopSection(
                 .align(Alignment.TopEnd)
                 .padding(top = 48.dp, end = 20.dp)
         ) {
-            HomeScreen2HeartChip(hearts = walletHearts,onClick = onRechargeRequested)
+            BffHeartChip(hearts = walletHearts, onClick = onRechargeRequested)
             HomeScreen2IconButton(
                 icon = Icons.Filled.ChatBubbleOutline,
                 iconSize = 20.dp,
@@ -202,12 +202,12 @@ private fun HomeScreen2TopSection(
             Text(
                 text = "Hi, $greetingName 👋",
                 color = HomeScreen2Pink,
-                fontSize = 27.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold,
+                fontSize = 32.sp,
+                fontFamily = FreedokaFontFamily,
+                fontWeight = FontWeight.SemiBold,
                 letterSpacing = 0.sp
             )
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "What do you want to do today?",
                 color = Color(0xFF404040),
@@ -221,79 +221,41 @@ private fun HomeScreen2TopSection(
 }
 
 @Composable
-private fun HomeScreen2HeartChip(
-    hearts: Int,
+private fun HomeScreen2IconButton(
+    icon: ImageVector,
     modifier: Modifier = Modifier,
+    size: Dp = 48.dp,
+    iconSize: Dp = 22.dp,
+    background: Color = Color.White,
+    iconColor: Color = Color(0xFF444444),
     onClick: () -> Unit = {}
 ) {
     Box(
-        modifier = modifier
-            .size(width = 88.dp, height = 32.dp)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            )
+        modifier = modifier.size(size)
     ) {
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .offset(x = 2.dp, y = 2.5.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color.Black)
-        )
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-            modifier = Modifier
-                .size(width = 88.dp, height = 32.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color.White)
-                .border(1.4.dp, Color.Black, RoundedCornerShape(12.dp))
-                .padding(horizontal = 9.dp)
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.single_heart),
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                contentScale = ContentScale.Fit
-            )
-            Spacer(modifier = Modifier.width(2.dp))
-            Text(
-                text = String.format("%,d", hearts),
-                color = Color.Black,
-                fontSize = 14.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold
-            )
-        }
-    }
-}
 
-@Composable
-private fun HomeScreen2IconButton(
-    icon: ImageVector,
-    iconSize: Dp,
-    modifier: Modifier = Modifier,
-    background: Color = Color.White,
-    iconColor: Color = HomeScreen2Ink,
-    onClick: () -> Unit = {}
-) {
-    Box(modifier = modifier) {
+        val shape = HeartChipShape
+        // Shadow
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .offset(x = 2.dp, y = 2.5.dp)
-                .clip(RoundedCornerShape(8.dp))
+                .offset(x = 1.5.dp, y = 1.5.dp)
+                .clip(shape)
                 .background(Color.Black)
         )
+
+        // Main button
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .matchParentSize()
-                .clip(RoundedCornerShape(8.dp))
+                .clip(shape)
                 .background(background)
-                .border(1.4.dp, Color.Black, RoundedCornerShape(8.dp))
+                .border(
+                    width = 1.dp,
+                    color = Color.Black,
+                    shape = shape
+                )
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -313,6 +275,7 @@ private fun HomeScreen2IconButton(
 @Composable
 private fun HomeScreen2SectionHeader(
     title: String,
+    showStarIcon: Boolean = false,
     onViewAllClick: () -> Unit = {}
 ) {
     Row(
@@ -322,13 +285,28 @@ private fun HomeScreen2SectionHeader(
             .fillMaxWidth()
             .padding(horizontal = 20.dp)
     ) {
-        Text(
-            text = title,
-            color = Color.Black,
-            fontSize = 18.sp,
-            fontFamily = GaretFontFamily,
-            fontWeight = FontWeight.Bold
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (showStarIcon) {
+                Icon(
+                    painter = painterResource(id = R.drawable.star_icon), // 👈 apna drawable name daalo
+                    contentDescription = null,
+                    tint = Color.Unspecified,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+            }
+            Text(
+                text = title,
+                color = Color.Black,
+                fontSize = 16.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.sp,
+                lineHeight = 18.sp,
+            )
+        }
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.clickable(
@@ -340,16 +318,18 @@ private fun HomeScreen2SectionHeader(
             Text(
                 text = "View all",
                 color = Color.Black,
-                fontSize = 16.sp,
+                fontSize = 14.sp,
                 fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 0.sp,
+                lineHeight = 18.sp
             )
-            Spacer(modifier = Modifier.width(6.dp))
+            Spacer(modifier = Modifier.width(4.dp))
             Icon(
                 imageVector = Icons.Filled.ArrowForward,
                 contentDescription = null,
                 tint = Color.Black,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(16.dp)
             )
         }
     }
@@ -370,11 +350,18 @@ private fun HomeScreen2StarFriendRow() {
 }
 
 @Composable
-private fun HomeScreen2StarFriendCard(name: String, avatarRes: Int) {
-    val shape = RoundedCornerShape(8.dp)
+private fun HomeScreen2StarFriendCard(
+    name: String,
+    avatarRes: Int
+) {
+    val shape = HandDrawnCardShape
+
     Box(
-        modifier = Modifier.size(width = 130.dp, height = 140.dp)
+        modifier = Modifier
+            .size(width = 130.dp, height = 140.dp)
     ) {
+
+        // Shadow
         Box(
             modifier = Modifier
                 .matchParentSize()
@@ -382,39 +369,59 @@ private fun HomeScreen2StarFriendCard(name: String, avatarRes: Int) {
                 .clip(shape)
                 .background(Color.Black)
         )
+
+        // Card
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .matchParentSize()
                 .clip(shape)
                 .background(Color(0xFFFFE7A0))
-                .border(1.dp, Color.White, shape)
-                .padding(top = 13.dp, start = 12.dp, end = 12.dp, bottom = 10.dp)
+                .border(
+                    width = 1.dp,
+                    color = Color.White,
+                    shape = shape
+                )
+                .padding(
+                    top = 13.dp,
+                    start = 12.dp,
+                    end = 12.dp,
+                    bottom = 10.dp
+                )
         ) {
+
             Box {
                 Image(
-                    painter = painterResource(id = avatarRes),
+                    painter = painterResource(avatarRes),
                     contentDescription = null,
                     modifier = Modifier
                         .size(58.dp)
                         .clip(CircleShape),
                     contentScale = ContentScale.Crop
                 )
+
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .offset(x = 1.dp, y = (-1).dp)
+                        .offset(x = -2.dp, y = 0.dp)
                         .size(14.dp)
                         .clip(CircleShape)
                         .background(Color(0xFF24B64F))
-                        .border(2.dp, Color.White, CircleShape)
+                        .border(
+                            width = 2.dp,
+                            color = Color.White,
+                            shape = CircleShape
+                        )
                 )
             }
+
             Spacer(modifier = Modifier.height(7.dp))
+
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
+
                 Text(
                     text = name,
                     color = Color.Black,
@@ -423,24 +430,89 @@ private fun HomeScreen2StarFriendCard(name: String, avatarRes: Int) {
                     fontWeight = FontWeight.Bold,
                     maxLines = 1
                 )
+
                 Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = "✦",
-                    color = Color(0xFFFF4F93),
-                    fontSize = 13.sp,
-                    fontFamily = GaretFontFamily,
-                    fontWeight = FontWeight.Bold
+
+                Icon(
+                    painter = painterResource(id = R.drawable.star_badge),
+                    contentDescription = null,
+                    tint = Color.Unspecified, // keeps original icon colors
+                    modifier = Modifier.size(16.dp)
                 )
             }
+
             Spacer(modifier = Modifier.height(8.dp))
+
             HomeScreen2PillButton(
                 text = "Call expert",
-                icon = Icons.Filled.Call,
+                icon = Icons.Default.Call,
                 modifier = Modifier.fillMaxWidth()
             )
         }
     }
 }
+
+//val HandDrawnCardShape = GenericShape { size, _ ->
+//
+//    val w = size.width
+//    val h = size.height
+//
+//    moveTo(w * 0.10f, h * 0.03f)
+//
+//    // ---------- TOP ----------
+//    cubicTo(
+//        w * 0.24f, h * 0.005f,
+//        w * 0.47f, h * 0.018f,
+//        w * 0.64f, h * 0.015f
+//    )
+//
+//    cubicTo(
+//        w * 0.81f, h * 0.010f,
+//        w * 0.94f, h * 0.020f,
+//        w * 0.980f, h * 0.055f
+//    )
+//
+//    // ---------- RIGHT ----------
+//    cubicTo(
+//        w * 1.010f, h * 0.20f,
+//        w * 1.008f, h * 0.43f,
+//        w * 1.002f, h * 0.66f
+//    )
+//
+//    cubicTo(
+//        w * 0.997f, h * 0.85f,
+//        w * 0.988f, h * 0.95f,
+//        w * 0.955f, h * 0.980f
+//    )
+//
+//    // ---------- BOTTOM ----------
+//    cubicTo(
+//        w * 0.80f, h * 1.000f,
+//        w * 0.64f, h * 0.990f,
+//        w * 0.50f, h * 0.996f
+//    )
+//
+//    cubicTo(
+//        w * 0.36f, h * 1.002f,
+//        w * 0.20f, h * 0.998f,
+//        w * 0.075f, h * 0.975f
+//    )
+//
+//    // ---------- LEFT ----------
+//    cubicTo(
+//        w * 0.005f, h * 0.82f,
+//        w * 0.008f, h * 0.45f,
+//        w * 0.018f, h * 0.25f
+//    )
+//
+//    cubicTo(
+//        w * 0.030f, h * 0.12f,
+//        w * 0.045f, h * 0.055f,
+//        w * 0.10f, h * 0.03f
+//    )
+//
+//    close()
+//}
 
 @Composable
 private fun HomeScreen2FriendRow() {
@@ -458,7 +530,7 @@ private fun HomeScreen2FriendRow() {
 
 @Composable
 private fun HomeScreen2FriendCard(name: String, avatarRes: Int) {
-    val shape = RoundedCornerShape(8.dp)
+    val shape = HandDrawnCardShape
     Box(
         modifier = Modifier.size(width = 130.dp, height = 148.dp)
     ) {
@@ -490,7 +562,7 @@ private fun HomeScreen2FriendCard(name: String, avatarRes: Int) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .offset(x = 1.dp, y = (-1).dp)
+                        .offset(x = -2.dp, y = 0.dp)
                         .size(14.dp)
                         .clip(CircleShape)
                         .background(Color(0xFF24B64F))
@@ -525,35 +597,42 @@ private fun HomeScreen2PillButton(
     textColor: Color = Color.Black,
     onClick: () -> Unit = {}
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
+    Box(
+        contentAlignment = Alignment.Center,
         modifier = modifier
-            .height(30.dp)
+            .height(32.dp)
             .clip(RoundedCornerShape(80.dp))
             .background(background)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick
-            )
+            ),
+
     ) {
-        if (icon != null) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = textColor,
-                modifier = Modifier.size(16.dp)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = textColor,
+                    modifier = Modifier.size(15.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+            }
+
+            Text(
+                text = text,
+                color = textColor,
+                fontSize = 12.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Medium,
+                lineHeight = 12.sp,
             )
-            Spacer(modifier = Modifier.width(6.dp))
         }
-        Text(
-            text = text,
-            color = textColor,
-            fontSize = 13.sp,
-            fontFamily = GaretFontFamily,
-            fontWeight = FontWeight.Bold
-        )
     }
 }
 
@@ -593,87 +672,123 @@ private fun HomeScreen2LiveCard(
     viewers: String,
     imageRes: Int
 ) {
+    val shape = HandDrawnCardShape
+
     Box(
         modifier = Modifier.size(width = 130.dp, height = 138.dp)
     ) {
-        Image(
-            painter = painterResource(id = imageRes),
-            contentDescription = null,
-            modifier = Modifier
-                .matchParentSize()
-                .clip(RoundedCornerShape(8.dp))
-                .border(2.dp, Color.White, RoundedCornerShape(8.dp)),
-            contentScale = ContentScale.Crop
-        )
+
+        // Shadow
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color.Black.copy(alpha = 0.18f))
+                .offset(x = 2.dp, y = 3.dp)
+                .clip(shape)
+                .background(Color.Black)
         )
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
+
+        // Card
+        Box(
             modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(8.dp)
+                .matchParentSize()
+                .clip(shape)
+                .background(Color.White)
+                .border(1.dp, Color.White, shape)
         ) {
-            Text(
-                text = "Live",
-                color = Color.White,
-                fontSize = 9.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(15.dp))
-                    .background(Color(0xFFFF3333))
-                    .padding(horizontal = 3.dp, vertical = 4.dp)
-            )
-            Spacer(modifier = Modifier.weight(1f))
-        }
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 10.dp, end = 10.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color.Black.copy(alpha = 0.35f))
-                .padding(horizontal = 6.dp, vertical = 2.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Visibility,
+
+            Image(
+                painter = painterResource(id = imageRes),
                 contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(12.dp)
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop
             )
-            Spacer(modifier = Modifier.width(3.dp))
-            Text(
-                text = viewers,
-                color = Color.White,
-                fontSize = 10.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold
+
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(Color.Black.copy(alpha = 0.18f))
             )
-        }
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 10.dp, end = 8.dp, bottom = 12.dp)
-        ) {
-            Text(
-                text = name,
-                color = Color.White,
-                fontSize = 14.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = subtitle,
-                color = Color.White,
-                fontSize = 10.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1
-            )
+
+            // LIVE badge
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(8.dp)
+            ) {
+
+                Text(
+                    text = "Live",
+                    color = Color.White,
+                    fontSize = 9.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(15.dp))
+                        .background(Color(0xFFFF3333))
+                        .padding(horizontal = 5.dp, vertical = 3.dp)
+                )
+
+                Spacer(modifier = Modifier.weight(1f))
+            }
+
+            // Viewers
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 10.dp, end = 10.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.Black.copy(alpha = 0.35f))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+
+                Icon(
+                    imageVector = Icons.Default.Visibility,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(12.dp)
+                )
+
+                Spacer(modifier = Modifier.width(3.dp))
+
+                Text(
+                    text = viewers,
+                    color = Color.White,
+                    fontSize = 10.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            // Bottom text
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(
+                        start = 10.dp,
+                        end = 10.dp,
+                        bottom = 12.dp
+                    )
+            ) {
+
+                Text(
+                    text = name,
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(
+                    text = subtitle,
+                    color = Color.White,
+                    fontSize = 10.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1
+                )
+            }
         }
     }
 }
@@ -706,14 +821,14 @@ private fun HomeScreen2GameCard(
     background: Color,
     onPlayClick: () -> Unit = {}
 ) {
-    val shape = RoundedCornerShape(8.dp)
+    val shape = HandDrawnCardShape
     Box(
         modifier = Modifier.size(width = 130.dp, height = 138.dp)
     ) {
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .offset(x = 4.dp, y = 5.dp)
+                .offset(x = 1.5.dp, y = 2.dp)
                 .clip(shape)
                 .background(Color.Black)
         )

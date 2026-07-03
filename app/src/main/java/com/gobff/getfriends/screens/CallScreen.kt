@@ -70,6 +70,7 @@ import com.gobff.getfriends.data.model.GameCatalogItemDto
 import com.gobff.getfriends.data.model.GiftCatalogResponse
 import com.gobff.getfriends.data.model.GiftCategoryDto
 import com.gobff.getfriends.data.model.GiftItemDto
+import com.gobff.getfriends.ui.component.HeartChipShape
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.GaretFontFamily
 import com.gobff.getfriends.viewmodel.CallViewModel
@@ -510,27 +511,38 @@ private fun CallTimerChip(
     secondsRemaining: Int,
     onClick: () -> Unit
 ) {
+    val shape = HeartChipShape
+
     Box(
         modifier = Modifier
             .size(width = 88.dp, height = 38.dp)
             .clickable(onClick = onClick)
     ) {
+
+        // Shadow
         Box(
             modifier = Modifier
                 .matchParentSize()
                 .offset(x = 2.dp, y = 3.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .clip(shape)
                 .background(Color.Black)
         )
+
+        // Main Chip
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
             modifier = Modifier
                 .matchParentSize()
-                .clip(RoundedCornerShape(12.dp))
+                .clip(shape)
                 .background(Color.White)
-                .border(1.5.dp, Color.Black, RoundedCornerShape(12.dp))
+                .border(
+                    width = 1.5.dp,
+                    color = Color.Black,
+                    shape = shape
+                )
         ) {
+
             Text(
                 text = formatCallTime(secondsRemaining),
                 color = Color.Black,
@@ -538,7 +550,9 @@ private fun CallTimerChip(
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Bold
             )
+
             Spacer(modifier = Modifier.width(8.dp))
+
             Icon(
                 imageVector = Icons.Default.Add,
                 contentDescription = null,

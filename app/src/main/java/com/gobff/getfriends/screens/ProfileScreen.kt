@@ -78,8 +78,13 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gobff.getfriends.R
+import com.gobff.getfriends.data.model.UserProfileUiState
+import com.gobff.getfriends.ui.component.BffHeartChip
+import com.gobff.getfriends.ui.component.HandDrawnCardShape
+import com.gobff.getfriends.ui.component.HeartChipShape
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.GaretFontFamily
+import com.gobff.getfriends.viewmodel.HomeOptionsUiState
 import com.gobff.getfriends.viewmodel.HomeOptionsViewModel
 import com.gobff.getfriends.viewmodel.UserProfileViewModel
 import java.io.File
@@ -98,9 +103,56 @@ fun ProfileScreen(
     homeOptionsViewModel: HomeOptionsViewModel = viewModel(),
     userProfileViewModel: UserProfileViewModel = viewModel()
 ) {
-    val context = LocalContext.current
     val homeOptionsState = homeOptionsViewModel.uiState
     val userProfileState = userProfileViewModel.uiState
+
+    LaunchedEffect(Unit) {
+        homeOptionsViewModel.loadHomeOptions()
+        userProfileViewModel.loadProfile()
+    }
+
+    ProfileScreenContent(
+        modifier = modifier,
+        walletHearts = walletHearts,
+        userProfileState = userProfileState,
+        homeOptionsState = homeOptionsState,
+        onBack = onBack,
+        onGiftVibeRequested = onGiftVibeRequested,
+        onWalletRequested = onWalletRequested,
+        onRechargeRequested = onRechargeRequested,
+        onSettingsRequested = onSettingsRequested,
+        onSaveLanguages = { languages, onComplete ->
+            userProfileViewModel.saveLanguages(languages, onComplete)
+        },
+        onSaveVibes = { vibes, onComplete ->
+            userProfileViewModel.saveVibes(vibes, onComplete)
+        },
+        onSaveAvatar = { avatarUrl, onComplete ->
+            userProfileViewModel.saveIdentity(avatarUrl = avatarUrl, onComplete = onComplete)
+        },
+        onSaveName = { displayName, onComplete ->
+            userProfileViewModel.saveIdentity(displayName = displayName, onComplete = onComplete)
+        }
+    )
+}
+
+@Composable
+private fun ProfileScreenContent(
+    modifier: Modifier = Modifier,
+    walletHearts: Int = 0,
+    userProfileState: UserProfileUiState = UserProfileUiState(),
+    homeOptionsState: HomeOptionsUiState = HomeOptionsUiState(),
+    onBack: () -> Unit = {},
+    onGiftVibeRequested: () -> Unit = {},
+    onWalletRequested: () -> Unit = {},
+    onRechargeRequested: () -> Unit = {},
+    onSettingsRequested: () -> Unit = {},
+    onSaveLanguages: (Set<String>, () -> Unit) -> Unit = { _, onComplete -> onComplete() },
+    onSaveVibes: (Set<String>, () -> Unit) -> Unit = { _, onComplete -> onComplete() },
+    onSaveAvatar: (String, () -> Unit) -> Unit = { _, onComplete -> onComplete() },
+    onSaveName: (String, () -> Unit) -> Unit = { _, onComplete -> onComplete() }
+) {
+    val context = LocalContext.current
     var openSheet by remember { mutableStateOf<ProfileSheet?>(null) }
     var selectedLanguages by remember { mutableStateOf(setOf<String>()) }
     var selectedVibes by remember { mutableStateOf(setOf<String>()) }
@@ -112,6 +164,7 @@ fun ProfileScreen(
     var starHostIntroVideoUri by remember { mutableStateOf<Uri?>(null) }
     var pendingStarHostVideoUri by remember { mutableStateOf<Uri?>(null) }
     var starHostVideoMessage by remember { mutableStateOf<String?>(null) }
+    var isOnline by remember { mutableStateOf(false) }
 
     fun createStarHostVideoUri(): Uri {
         val videoDir = File(context.cacheDir, "star_host_videos").apply { mkdirs() }
@@ -187,11 +240,6 @@ fun ProfileScreen(
         }.onFailure {
             starHostVideoMessage = "Unable to play this video on your device."
         }
-    }
-
-    LaunchedEffect(Unit) {
-        homeOptionsViewModel.loadHomeOptions()
-        userProfileViewModel.loadProfile()
     }
 
     LaunchedEffect(userProfileState.languages) {
@@ -273,7 +321,7 @@ fun ProfileScreen(
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
-                .padding(top = 50.dp, bottom = 30.dp)
+                .padding(top = 48.dp, bottom = 30.dp)
         ) {
             ProfileTopBar(
                 onBack = onBack,
@@ -287,6 +335,8 @@ fun ProfileScreen(
             ProfileIdentity(
                 displayName = userProfileState.displayName,
                 avatarUrl = userProfileState.avatarUrl,
+                isOnline = isOnline,
+                onOnlineChange = { isOnline = it },
                 onAvatarEditClick = {
                     editingAvatarUrl = userProfileState.avatarUrl?.takeIf { it.isNotBlank() }
                         ?: "women_avatar1"
@@ -297,7 +347,7 @@ fun ProfileScreen(
                     openSheet = ProfileSheet.Name
                 }
             )
-            Spacer(modifier = Modifier.height(36.dp))
+            Spacer(modifier = Modifier.height(16.dp))
             BecomeStarHostCard(onClick = { starHostScreen = StarHostScreen.Progress })
             Spacer(modifier = Modifier.height(24.dp))
             ProfileInfoGrid(
@@ -331,7 +381,7 @@ fun ProfileScreen(
                 onLanguageSelected = { selectedLanguages = selectedLanguages.toggleValue(it) },
                 onClear = { selectedLanguages = emptySet() },
                 onApply = {
-                    userProfileViewModel.saveLanguages(selectedLanguages) {
+                    onSaveLanguages(selectedLanguages) {
                         openSheet = null
                     }
                 },
@@ -345,7 +395,7 @@ fun ProfileScreen(
                 onVibeSelected = { selectedVibes = selectedVibes.toggleValue(it) },
                 onClear = { selectedVibes = emptySet() },
                 onApply = {
-                    userProfileViewModel.saveVibes(selectedVibes) {
+                    onSaveVibes(selectedVibes) {
                         openSheet = null
                     }
                 },
@@ -369,7 +419,7 @@ fun ProfileScreen(
                 selectedAvatarUrl = editingAvatarUrl,
                 onAvatarSelected = { editingAvatarUrl = it },
                 onSave = {
-                    userProfileViewModel.saveIdentity(avatarUrl = editingAvatarUrl) {
+                    onSaveAvatar(editingAvatarUrl) {
                         openSheet = null
                     }
                 },
@@ -380,7 +430,7 @@ fun ProfileScreen(
                 name = editingName,
                 onNameChange = { editingName = it },
                 onSave = {
-                    userProfileViewModel.saveIdentity(displayName = editingName) {
+                    onSaveName(editingName) {
                         openSheet = null
                     }
                 },
@@ -427,10 +477,7 @@ private fun ProfileTopBar(
             onClick = onWalletRequested
         )
         Spacer(modifier = Modifier.width(12.dp))
-        ProfileHeartChip(
-            text = String.format("%,d", walletHearts),
-            onClick = onRechargeRequested
-        )
+        BffHeartChip(hearts = walletHearts, onClick = onRechargeRequested)
         Spacer(modifier = Modifier.width(12.dp))
         ProfileSettingsChip(onClick = onSettingsRequested)
     }
@@ -443,7 +490,7 @@ private fun ProfileTopChip(
     text: String,
     onClick: () -> Unit
 ) {
-    val shape = RoundedCornerShape(10.dp)
+    val shape = HeartChipShape
     Box(
         modifier = Modifier
             .size(width = width, height = 32.dp)
@@ -456,7 +503,7 @@ private fun ProfileTopChip(
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .offset(x = 2.dp, y = 2.dp)
+                .offset(x = 1.5.dp, y = 1.5.dp)
                 .clip(shape)
                 .background(Color.Black)
         )
@@ -489,57 +536,8 @@ private fun ProfileTopChip(
 }
 
 @Composable
-private fun ProfileHeartChip(
-    text: String,
-    onClick: () -> Unit
-) {
-    val shape = RoundedCornerShape(10.dp)
-    Box(
-        modifier = Modifier
-            .size(width = 88.dp, height = 32.dp)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick
-            )
-    ) {
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .offset(x = 2.dp, y = 2.dp)
-                .clip(shape)
-                .background(Color.Black)
-        )
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-            modifier = Modifier
-                .matchParentSize()
-                .clip(shape)
-                .background(Color.White)
-                .border(1.2.dp, Color.Black, shape)
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.single_heart),
-                contentDescription = null,
-                modifier = Modifier.size(19.dp),
-                contentScale = ContentScale.Fit
-            )
-            Spacer(modifier = Modifier.width(5.dp))
-            Text(
-                text = text,
-                color = Color.Black,
-                fontSize = 14.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold
-            )
-        }
-    }
-}
-
-@Composable
 private fun ProfileSettingsChip(onClick: () -> Unit) {
-    val shape = RoundedCornerShape(10.dp)
+    val shape = HeartChipShape
     Box(
         modifier = Modifier
             .size(32.dp)
@@ -552,7 +550,7 @@ private fun ProfileSettingsChip(onClick: () -> Unit) {
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .offset(x = 2.dp, y = 2.dp)
+                .offset(x = 1.5.dp, y = 1.5.dp)
                 .clip(shape)
                 .background(Color.Black)
         )
@@ -578,6 +576,8 @@ private fun ProfileSettingsChip(onClick: () -> Unit) {
 private fun ProfileIdentity(
     displayName: String?,
     avatarUrl: String?,
+    isOnline: Boolean,
+    onOnlineChange: (Boolean) -> Unit,
     onAvatarEditClick: () -> Unit,
     onNameEditClick: () -> Unit
 ) {
@@ -615,7 +615,7 @@ private fun ProfileIdentity(
                 )
             }
         }
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(10.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
@@ -650,7 +650,22 @@ private fun ProfileIdentity(
             }
         }
         Spacer(modifier = Modifier.height(16.dp))
-        FriendSquadChip()
+        ProfileAvailabilityToggle(
+            isOnline = isOnline,
+            onToggle = { onOnlineChange(!isOnline) }
+        )
+        Spacer(modifier = Modifier.height(14.dp))
+        Text(
+            text = if (isOnline) {
+                "Available to take calls right now"
+            } else {
+                "You're currently unavailable for calls"
+            },
+            color = Color.White.copy(alpha = 0.82f),
+            fontSize = 14.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
@@ -686,50 +701,53 @@ private fun String?.toProfileAvatarRes(): Int {
 }
 
 @Composable
-private fun FriendSquadChip() {
-    val shape = RoundedCornerShape(10.dp)
-    Box(modifier = Modifier.size(width = 232.dp, height = 42.dp)) {
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .offset(x = 1.5.dp, y = 1.5.dp)
-                .clip(shape)
-                .background(Color.Black)
+private fun ProfileAvailabilityToggle(
+    isOnline: Boolean,
+    onToggle: () -> Unit
+) {
+    val shape = RoundedCornerShape(24.dp)
+    val background = if (isOnline) Color(0xFF08C879) else Color(0xFFE6E6E6)
+    val textColor = if (isOnline) Color.Black else Color(0xFF171717)
+    val iconRes = if (isOnline) R.drawable.toggle_online else R.drawable.toggle_offline
+
+    Box(
+        modifier = Modifier
+            .size(width = 134.dp, height = 42.dp)
+            .clip(shape)
+            .background(background)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onToggle
+            )
+            .padding(horizontal = 7.dp)
+    ) {
+        Text(
+            text = if (isOnline) "Online" else "Offline",
+            color = textColor,
+            fontSize = 15.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.align(Alignment.Center)
         )
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
+        Box(
+            contentAlignment = Alignment.Center,
             modifier = Modifier
-                .matchParentSize()
-                .clip(shape)
-                .background(Color.White)
-                .border(1.dp, Color.Black, shape)
-                .padding(horizontal = 12.dp)
+                .align(if (isOnline) Alignment.CenterEnd else Alignment.CenterStart)
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(if (isOnline) Color.White else Color.White.copy(alpha = 0.72f))
         ) {
             Image(
-                painter = painterResource(id = R.drawable.profile_screen_friend_sqaud),
+                painter = painterResource(id = iconRes),
                 contentDescription = null,
-                modifier = Modifier.size(width = 26.dp, height = 24.dp),
+                modifier = Modifier.size(16.dp),
                 contentScale = ContentScale.Fit
-            )
-            Spacer(modifier = Modifier.width(7.dp))
-            Text(
-                text = "Friends squad : ",
-                color = Color(0xFF222222),
-                fontSize = 16.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = "28",
-                color = Color(0xFFFF5D5D),
-                fontSize = 16.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold
             )
         }
     }
 }
+
 
 @Composable
 private fun ProfileInfoGrid(
@@ -787,7 +805,11 @@ private fun ProfileInfoGrid(
                     .height(140.dp)
             )
 
-            ProfileGameStatsCard(
+            ProfileFeatureCard(
+                title = "Game stats",
+                imageRes = R.drawable.profile_screen_game_stats,
+                icon = Icons.Default.SportsEsports,
+                background = Color(0xFFFFF0C9),
                 onClick = onGameStatsClick,
                 modifier = Modifier
                     .weight(1f)
@@ -806,12 +828,12 @@ private fun ProfileFeatureCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(14.dp)
+    val shape = HandDrawnCardShape
     Box(modifier = modifier) {
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .offset(x = 1.5.dp, y = 2.dp)
+                .offset(x = 1.5.dp, y = 1.5.dp)
                 .clip(shape)
                 .background(Color.Black)
         )
@@ -857,80 +879,6 @@ private fun ProfileFeatureCard(
 }
 
 @Composable
-private fun ProfileGameStatsCard(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val shape = RoundedCornerShape(14.dp)
-    Box(modifier = modifier) {
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .offset(x = 3.dp, y = 4.dp)
-                .clip(shape)
-                .background(Color.Black)
-        )
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .clip(shape)
-                .background(Color(0xFFFFF0C9))
-                .border(1.2.dp, Color.Black, shape)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onClick
-                )
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(start = 14.dp, top = 14.dp)
-            ) {
-                IconBubble(icon = Icons.Default.SportsEsports)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Game stats",
-                    color = Color.Black,
-                    fontSize = 13.sp,
-                    fontFamily = GaretFontFamily,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            Image(
-                painter = painterResource(id = R.drawable.profile_screen_game_stats),
-                contentDescription = null,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = 24.dp, bottom = 13.dp)
-                    .size(width = 80.dp, height = 74.dp),
-                contentScale = ContentScale.Fit
-            )
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 16.dp, top = 18.dp)
-            ) {
-                Text(
-                    text = "42",
-                    color = Color.Black,
-                    fontSize = 30.sp,
-                    fontFamily = GaretFontFamily,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "Won",
-                    color = Color.Black,
-                    fontSize = 13.sp,
-                    fontFamily = GaretFontFamily,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun IconBubble(icon: ImageVector) {
     Box(
         contentAlignment = Alignment.Center,
@@ -950,7 +898,7 @@ private fun IconBubble(icon: ImageVector) {
 
 @Composable
 private fun BecomeStarHostCard(onClick: () -> Unit) {
-    val shape = RoundedCornerShape(20.dp)
+    val shape = HandDrawnCardShape
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -959,7 +907,7 @@ private fun BecomeStarHostCard(onClick: () -> Unit) {
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .offset(x = 3.dp, y = 4.dp)
+                .offset(x = 1.5.dp, y = 1.5.dp)
                 .clip(shape)
                 .background(Color.Black)
         )
@@ -2373,7 +2321,7 @@ private fun InterestChip(
         "Deep talks", "Tech" -> Color(0xFFB953DF)
         else -> Color(0xFFFF5A8D)
     }
-    val shape = RoundedCornerShape(7.dp)
+    val shape = HandDrawnCardShape
 
     Box(
         contentAlignment = Alignment.Center,
@@ -2461,9 +2409,20 @@ private fun GameStatsSheet(modifier: Modifier = Modifier) {
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(26.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                        GameStatMiniCard(value = "32", label = "Dares Completed")
-                        GameStatMiniCard(value = "18", label = "Truths Told")
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        GameStatMiniCard(
+                            value = "32",
+                            label = "Dares Completed",
+                            modifier = Modifier.weight(1f)
+                        )
+                        GameStatMiniCard(
+                            value = "18",
+                            label = "Truths Told",
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
             }
@@ -2648,6 +2607,11 @@ private fun ProfileEditSheetContainer(
             .fillMaxWidth()
             .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .background(Color.White)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {}
+            )
     ) {
         Box(
             modifier = Modifier
@@ -2710,9 +2674,13 @@ private fun ProfileEditSheetContainer(
 }
 
 @Composable
-private fun GameStatMiniCard(value: String, label: String) {
-    val shape = RoundedCornerShape(8.dp)
-    Box(modifier = Modifier.size(width = 108.dp, height = 70.dp)) {
+private fun GameStatMiniCard(
+    value: String,
+    label: String,
+    modifier: Modifier = Modifier
+) {
+    val shape = HandDrawnCardShape
+    Box(modifier = modifier.height(78.dp)) {
         Box(
             modifier = Modifier
                 .matchParentSize()
@@ -2726,20 +2694,21 @@ private fun GameStatMiniCard(value: String, label: String) {
             modifier = Modifier
                 .matchParentSize()
                 .clip(shape)
-                .background(Color.White)
-                .border(1.dp, Color.Black, shape)
+                .background(Color(0xFFFFE16A))
+                .border(1.2.dp, Color.Black, shape)
         ) {
             Text(
                 text = value,
                 color = Color.Black,
-                fontSize = 24.sp,
+                fontSize = 28.sp,
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Bold
             )
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = label,
-                color = Color(0xFF777777),
-                fontSize = 8.sp,
+                color = Color.Black,
+                fontSize = 9.sp,
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
@@ -2800,6 +2769,11 @@ private fun ProfileBottomSheetContainer(
             .fillMaxWidth()
             .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .background(Color.White)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {}
+            )
     ) {
         Box(
             modifier = Modifier
@@ -2930,6 +2904,14 @@ private fun Set<String>.toggleValue(value: String): Set<String> {
 @Composable
 private fun ProfileScreenPreview() {
     BffAndroidTheme {
-        ProfileScreen()
+        ProfileScreenContent(
+            walletHearts = 30,
+            userProfileState = UserProfileUiState(
+                displayName = "Badal",
+                avatarUrl = "man_avatar1",
+                languages = setOf("HINDI", "ENGLISH"),
+                vibes = setOf("GAMING", "DEEP_TALK")
+            )
+        )
     }
 }
