@@ -29,6 +29,7 @@ import com.gobff.getfriends.data.model.RtcTokenBody
 import com.gobff.getfriends.data.model.RtcTokenResponse
 import com.gobff.getfriends.data.model.UpdateProfileBody
 import com.gobff.getfriends.data.model.UpdateProfileResponse
+import com.gobff.getfriends.data.model.UpdateFcmTokenBody
 import com.gobff.getfriends.data.model.UserProfileResponse
 import com.gobff.getfriends.data.model.VideoUpgradeStatusResponse
 import com.gobff.getfriends.data.model.VoiceVerificationResponse
@@ -76,6 +77,12 @@ interface ApiService {
     suspend fun logout(
         @Header("Authorization") bearerToken: String
     ): Response<LogoutResponse>
+
+    @PUT("auth/device/fcm-token")
+    suspend fun updateFcmToken(
+        @Header("Authorization") bearerToken: String,
+        @Body body: UpdateFcmTokenBody
+    ): Response<Unit>
 
     @GET("app-version/{platform}/{appVersion}")
     suspend fun getAppVersion(

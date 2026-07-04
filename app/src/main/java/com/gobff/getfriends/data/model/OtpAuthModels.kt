@@ -25,7 +25,8 @@ data class DeviceInfo(
     @SerializedName("deviceBrand")    val deviceBrand: String,
     @SerializedName("deviceModel")    val deviceModel: String,
     @SerializedName("osVersion")      val osVersion: String,
-    @SerializedName("appVersion")     val appVersion: String
+    @SerializedName("appVersion")     val appVersion: String,
+    @SerializedName("fcmToken")       val fcmToken: String? = null
 )
 
 data class OtpVerifyBody(
@@ -78,6 +79,10 @@ data class RefreshTokenResponse(
 data class LogoutResponse(
     @SerializedName("success") val success: Boolean? = null,
     @SerializedName("message") val message: String? = null
+)
+
+data class UpdateFcmTokenBody(
+    @SerializedName("fcmToken") val fcmToken: String
 )
 
 data class AppVersionResponse(

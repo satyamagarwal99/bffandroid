@@ -17,11 +17,16 @@ import com.gobff.getfriends.data.model.LoginMethod
 import com.gobff.getfriends.data.model.LoginUiState
 import com.gobff.getfriends.data.model.OtpRequestBody
 import com.gobff.getfriends.data.model.OtpVerifyBody
+import com.gobff.getfriends.data.model.UpdateFcmTokenBody
 import com.gobff.getfriends.utils.AppSession
 import com.gobff.getfriends.utils.Constant
 import com.gobff.getfriends.utils.OtpDeviceProvider
 import com.gobff.getfriends.utils.TokenUtils
+import com.google.firebase.messaging.FirebaseMessaging
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.launch
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 class LoginViewModel(
     application: Application
@@ -163,6 +168,10 @@ class LoginViewModel(
                 isOtpVerifyLoading = true,
                 authStatusText = null
             )
+            val fcmToken = getCurrentFcmTokenOrNull()
+            if (!fcmToken.isNullOrBlank()) {
+                TokenUtils.recordFetchedFcmToken(fcmToken, "LoginViewModel.otp")
+            }
 
             val body = OtpVerifyBody(
                 countryIso2 = uiState.countryIso.uppercase(),
@@ -174,7 +183,8 @@ class LoginViewModel(
                     deviceBrand = Build.BRAND.orEmpty().ifBlank { "Android" },
                     deviceModel = Build.MODEL.orEmpty().ifBlank { "Device" },
                     osVersion = Build.VERSION.RELEASE.orEmpty().ifBlank { "unknown" },
-                    appVersion = Constant.APP_VERSION
+                    appVersion = Constant.APP_VERSION,
+                    fcmToken = fcmToken
                 ),
                 displayName = Constant.DEFAULT_DISPLAY_NAME,
                 dateOfBirth = Constant.DEFAULT_DATE_OF_BIRTH
@@ -192,6 +202,7 @@ class LoginViewModel(
                             refreshTokenExpiresAt = responseBody.refreshTokenExpiresAt,
                             installationId = otpDeviceProvider.installationId()
                         )
+                        syncFcmTokenAfterLogin(responseBody.accessToken, fcmToken)
                         AppSession.logSnapshot("LoginViewModel.otp.success")
                         uiState = uiState.copy(
                             isOtpVerifyLoading = false,
@@ -225,6 +236,10 @@ class LoginViewModel(
                 authStatusText = null,
                 isAuthenticated = false
             )
+            val fcmToken = getCurrentFcmTokenOrNull()
+            if (!fcmToken.isNullOrBlank()) {
+                TokenUtils.recordFetchedFcmToken(fcmToken, "LoginViewModel.google")
+            }
             val body = GoogleAuthBody(
                 countryIso2 = uiState.countryIso.uppercase(),
                 idToken = "dev-google:${otpDeviceProvider.installationId()}",
@@ -234,7 +249,8 @@ class LoginViewModel(
                     deviceBrand = Build.BRAND.orEmpty().ifBlank { "Android" },
                     deviceModel = Build.MODEL.orEmpty().ifBlank { "Device" },
                     osVersion = Build.VERSION.RELEASE.orEmpty().ifBlank { "unknown" },
-                    appVersion = Constant.APP_VERSION
+                    appVersion = Constant.APP_VERSION,
+                    fcmToken = fcmToken
                 ),
                 displayName = Constant.DEFAULT_DISPLAY_NAME,
                 dateOfBirth = Constant.DEFAULT_DATE_OF_BIRTH
@@ -254,6 +270,7 @@ class LoginViewModel(
                             refreshTokenExpiresAt = responseBody?.refreshTokenExpiresAt,
                             installationId = installationId
                         )
+                        syncFcmTokenAfterLogin(responseBody?.accessToken, fcmToken)
                         AppSession.logSnapshot("LoginViewModel.google.success")
                     }
                     uiState = uiState.copy(
@@ -288,6 +305,63 @@ class LoginViewModel(
             ),
             isCountryConfigLoading = true
         )
+    }
+
+    private suspend fun syncFcmTokenAfterLogin(accessToken: String?, knownFcmToken: String? = null) {
+        val bearerToken = accessToken
+            ?.takeIf { it.isNotBlank() }
+            ?.let { "Bearer $it" }
+            ?: TokenUtils.getToken()
+        if (bearerToken.isBlank()) {
+            Log.w(TAG, "Skipping FCM token update: access token missing")
+            return
+        }
+
+        val fcmToken = knownFcmToken ?: getCurrentFcmTokenOrNull()
+        if (fcmToken.isNullOrBlank()) {
+            Log.w(TAG, "Skipping FCM token update: FCM token missing")
+            return
+        }
+
+        runCatching {
+            mainRepository.updateFcmToken(
+                bearerToken = bearerToken,
+                body = UpdateFcmTokenBody(fcmToken = fcmToken)
+            )
+        }.onSuccess { response ->
+            if (response.isSuccessful) {
+                Log.d(TAG, "FCM token updated after login")
+                TokenUtils.recordSyncedFcmToken(
+                    token = fcmToken,
+                    source = "LoginViewModel",
+                    responseCode = response.code()
+                )
+            } else {
+                Log.w(TAG, "FCM token update failed status=${response.code()}")
+            }
+        }.onFailure { error ->
+            Log.w(TAG, "FCM token update failed", error)
+        }
+    }
+
+    private suspend fun getCurrentFcmTokenOrNull(): String? {
+        return runCatching { fetchFcmToken() }
+            .onFailure { Log.w(TAG, "Unable to fetch FCM token", it) }
+            .getOrNull()
+    }
+
+    private suspend fun fetchFcmToken(): String = suspendCancellableCoroutine { continuation ->
+        FirebaseMessaging.getInstance().token
+            .addOnSuccessListener { token ->
+                if (continuation.isActive) {
+                    continuation.resume(token)
+                }
+            }
+            .addOnFailureListener { error ->
+                if (continuation.isActive) {
+                    continuation.resumeWithException(error)
+                }
+            }
     }
 
     private companion object {

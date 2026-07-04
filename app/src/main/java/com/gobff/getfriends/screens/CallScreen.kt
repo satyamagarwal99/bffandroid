@@ -87,6 +87,8 @@ fun CallScreen(
     personName: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    incomingRoomId: String? = null,
+    incomingRequestedRole: String = "SPEAKER",
     callViewModel: CallViewModel = viewModel(),
     giftCatalogViewModel: GiftCatalogViewModel = viewModel(),
     gameCatalogViewModel: GameCatalogViewModel = viewModel()
@@ -134,11 +136,18 @@ fun CallScreen(
         }
     }
 
-    LaunchedEffect(personName, hasAudioPermission) {
+    LaunchedEffect(personName, incomingRoomId, incomingRequestedRole, hasAudioPermission) {
         if (hasAudioPermission) {
-            callViewModel.createRandomOneToOneAudioCall(
-                title = "$personName Audio Call"
-            )
+            if (incomingRoomId.isNullOrBlank()) {
+                callViewModel.createRandomOneToOneAudioCall(
+                    title = "$personName Audio Call"
+                )
+            } else {
+                callViewModel.joinAudioRoom(
+                    roomId = incomingRoomId,
+                    requestedRole = incomingRequestedRole
+                )
+            }
         } else {
             audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }

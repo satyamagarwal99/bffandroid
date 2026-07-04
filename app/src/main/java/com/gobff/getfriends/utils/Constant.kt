@@ -10,6 +10,9 @@ object Constant {
     const val ACCESS_TOKEN_EXPIRES_AT_KEY = "access_token_expires_at"
     const val REFRESH_TOKEN_EXPIRES_AT_KEY = "refresh_token_expires_at"
     const val INSTALLATION_ID_KEY = "installation_id"
+    const val FCM_TOKEN_KEY = "fcm_token"
+    const val LAST_SYNCED_FCM_TOKEN_KEY = "last_synced_fcm_token"
+    const val PREVIOUS_FCM_TOKEN_KEY = "previous_fcm_token"
     const val IS_USER_LOGGED_IN = "isUserLoggedIn"
     const val ALWAYS_ONLINE_FOR_CALLS_KEY = "always_online_for_calls"
 }

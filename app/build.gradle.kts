@@ -20,6 +20,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            ndk {
+                abiFilters += listOf("arm64-v8a")
+            }
+        }
         release {
             isMinifyEnabled = false
         }
@@ -61,6 +66,9 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.converter.gson)
     implementation(libs.logging.interceptor)
+
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
 
     implementation(libs.androidx.security.crypto)
     implementation(libs.agora.rtc)

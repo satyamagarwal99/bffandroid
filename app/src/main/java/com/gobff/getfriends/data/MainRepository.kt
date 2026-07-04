@@ -29,6 +29,7 @@ import com.gobff.getfriends.data.model.RtcTokenBody
 import com.gobff.getfriends.data.model.RtcTokenResponse
 import com.gobff.getfriends.data.model.UpdateProfileBody
 import com.gobff.getfriends.data.model.UpdateProfileResponse
+import com.gobff.getfriends.data.model.UpdateFcmTokenBody
 import com.gobff.getfriends.data.model.UserProfileResponse
 import com.gobff.getfriends.data.model.VideoUpgradeStatusResponse
 import com.gobff.getfriends.data.model.VoiceVerificationResponse
@@ -57,6 +58,11 @@ class MainRepository(
 
     suspend fun logout(bearerToken: String): Response<LogoutResponse> =
         apiService.logout(bearerToken)
+
+    suspend fun updateFcmToken(
+        bearerToken: String,
+        body: UpdateFcmTokenBody
+    ): Response<Unit> = apiService.updateFcmToken(bearerToken, body)
 
     suspend fun getAppVersion(platform: String, appVersion: String): Response<AppVersionResponse> =
         apiService.getAppVersion(platform, appVersion)

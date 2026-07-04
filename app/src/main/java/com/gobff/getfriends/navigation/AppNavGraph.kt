@@ -1,6 +1,18 @@
 package com.gobff.getfriends.navigation
 
+import android.app.Activity
 import android.util.Log
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,10 +40,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.gobff.getfriends.IncomingCallPush
 import com.gobff.getfriends.R
 import com.gobff.getfriends.data.MainRepository
 import com.gobff.getfriends.screens.AudioScreen
@@ -72,7 +86,9 @@ private val MAX_BOTTOM_BAR_CONTENT_PADDING = 0.dp
 
 @Composable
 fun AppNavGraph(
-    navController: NavHostController = rememberNavController()
+    navController: NavHostController = rememberNavController(),
+    incomingCallPush: IncomingCallPush? = null,
+    onIncomingCallPushHandled: () -> Unit = {}
 ) {
     val mainRepository = remember { MainRepository() }
     val mainViewModel: MainViewModel = viewModel()
@@ -84,6 +100,8 @@ fun AppNavGraph(
     val coroutineScope = rememberCoroutineScope()
     val walletHearts = walletViewModel.uiState.hearts
     var activeCallName by remember { mutableStateOf("Anshu") }
+    var incomingCallRoomId by remember { mutableStateOf<String?>(null) }
+    var incomingCallRequestedRole by remember { mutableStateOf("SPEAKER") }
     var activeChatName by remember { mutableStateOf("Anshu") }
     var activeChatAvatar by remember { mutableStateOf(R.drawable.women_avatar3) }
     var initialAppOpenDispatched by remember { mutableStateOf(false) }
@@ -92,6 +110,30 @@ fun AppNavGraph(
     val adaptiveBottomPadding = (configuration.screenHeightDp.dp * 0.035f)
         .coerceIn(MIN_BOTTOM_BAR_CONTENT_PADDING, MAX_BOTTOM_BAR_CONTENT_PADDING)
     val appBottomBarContentPadding = if (selectedBottomTab == null) 0.dp else adaptiveBottomPadding
+    var lastHomeBackPressAt by remember { mutableStateOf(0L) }
+
+    BackHandler(enabled = currentRoute == AppRoute.Home2.route) {
+        val now = System.currentTimeMillis()
+        if (now - lastHomeBackPressAt <= HOME_EXIT_BACK_PRESS_WINDOW_MS) {
+            (context as? Activity)?.finish()
+        } else {
+            lastHomeBackPressAt = now
+            Toast.makeText(context, "Press back again to close the app", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    BackHandler(enabled = currentRoute.isSecondaryBottomTabRoute()) {
+        navController.navigateHome()
+    }
+
+    LaunchedEffect(incomingCallPush) {
+        val push = incomingCallPush ?: return@LaunchedEffect
+        activeCallName = push.callerName
+        incomingCallRoomId = push.roomId
+        incomingCallRequestedRole = push.requestedRole
+        onIncomingCallPushHandled()
+        navController.navigateSingleTop(AppRoute.Call)
+    }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -123,6 +165,18 @@ fun AppNavGraph(
         NavHost(
             navController = navController,
             startDestination = AppRoute.Splash.route,
+            enterTransition = {
+                appEnterTransition(initialState, targetState)
+            },
+            exitTransition = {
+                appExitTransition(initialState, targetState)
+            },
+            popEnterTransition = {
+                appPopEnterTransition(initialState, targetState)
+            },
+            popExitTransition = {
+                appPopExitTransition(initialState, targetState)
+            },
             modifier = Modifier
                 .fillMaxSize()
                 .navigationBarsPadding()
@@ -205,6 +259,8 @@ fun AppNavGraph(
                 walletHearts = walletHearts,
                 onCallRequested = { personName ->
                     activeCallName = personName
+                    incomingCallRoomId = null
+                    incomingCallRequestedRole = "SPEAKER"
                     navController.navigateSingleTop(AppRoute.Call)
                 },
                 onFriendsRequested = { navController.navigateSingleTop(AppRoute.Friends) },
@@ -244,10 +300,10 @@ fun AppNavGraph(
                     }
                 },
                 onHomeSelected = { navController.navigateHome() },
-                onConnectSelected = { navController.navigateSingleTop(AppRoute.Home) },
-                onGamesSelected = { navController.navigateSingleTop(AppRoute.Games) },
+                onConnectSelected = { navController.navigateBottomTab(AppRoute.Home) },
+                onGamesSelected = { navController.navigateBottomTab(AppRoute.Games) },
                 onChatSelected = { navController.navigateSingleTop(AppRoute.Chat) },
-                onHistorySelected = { navController.navigateSingleTop(AppRoute.History) },
+                onHistorySelected = { navController.navigateBottomTab(AppRoute.History) },
                 onProfileRequested = { navController.navigateSingleTop(AppRoute.Profile) },
                 onRechargeRequested = { navController.navigateSingleTop(AppRoute.Recharge) },
                 onLiveSelected = { },
@@ -326,8 +382,8 @@ fun AppNavGraph(
                 onBack = navController::navigateUp,  // ← Natural back navigation
                 onProfileRequested = { navController.navigateSingleTop(AppRoute.Profile) },  // ← Added
                 onRechargeRequested = { navController.navigateSingleTop(AppRoute.Recharge) },
-                onConnectSelected = { navController.navigateSingleTop(AppRoute.Home) },
-                onGamesSelected = { navController.navigateSingleTop(AppRoute.Games) },
+                onConnectSelected = { navController.navigateBottomTab(AppRoute.Home) },
+                onGamesSelected = { navController.navigateBottomTab(AppRoute.Games) },
                 onHomeSelected = { navController.navigateHome() }
             )
         }
@@ -336,10 +392,10 @@ fun AppNavGraph(
             GameScreen(
                 walletHearts = walletHearts,
                 onBack = navController::navigateUp,
-                onConnectSelected = { navController.navigateSingleTop(AppRoute.Home) },
+                onConnectSelected = { navController.navigateBottomTab(AppRoute.Home) },
                 onTruthDareSelected = { navController.navigateSingleTop(AppRoute.TruthDare) },
                 onHomeSelected = { navController.navigateHome() },
-                onHistorySelected = { navController.navigateSingleTop(AppRoute.History) },
+                onHistorySelected = { navController.navigateBottomTab(AppRoute.History) },
                 onProfileRequested = { navController.navigateSingleTop(AppRoute.Profile) },
                 onRechargeRequested = { navController.navigateSingleTop(AppRoute.Recharge) }
             )
@@ -377,6 +433,8 @@ fun AppNavGraph(
         composable(AppRoute.Call.route) {
             CallScreen(
                 personName = activeCallName,
+                incomingRoomId = incomingCallRoomId,
+                incomingRequestedRole = incomingCallRequestedRole,
                 onBack = { navController.navigateHome() }
             )
         }
@@ -394,12 +452,14 @@ fun AppNavGraph(
             BffBottomBar(
                 selectedTab = selectedTab,
                 onTabSelected = { tab ->
-                    when (tab) {
-                        MainBottomTab.Home -> navController.navigateHome()
-                        MainBottomTab.Connect -> navController.navigateSingleTop(AppRoute.Home)
-                        MainBottomTab.Games -> navController.navigateSingleTop(AppRoute.Games)
-                        MainBottomTab.History -> navController.navigateSingleTop(AppRoute.History)
-                        MainBottomTab.Live -> Unit
+                    if (tab != selectedTab) {
+                        when (tab) {
+                            MainBottomTab.Home -> navController.navigateHome()
+                            MainBottomTab.Connect -> navController.navigateBottomTab(AppRoute.Home)
+                            MainBottomTab.Games -> navController.navigateBottomTab(AppRoute.Games)
+                            MainBottomTab.History -> navController.navigateBottomTab(AppRoute.History)
+                            MainBottomTab.Live -> Unit
+                        }
                     }
                 },
                 modifier = Modifier
@@ -410,6 +470,120 @@ fun AppNavGraph(
     }
 }
 
+private fun appEnterTransition(
+    initialState: NavBackStackEntry,
+    targetState: NavBackStackEntry
+): EnterTransition {
+    val direction = navigationDirection(
+        fromRoute = initialState.destination.route,
+        toRoute = targetState.destination.route
+    )
+    return if (direction != 0) {
+        slideInHorizontally(
+            animationSpec = tween(NAVIGATION_TRANSITION_DURATION_MS),
+            initialOffsetX = { fullWidth -> direction * fullWidth / 5 }
+        ) + fadeIn(animationSpec = tween(NAVIGATION_FADE_DURATION_MS))
+    } else {
+        scaleIn(
+            animationSpec = tween(NAVIGATION_TRANSITION_DURATION_MS),
+            initialScale = NAVIGATION_SCALE_IN
+        ) + fadeIn(animationSpec = tween(NAVIGATION_FADE_DURATION_MS))
+    }
+}
+
+private fun appExitTransition(
+    initialState: NavBackStackEntry,
+    targetState: NavBackStackEntry
+): ExitTransition {
+    val direction = navigationDirection(
+        fromRoute = initialState.destination.route,
+        toRoute = targetState.destination.route
+    )
+    return if (direction != 0) {
+        slideOutHorizontally(
+            animationSpec = tween(NAVIGATION_TRANSITION_DURATION_MS),
+            targetOffsetX = { fullWidth -> -direction * fullWidth / 7 }
+        ) + fadeOut(animationSpec = tween(NAVIGATION_FADE_DURATION_MS))
+    } else {
+        scaleOut(
+            animationSpec = tween(NAVIGATION_TRANSITION_DURATION_MS),
+            targetScale = NAVIGATION_SCALE_OUT
+        ) + fadeOut(animationSpec = tween(NAVIGATION_FADE_DURATION_MS))
+    }
+}
+
+private fun appPopEnterTransition(
+    initialState: NavBackStackEntry,
+    targetState: NavBackStackEntry
+): EnterTransition {
+    val direction = navigationDirection(
+        fromRoute = targetState.destination.route,
+        toRoute = initialState.destination.route
+    )
+    return if (direction != 0) {
+        slideInHorizontally(
+            animationSpec = tween(NAVIGATION_TRANSITION_DURATION_MS),
+            initialOffsetX = { fullWidth -> -direction * fullWidth / 5 }
+        ) + fadeIn(animationSpec = tween(NAVIGATION_FADE_DURATION_MS))
+    } else {
+        scaleIn(
+            animationSpec = tween(NAVIGATION_TRANSITION_DURATION_MS),
+            initialScale = NAVIGATION_SCALE_IN
+        ) + fadeIn(animationSpec = tween(NAVIGATION_FADE_DURATION_MS))
+    }
+}
+
+private fun appPopExitTransition(
+    initialState: NavBackStackEntry,
+    targetState: NavBackStackEntry
+): ExitTransition {
+    val direction = navigationDirection(
+        fromRoute = targetState.destination.route,
+        toRoute = initialState.destination.route
+    )
+    return if (direction != 0) {
+        slideOutHorizontally(
+            animationSpec = tween(NAVIGATION_TRANSITION_DURATION_MS),
+            targetOffsetX = { fullWidth -> direction * fullWidth / 7 }
+        ) + fadeOut(animationSpec = tween(NAVIGATION_FADE_DURATION_MS))
+    } else {
+        scaleOut(
+            animationSpec = tween(NAVIGATION_TRANSITION_DURATION_MS),
+            targetScale = NAVIGATION_SCALE_OUT
+        ) + fadeOut(animationSpec = tween(NAVIGATION_FADE_DURATION_MS))
+    }
+}
+
+private fun navigationDirection(fromRoute: String?, toRoute: String?): Int {
+    val fromIndex = fromRoute.navigationOrderIndex()
+    val toIndex = toRoute.navigationOrderIndex()
+    if (fromIndex == null || toIndex == null || fromIndex == toIndex) return 0
+    return if (toIndex > fromIndex) 1 else -1
+}
+
+private fun String?.navigationOrderIndex(): Int? =
+    when (this) {
+        AppRoute.Home2.route -> 0
+        AppRoute.Home.route -> 1
+        AppRoute.Games.route -> 2
+        AppRoute.History.route -> 3
+        AppRoute.Chat.route -> 4
+        AppRoute.Profile.route -> 5
+        AppRoute.Settings.route -> 6
+        AppRoute.GiftVibe.route -> 7
+        AppRoute.Wallet.route -> 8
+        AppRoute.Recharge.route -> 9
+        AppRoute.Friends.route -> 10
+        AppRoute.PersonalChat.route -> 11
+        AppRoute.TruthDare.route -> 12
+        AppRoute.Call.route -> 13
+        AppRoute.Gender.route -> 14
+        AppRoute.Audio.route -> 15
+        AppRoute.Login.route -> 16
+        AppRoute.Splash.route -> 17
+        else -> null
+    }
+
 private fun String?.toMainBottomTab(): MainBottomTab? =
     when (this) {
         AppRoute.Home2.route -> MainBottomTab.Home
@@ -418,6 +592,11 @@ private fun String?.toMainBottomTab(): MainBottomTab? =
         AppRoute.History.route -> MainBottomTab.History
         else -> null
     }
+
+private fun String?.isSecondaryBottomTabRoute(): Boolean =
+    this == AppRoute.Home.route ||
+        this == AppRoute.Games.route ||
+        this == AppRoute.History.route
 
 private fun resolvePostAuthRoute(
     hasProfile: Boolean,
@@ -436,8 +615,24 @@ private fun NavHostController.navigateSingleTop(route: AppRoute) {
     }
 }
 
-private fun NavHostController.navigateHome() {
-    navigate(AppRoute.Home2.route) {
+private fun NavHostController.navigateBottomTab(route: AppRoute) {
+    navigate(route.route) {
+        popUpTo(AppRoute.Home2.route) {
+            inclusive = false
+        }
         launchSingleTop = true
     }
 }
+
+private fun NavHostController.navigateHome() {
+    navigate(AppRoute.Home2.route) {
+        popUpTo(0)
+        launchSingleTop = true
+    }
+}
+
+private const val HOME_EXIT_BACK_PRESS_WINDOW_MS = 2_000L
+private const val NAVIGATION_TRANSITION_DURATION_MS = 280
+private const val NAVIGATION_FADE_DURATION_MS = 180
+private const val NAVIGATION_SCALE_IN = 0.98f
+private const val NAVIGATION_SCALE_OUT = 0.99f
