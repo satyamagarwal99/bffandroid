@@ -122,7 +122,7 @@ fun CallScreen(
     }
 
     fun leaveAndClose() {
-        callViewModel.leaveCall()
+        callViewModel.leaveCall(roomId = incomingRoomId ?: callViewModel.uiState.room?.id)
         onBack()
     }
 
@@ -155,7 +155,7 @@ fun CallScreen(
 
     DisposableEffect(Unit) {
         onDispose {
-            callViewModel.leaveCall()
+            callViewModel.leaveCall(roomId = incomingRoomId ?: callViewModel.uiState.room?.id)
         }
     }
 

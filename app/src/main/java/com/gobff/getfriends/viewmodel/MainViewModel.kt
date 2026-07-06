@@ -2,10 +2,14 @@ package com.gobff.getfriends.viewmodel
 
 import android.app.Application
 import android.util.Log
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gobff.getfriends.data.MainRepository
 import com.gobff.getfriends.data.model.RefreshTokenBody
+import com.gobff.getfriends.service.PresenceForegroundService
 import com.gobff.getfriends.utils.AppSession
 import com.gobff.getfriends.utils.Constant
 import com.gobff.getfriends.utils.OtpDeviceProvider
@@ -20,21 +24,27 @@ class MainViewModel(
     application: Application
 ) : AndroidViewModel(application) {
 
+    private val appContext = application.applicationContext
     private val mainRepository = MainRepository()
     private val otpDeviceProvider = OtpDeviceProvider(application.applicationContext)
     private var presenceJob: Job? = null
+    var userAvailableForCalls by mutableStateOf(true)
+        private set
 
     fun onAppOpen() {
         AppSession.logSnapshot("MainViewModel.onAppOpen")
+        userAvailableForCalls = true
         if (!TokenUtils.hasStoredSession()) {
             Log.d(TAG, "onAppOpen skipped: no stored session")
             return
         }
         if (PresenceHeartbeat.isAlwaysOnlineEnabled()) {
             stopForegroundHeartbeat()
+            PresenceForegroundService.start(appContext)
             Log.d(TAG, "Foreground heartbeat skipped: always-online service is enabled")
             return
         }
+        PresenceForegroundService.stop(appContext)
         startForegroundHeartbeat()
     }
 
@@ -50,9 +60,39 @@ class MainViewModel(
     private fun startForegroundHeartbeat() {
         if (presenceJob?.isActive == true) return
         presenceJob = viewModelScope.launch {
-            while (isActive && !PresenceHeartbeat.isAlwaysOnlineEnabled()) {
+            while (
+                isActive &&
+                userAvailableForCalls &&
+                !PresenceHeartbeat.isAlwaysOnlineEnabled()
+            ) {
                 PresenceHeartbeat.updateOnline(mainRepository, online = true, tag = TAG)
                 delay(PresenceHeartbeat.INTERVAL_MS)
+            }
+        }
+    }
+
+    fun updateUserAvailableForCalls(available: Boolean) {
+        userAvailableForCalls = available
+        if (!TokenUtils.hasStoredSession()) {
+            Log.d(TAG, "Availability changed locally only: no stored session available=$available")
+            return
+        }
+
+        if (available) {
+            viewModelScope.launch {
+                PresenceHeartbeat.updateOnline(mainRepository, online = true, tag = TAG)
+            }
+            if (PresenceHeartbeat.isAlwaysOnlineEnabled()) {
+                stopForegroundHeartbeat()
+                PresenceForegroundService.start(appContext)
+            } else {
+                PresenceForegroundService.stop(appContext)
+                startForegroundHeartbeat()
+            }
+        } else {
+            stopForegroundHeartbeat()
+            viewModelScope.launch {
+                PresenceHeartbeat.updateOnline(mainRepository, online = false, tag = TAG)
             }
         }
     }

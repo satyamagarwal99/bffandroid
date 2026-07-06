@@ -1,9 +1,11 @@
 package com.gobff.getfriends.data
 
 import com.gobff.getfriends.data.model.AppVersionResponse
+import com.gobff.getfriends.data.model.CallHistoryItemResponse
 import com.gobff.getfriends.data.model.CountryLoginConfig
 import com.gobff.getfriends.data.model.ConnectUserResponse
 import com.gobff.getfriends.data.model.CreateRoomBody
+import com.gobff.getfriends.data.model.EndRoomResponse
 import com.gobff.getfriends.data.model.GameCatalogItemDto
 import com.gobff.getfriends.data.model.GiftCatalogResponse
 import com.gobff.getfriends.data.model.GoogleAuthBody
@@ -122,21 +124,25 @@ class MainRepository(
         roomId: String
     ): Response<RoomResponse> = apiService.closeRoom(bearerToken, roomId)
 
+    suspend fun endRoom(
+        bearerToken: String,
+        roomId: String
+    ): Response<EndRoomResponse> = apiService.endRoom(bearerToken, roomId)
+
     suspend fun getRtcToken(
         bearerToken: String,
         roomId: String,
-        appPlatform: String,
-        deviceId: String,
-        appAttestation: String,
         body: RtcTokenBody
     ): Response<RtcTokenResponse> = apiService.getRtcToken(
         bearerToken = bearerToken,
-        appPlatform = appPlatform,
-        deviceId = deviceId,
-        appAttestation = appAttestation,
         roomId = roomId,
         body = body
     )
+
+    suspend fun getCallHistory(
+        bearerToken: String,
+        size: Int = 20
+    ): Response<List<CallHistoryItemResponse>> = apiService.getCallHistory(bearerToken, size)
 
     suspend fun getVideoUpgradeStatus(
         bearerToken: String,

@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -50,6 +51,7 @@ import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -67,6 +69,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -74,8 +77,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gobff.getfriends.R
 import com.gobff.getfriends.data.model.UserProfileUiState
@@ -100,6 +106,8 @@ fun ProfileScreen(
     onWalletRequested: () -> Unit = {},
     onRechargeRequested: () -> Unit = {},
     onSettingsRequested: () -> Unit = {},
+    isAvailableForCalls: Boolean = true,
+    onAvailabilityChanged: (Boolean) -> Unit = {},
     homeOptionsViewModel: HomeOptionsViewModel = viewModel(),
     userProfileViewModel: UserProfileViewModel = viewModel()
 ) {
@@ -121,6 +129,8 @@ fun ProfileScreen(
         onWalletRequested = onWalletRequested,
         onRechargeRequested = onRechargeRequested,
         onSettingsRequested = onSettingsRequested,
+        isAvailableForCalls = isAvailableForCalls,
+        onAvailabilityChanged = onAvailabilityChanged,
         onSaveLanguages = { languages, onComplete ->
             userProfileViewModel.saveLanguages(languages, onComplete)
         },
@@ -147,12 +157,15 @@ private fun ProfileScreenContent(
     onWalletRequested: () -> Unit = {},
     onRechargeRequested: () -> Unit = {},
     onSettingsRequested: () -> Unit = {},
+    isAvailableForCalls: Boolean = true,
+    onAvailabilityChanged: (Boolean) -> Unit = {},
     onSaveLanguages: (Set<String>, () -> Unit) -> Unit = { _, onComplete -> onComplete() },
     onSaveVibes: (Set<String>, () -> Unit) -> Unit = { _, onComplete -> onComplete() },
     onSaveAvatar: (String, () -> Unit) -> Unit = { _, onComplete -> onComplete() },
     onSaveName: (String, () -> Unit) -> Unit = { _, onComplete -> onComplete() }
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     var openSheet by remember { mutableStateOf<ProfileSheet?>(null) }
     var selectedLanguages by remember { mutableStateOf(setOf<String>()) }
     var selectedVibes by remember { mutableStateOf(setOf<String>()) }
@@ -164,7 +177,67 @@ private fun ProfileScreenContent(
     var starHostIntroVideoUri by remember { mutableStateOf<Uri?>(null) }
     var pendingStarHostVideoUri by remember { mutableStateOf<Uri?>(null) }
     var starHostVideoMessage by remember { mutableStateOf<String?>(null) }
-    var isOnline by remember { mutableStateOf(false) }
+    var isOnline by remember { mutableStateOf(isAvailableForCalls) }
+    var notificationPermissionMessage by remember { mutableStateOf<String?>(null) }
+
+    fun areNotificationsAllowed(): Boolean {
+        val hasRuntimePermission = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+
+        return hasRuntimePermission && NotificationManagerCompat.from(context).areNotificationsEnabled()
+    }
+
+    fun setOnlineIfNotificationsAllowed() {
+        if (areNotificationsAllowed()) {
+            notificationPermissionMessage = null
+            isOnline = true
+            onAvailabilityChanged(true)
+        } else {
+            isOnline = false
+            onAvailabilityChanged(false)
+            notificationPermissionMessage =
+                "Turn on notifications to receive call alerts and other BFF notifications."
+        }
+    }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted && areNotificationsAllowed()) {
+            notificationPermissionMessage = null
+            isOnline = true
+            onAvailabilityChanged(true)
+        } else {
+            isOnline = false
+            onAvailabilityChanged(false)
+            notificationPermissionMessage =
+                "Notifications are off. You won't get call notifications or other BFF notifications."
+        }
+    }
+
+    fun toggleAvailability() {
+        if (isOnline) {
+            notificationPermissionMessage = null
+            isOnline = false
+            onAvailabilityChanged(false)
+            return
+        }
+
+        if (areNotificationsAllowed()) {
+            notificationPermissionMessage = null
+            isOnline = true
+            onAvailabilityChanged(true)
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notificationPermissionMessage =
+                "Please allow notifications so you can receive incoming call alerts."
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            setOnlineIfNotificationsAllowed()
+        }
+    }
 
     fun createStarHostVideoUri(): Uri {
         val videoDir = File(context.cacheDir, "star_host_videos").apply { mkdirs() }
@@ -248,6 +321,27 @@ private fun ProfileScreenContent(
 
     LaunchedEffect(userProfileState.vibes) {
         selectedVibes = userProfileState.vibes
+    }
+
+    LaunchedEffect(isAvailableForCalls) {
+        isOnline = isAvailableForCalls
+        if (isAvailableForCalls) {
+            notificationPermissionMessage = null
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) {
+                isOnline = true
+                notificationPermissionMessage = null
+            }
+        }
+
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
 
     BackHandler {
@@ -336,7 +430,8 @@ private fun ProfileScreenContent(
                 displayName = userProfileState.displayName,
                 avatarUrl = userProfileState.avatarUrl,
                 isOnline = isOnline,
-                onOnlineChange = { isOnline = it },
+                notificationPermissionMessage = notificationPermissionMessage,
+                onToggleAvailability = ::toggleAvailability,
                 onAvatarEditClick = {
                     editingAvatarUrl = userProfileState.avatarUrl?.takeIf { it.isNotBlank() }
                         ?: "women_avatar1"
@@ -577,7 +672,8 @@ private fun ProfileIdentity(
     displayName: String?,
     avatarUrl: String?,
     isOnline: Boolean,
-    onOnlineChange: (Boolean) -> Unit,
+    notificationPermissionMessage: String?,
+    onToggleAvailability: () -> Unit,
     onAvatarEditClick: () -> Unit,
     onNameEditClick: () -> Unit
 ) {
@@ -652,7 +748,7 @@ private fun ProfileIdentity(
         Spacer(modifier = Modifier.height(16.dp))
         ProfileAvailabilityToggle(
             isOnline = isOnline,
-            onToggle = { onOnlineChange(!isOnline) }
+            onToggle = onToggleAvailability
         )
         Spacer(modifier = Modifier.height(14.dp))
         Text(
@@ -666,6 +762,19 @@ private fun ProfileIdentity(
             fontFamily = GaretFontFamily,
             fontWeight = FontWeight.Bold
         )
+        notificationPermissionMessage?.let { message ->
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = message,
+                color = Color.White,
+                fontSize = 12.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                lineHeight = 16.sp,
+                modifier = Modifier.padding(horizontal = 24.dp)
+            )
+        }
     }
 }
 

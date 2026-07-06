@@ -7,7 +7,6 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gobff.getfriends.data.MainRepository
-import com.gobff.getfriends.data.model.AppAttestation
 import com.gobff.getfriends.data.model.CallRoomUiState
 import com.gobff.getfriends.data.model.CreateRoomBody
 import com.gobff.getfriends.data.model.JoinRoomBody
@@ -15,8 +14,6 @@ import com.gobff.getfriends.data.model.RoomRole
 import com.gobff.getfriends.data.model.RoomType
 import com.gobff.getfriends.data.model.RtcTokenBody
 import com.gobff.getfriends.data.model.RtcTokenResponse
-import com.gobff.getfriends.utils.Constant
-import com.gobff.getfriends.utils.OtpDeviceProvider
 import com.gobff.getfriends.utils.TokenUtils
 import io.agora.rtc2.ChannelMediaOptions
 import io.agora.rtc2.Constants
@@ -29,9 +26,8 @@ class CallViewModel(
     application: Application
 ) : AndroidViewModel(application) {
     private val mainRepository = MainRepository()
-    private val otpDeviceProvider = OtpDeviceProvider(application.applicationContext)
     private var rtcEngine: RtcEngine? = null
-    private val leftRoomIds = mutableSetOf<String>()
+    private val endedRoomIds = mutableSetOf<String>()
 
     private val rtcEventHandler = object : IRtcEngineEventHandler() {
         override fun onJoinChannelSuccess(channel: String?, uid: Int, elapsed: Int) {
@@ -147,9 +143,9 @@ class CallViewModel(
         uiState = uiState.copy(isSpeakerEnabled = isEnabled)
     }
 
-    fun leaveCall() {
+    fun leaveCall(roomId: String? = uiState.room?.id) {
         rtcEngine?.leaveChannel()
-        leaveCurrentBackendRoom()
+        endCurrentBackendRoom(roomId)
         uiState = uiState.copy(
             isJoiningRtc = false,
             isRtcJoined = false,
@@ -160,12 +156,12 @@ class CallViewModel(
     fun closeCurrentRoom() {
         val token = TokenUtils.getToken()
         val roomId = uiState.room?.id
-        if (token.isBlank() || roomId.isNullOrBlank()) return
+        if (token.isBlank() || roomId.isNullOrBlank() || !endedRoomIds.add(roomId)) return
 
         viewModelScope.launch {
-            runCatching { mainRepository.closeRoom(token, roomId) }
+            runCatching { mainRepository.endRoom(token, roomId) }
                 .onSuccess { response ->
-                    response.body()?.let { room ->
+                    response.body()?.room?.let { room ->
                         uiState = uiState.copy(room = room)
                     }
                 }
@@ -246,15 +242,14 @@ class CallViewModel(
         }
     }
 
-    private fun leaveCurrentBackendRoom() {
+    private fun endCurrentBackendRoom(roomId: String? = uiState.room?.id) {
         val token = TokenUtils.getToken()
-        val roomId = uiState.room?.id
-        if (token.isBlank() || roomId.isNullOrBlank() || !leftRoomIds.add(roomId)) return
+        if (token.isBlank() || roomId.isNullOrBlank() || !endedRoomIds.add(roomId)) return
 
         viewModelScope.launch {
-            runCatching { mainRepository.leaveRoom(token, roomId) }
+            runCatching { mainRepository.endRoom(token, roomId) }
                 .onSuccess { response ->
-                    response.body()?.let { room ->
+                    response.body()?.room?.let { room ->
                         uiState = uiState.copy(room = room)
                     }
                 }
@@ -323,8 +318,6 @@ class CallViewModel(
             return
         }
 
-        val deviceId = otpDeviceProvider.installationId()
-
         viewModelScope.launch {
             uiState = uiState.copy(
                 isFetchingRtcToken = true,
@@ -337,9 +330,6 @@ class CallViewModel(
                 mainRepository.getRtcToken(
                     bearerToken = token,
                     roomId = roomId,
-                    appPlatform = Constant.DEVICE_PLATFORM,
-                    deviceId = deviceId,
-                    appAttestation = AppAttestation.DevAndroid,
                     body = body
                 )
             }.onSuccess { response ->

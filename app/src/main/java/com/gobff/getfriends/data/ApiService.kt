@@ -1,9 +1,11 @@
 package com.gobff.getfriends.data
 
 import com.gobff.getfriends.data.model.AppVersionResponse
+import com.gobff.getfriends.data.model.CallHistoryItemResponse
 import com.gobff.getfriends.data.model.CountryLoginConfig
 import com.gobff.getfriends.data.model.ConnectUserResponse
 import com.gobff.getfriends.data.model.CreateRoomBody
+import com.gobff.getfriends.data.model.EndRoomResponse
 import com.gobff.getfriends.data.model.GameCatalogItemDto
 import com.gobff.getfriends.data.model.GiftCatalogResponse
 import com.gobff.getfriends.data.model.GoogleAuthBody
@@ -160,15 +162,24 @@ interface ApiService {
         @Path("roomId") roomId: String
     ): Response<RoomResponse>
 
+    @POST("rooms/{roomId}/end")
+    suspend fun endRoom(
+        @Header("Authorization") bearerToken: String,
+        @Path("roomId") roomId: String
+    ): Response<EndRoomResponse>
+
     @POST("rooms/{roomId}/rtc-token")
     suspend fun getRtcToken(
         @Header("Authorization") bearerToken: String,
-        @Header("X-App-Platform") appPlatform: String,
-        @Header("X-Device-Id") deviceId: String,
-        @Header("X-App-Attestation") appAttestation: String,
         @Path("roomId") roomId: String,
         @Body body: RtcTokenBody
     ): Response<RtcTokenResponse>
+
+    @GET("rooms/call-history")
+    suspend fun getCallHistory(
+        @Header("Authorization") bearerToken: String,
+        @Query("size") size: Int = 20
+    ): Response<List<CallHistoryItemResponse>>
 
     @GET("rooms/{roomId}/video-upgrade")
     suspend fun getVideoUpgradeStatus(

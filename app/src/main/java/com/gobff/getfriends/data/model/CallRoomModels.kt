@@ -17,6 +17,26 @@ data class RtcTokenBody(
     @SerializedName("requestedRole") val requestedRole: String
 )
 
+data class EndRoomResponse(
+    @SerializedName("roomId") val roomId: String?,
+    @SerializedName("status") val status: String?,
+    @SerializedName("endedAt") val endedAt: String?,
+    @SerializedName("closedAt") val closedAt: String?,
+    @SerializedName("message") val message: String?,
+    @SerializedName("room") val room: RoomResponse?
+)
+
+data class CallHistoryItemResponse(
+    @SerializedName("roomId") val roomId: String?,
+    @SerializedName("roomType") val roomType: String?,
+    @SerializedName("userId") val userId: String?,
+    @SerializedName("displayName") val displayName: String?,
+    @SerializedName("avatarUrl") val avatarUrl: String?,
+    @SerializedName("startedAt") val startedAt: String?,
+    @SerializedName("endedAt") val endedAt: String?,
+    @SerializedName("durationSeconds") val durationSeconds: Long?
+)
+
 data class VideoUpgradeStatusResponse(
     @SerializedName("roomId") val roomId: String?,
     @SerializedName("status") val status: String?,

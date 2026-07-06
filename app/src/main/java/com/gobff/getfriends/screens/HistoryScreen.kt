@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -49,10 +50,17 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gobff.getfriends.R
+import com.gobff.getfriends.data.model.CallHistoryItemResponse
 import com.gobff.getfriends.ui.component.BffHeartChip
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.GaretFontFamily
+import com.gobff.getfriends.viewmodel.CallHistoryViewModel
+import com.gobff.getfriends.viewmodel.callTypeLabel
+import com.gobff.getfriends.viewmodel.displayCallerName
+import com.gobff.getfriends.viewmodel.displayDuration
+import com.gobff.getfriends.viewmodel.displayTimestamp
 
 private val HistoryOrange = Color(0xFFD87400)
 
@@ -65,9 +73,15 @@ fun HistoryScreen(
     onRechargeRequested: () -> Unit = {},
     onConnectSelected: () -> Unit = {},
     onGamesSelected: () -> Unit = {},
-    onHomeSelected: () -> Unit = {}
+    onHomeSelected: () -> Unit = {},
+    callHistoryViewModel: CallHistoryViewModel = viewModel()
 ) {
     BackHandler(onBack = onBack)
+    val callHistoryUiState = callHistoryViewModel.uiState
+
+    LaunchedEffect(Unit) {
+        callHistoryViewModel.loadCallHistory(size = 20)
+    }
 
     Box(
         modifier = modifier
@@ -98,10 +112,32 @@ fun HistoryScreen(
             Spacer(modifier = Modifier.height(34.dp))
             HistoryTabs()
             Spacer(modifier = Modifier.height(18.dp))
-            HistoryCallList(
-                calls = remember { historyCalls() },
-                modifier = Modifier.padding(horizontal = 24.dp)
-            )
+            when {
+                callHistoryUiState.isLoading -> {
+                    HistoryStatusText(
+                        text = "Loading calls...",
+                        modifier = Modifier.padding(horizontal = 24.dp)
+                    )
+                }
+                callHistoryUiState.errorMessage != null -> {
+                    HistoryStatusText(
+                        text = callHistoryUiState.errorMessage,
+                        modifier = Modifier.padding(horizontal = 24.dp)
+                    )
+                }
+                callHistoryUiState.calls.isEmpty() -> {
+                    HistoryStatusText(
+                        text = "No calls yet",
+                        modifier = Modifier.padding(horizontal = 24.dp)
+                    )
+                }
+                else -> {
+                    HistoryCallList(
+                        calls = callHistoryUiState.calls.map { it.toHistoryCall() },
+                        modifier = Modifier.padding(horizontal = 24.dp)
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(28.dp))
         }
 
@@ -247,6 +283,22 @@ private fun HistoryCallList(
 }
 
 @Composable
+private fun HistoryStatusText(
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    Text(
+        text = text,
+        color = Color.White,
+        fontSize = 15.sp,
+        fontFamily = GaretFontFamily,
+        fontWeight = FontWeight.Bold,
+        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        modifier = modifier.fillMaxWidth()
+    )
+}
+
+@Composable
 private fun HistoryCallRow(call: HistoryCall) {
     val shape = RoundedCornerShape(18.dp)
     Box(
@@ -322,7 +374,7 @@ private fun HistoryDurationPill(text: String) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
-            .size(width = 52.dp, height = 28.dp)
+            .size(width = 64.dp, height = 28.dp)
             .clip(RoundedCornerShape(18.dp))
             .background(Color.White)
             .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(18.dp))
@@ -344,14 +396,44 @@ private data class HistoryCall(
     val avatarRes: Int
 )
 
-private fun historyCalls(): List<HistoryCall> = listOf(
-    HistoryCall("Anshu", "12 Jun, 10:32pm", "12 min", R.drawable.women_avatar3),
-    HistoryCall("Riya", "13 Jun, 9:15am", "8 min", R.drawable.women_avatar3),
-    HistoryCall("Karan", "13 Jun, 11:47am", "15 min", R.drawable.women_avatar3),
-    HistoryCall("Meera", "14 Jun, 2:05pm", "10 min", R.drawable.women_avatar3),
-    HistoryCall("Aditya", "14 Jun, 5:30pm", "7 min", R.drawable.women_avatar3),
-    HistoryCall("Sneha", "15 Jun, 8:45am", "13 min", R.drawable.women_avatar3)
-)
+private fun CallHistoryItemResponse.toHistoryCall(): HistoryCall =
+    HistoryCall(
+        name = displayCallerName,
+        date = listOf(callTypeLabel, displayTimestamp)
+            .filter { it.isNotBlank() }
+            .joinToString(" - "),
+        duration = displayDuration,
+        avatarRes = avatarUrl.toHistoryAvatarRes()
+    )
+
+private fun String?.toHistoryAvatarRes(): Int =
+    when (this) {
+        "man_avatar1" -> R.drawable.man_avatar1
+        "man_avatar2" -> R.drawable.man_avatar2
+        "man_avatar3" -> R.drawable.man_avatar3
+        "man_avatar4" -> R.drawable.man_avatar4
+        "man_avatar5" -> R.drawable.man_avatar5
+        "man_avatar6" -> R.drawable.man_avatar6
+        "man_avatar7" -> R.drawable.man_avatar7
+        "man_avatar8" -> R.drawable.man_avatar8
+        "man_avatar9" -> R.drawable.man_avatar9
+        "man_avatar10" -> R.drawable.man_avatar10
+        "man_avatar11" -> R.drawable.man_avatar11
+        "man_avatar12" -> R.drawable.man_avatar12
+        "women_avatar1" -> R.drawable.women_avatar1
+        "women_avatar2" -> R.drawable.women_avatar2
+        "women_avatar3" -> R.drawable.women_avatar3
+        "women_avatar4" -> R.drawable.women_avatar4
+        "women_avatar5" -> R.drawable.women_avatar5
+        "women_avatar6" -> R.drawable.women_avatar6
+        "women_avatar7" -> R.drawable.women_avatar7
+        "women_avatar8" -> R.drawable.women_avatar8
+        "women_avatar9" -> R.drawable.women_avatar9
+        "women_avatar10" -> R.drawable.women_avatar10
+        "women_avatar11" -> R.drawable.women_avatar11
+        "women_avatar12" -> R.drawable.women_avatar12
+        else -> R.drawable.man_avatar1
+    }
 
 @Preview(showBackground = true, widthDp = 393, heightDp = 852)
 @Composable

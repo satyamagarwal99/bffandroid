@@ -319,6 +319,8 @@ fun AppNavGraph(
                 onWalletRequested = { navController.navigateSingleTop(AppRoute.Wallet) },
                 onRechargeRequested = { navController.navigateSingleTop(AppRoute.Recharge) },
                 onSettingsRequested = { navController.navigateSingleTop(AppRoute.Settings) },
+                isAvailableForCalls = mainViewModel.userAvailableForCalls,
+                onAvailabilityChanged = mainViewModel::updateUserAvailableForCalls,
                 userProfileViewModel = userProfileViewModel
             )
         }
