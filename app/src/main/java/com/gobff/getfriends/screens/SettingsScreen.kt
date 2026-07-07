@@ -1,11 +1,5 @@
 package com.gobff.getfriends.screens
 
-import android.Manifest
-import android.app.Activity
-import android.content.Context
-import android.content.ContextWrapper
-import android.content.pm.PackageManager
-import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -22,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -40,6 +35,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,7 +46,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -61,8 +56,6 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gobff.getfriends.R
 import com.gobff.getfriends.utils.PresenceHeartbeat
@@ -73,7 +66,7 @@ import com.gobff.getfriends.viewmodel.LogoutViewModel
 
 private val SettingsPurple = Color(0xFFC471FF)
 private val SettingsAccent = Color(0xFF7D3CF0)
-private const val POST_NOTIFICATIONS_REQUEST_CODE = 4102
+private val SettingsHeaderText = Color(0xFF2D2D2D)
 
 private enum class SettingsPage {
     Main,
@@ -94,7 +87,9 @@ private enum class AccountManagementSheet {
 fun SettingsScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
+    hasNotificationAccess: Boolean = true,
     onAlwaysOnlineChanged: (Boolean) -> Unit = {},
+    onNotificationAccessRequested: (onAccessReady: () -> Unit) -> Unit = { onAccessReady -> onAccessReady() },
     onLogout: () -> Unit = {},
     logoutViewModel: LogoutViewModel = viewModel()
 ) {
@@ -116,7 +111,9 @@ fun SettingsScreen(
             onHelpSupport = { page = SettingsPage.HelpSupport },
             onSuggestFeature = { page = SettingsPage.SuggestFeature },
             onAccountManagement = { page = SettingsPage.AccountManagement },
+            hasNotificationAccess = hasNotificationAccess,
             onAlwaysOnlineChanged = onAlwaysOnlineChanged,
+            onNotificationAccessRequested = onNotificationAccessRequested,
             onLogout = { logoutViewModel.logout(onLogout) },
             modifier = modifier
         )
@@ -156,180 +153,159 @@ private fun SettingsHomeContent(
     onHelpSupport: () -> Unit,
     onSuggestFeature: () -> Unit,
     onAccountManagement: () -> Unit,
+    hasNotificationAccess: Boolean,
     onAlwaysOnlineChanged: (Boolean) -> Unit,
+    onNotificationAccessRequested: (onAccessReady: () -> Unit) -> Unit,
     onLogout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     var alwaysOnline by remember { mutableStateOf(PresenceHeartbeat.isAlwaysOnlineEnabled()) }
+    var audioEffects by remember { mutableStateOf(true) }
+    val stayOnlineEnabled = alwaysOnline && hasNotificationAccess
+
+    LaunchedEffect(hasNotificationAccess) {
+        if (!hasNotificationAccess && alwaysOnline) {
+            alwaysOnline = false
+            PresenceHeartbeat.setAlwaysOnlineEnabled(false)
+            onAlwaysOnlineChanged(false)
+        }
+    }
 
     fun toggleAlwaysOnline() {
-        val enabled = !alwaysOnline
-        alwaysOnline = enabled
-        PresenceHeartbeat.setAlwaysOnlineEnabled(enabled)
+        val enabled = !stayOnlineEnabled
         if (enabled) {
-            requestPostNotificationPermissionIfNeeded(context)
+            onNotificationAccessRequested {
+                alwaysOnline = true
+                PresenceHeartbeat.setAlwaysOnlineEnabled(true)
+                onAlwaysOnlineChanged(true)
+            }
+        } else {
+            alwaysOnline = false
+            PresenceHeartbeat.setAlwaysOnlineEnabled(false)
+            onAlwaysOnlineChanged(false)
         }
-        onAlwaysOnlineChanged(enabled)
     }
 
     SettingsBackground(modifier = modifier) {
         Column(
-            verticalArrangement = Arrangement.spacedBy(18.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(bottom = 34.dp)
         ) {
-            Box(
+            SettingsWhiteHeader(
+                title = "SETTINGS",
+                subtitle = "Manage your account",
+                onBack = onBack
+            )
+
+            SettingsPurpleCard(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(154.dp)
+                    .heightIn(min = 570.dp)
             ) {
-                BackButton(
-                    onClick = onBack,
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(start = 20.dp, top = 48.dp)
-                )
-
-                Image(
-                    painter = painterResource(id = R.drawable.setting_header),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .offset(y = 53.dp)
-                        .size(width = 422.32.dp, height = 97.16.dp),
-                    contentScale = ContentScale.Fit
-                )
-            }
-
-            Column(
-                verticalArrangement = Arrangement.spacedBy(18.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-            ) {
-                SettingsGroupCard {
-                    SettingsRow(
-                        title = "Notifications",
-                        iconRes = R.drawable.setting_notification,
-                        iconBackground = Color(0xFFFDF6E7),
-                        onClick = onNotifications
-                    )
-                    SettingsDivider()
-                    SettingsRow(
-                        title = "Audio & Effects",
-                        iconRes = R.drawable.setting_audio,
-                        iconBackground = Color(0xFFE8F5FE),
-                        trailing = { SettingsToggle(checked = true) }
-                    )
-                    SettingsDivider()
-                    SettingsRow(
-                        title = "Stay Online for Calls",
-                        iconRes = R.drawable.setting_notification,
-                        iconBackground = Color(0xFFF1EDFC),
-                        showArrow = false,
-                        onClick = ::toggleAlwaysOnline,
-                        trailing = {
-                            Box(
-                                modifier = Modifier.clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null,
-                                    onClick = ::toggleAlwaysOnline
-                                )
-                            ) {
-                                SettingsToggle(checked = alwaysOnline)
+                        .fillMaxWidth()
+                        .padding(horizontal = 28.dp, vertical = 34.dp)
+                ) {
+                    SettingsGroupCard {
+                        SettingsRow(
+                            title = "Notifications",
+                            iconRes = R.drawable.setting_notification,
+                            iconBackground = Color(0xFFFDF6E7),
+                            onClick = onNotifications
+                        )
+                        SettingsDivider()
+                        SettingsRow(
+                            title = "Audio & Effects",
+                            iconRes = R.drawable.setting_audio,
+                            iconBackground = Color(0xFFE8F5FE),
+                            showArrow = false,
+                            onClick = { audioEffects = !audioEffects },
+                            trailing = { SettingsToggle(checked = audioEffects) }
+                        )
+                        SettingsDivider()
+                        SettingsRow(
+                            title = "Stay Online for Calls",
+                            iconRes = R.drawable.setting_notification,
+                            iconBackground = Color(0xFFF1EDFC),
+                            showArrow = false,
+                            onClick = ::toggleAlwaysOnline,
+                            trailing = {
+                                Box(
+                                    modifier = Modifier.clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = ::toggleAlwaysOnline
+                                    )
+                                ) {
+                                    SettingsToggle(checked = stayOnlineEnabled)
+                                }
                             }
-                        }
+                        )
+                    }
+
+                    SettingsGroupCard {
+                        SettingsRow(
+                            title = "Safety Center",
+                            iconRes = R.drawable.setting_safety,
+                            iconBackground = Color(0xFFF1EDFC),
+                            onClick = onSafetyCenter
+                        )
+                        SettingsDivider()
+                        SettingsRow(
+                            title = "Help & Support",
+                            iconRes = R.drawable.setting_help_support,
+                            iconBackground = Color(0xFFEEF8E9),
+                            onClick = onHelpSupport
+                        )
+                        SettingsDivider()
+                        SettingsRow(
+                            title = "Suggest a Feature",
+                            iconRes = R.drawable.setting_suggest,
+                            iconBackground = Color(0xFFFDEEF5),
+                            onClick = onSuggestFeature
+                        )
+                    }
+
+                    SettingsGroupCard {
+                        SettingsRow(
+                            title = "Terms of Service",
+                            iconRes = R.drawable.setting_terms,
+                            iconBackground = Color(0xFFF3F2F7),
+                            showArrow = false
+                        )
+                        SettingsDivider()
+                        SettingsRow(
+                            title = "Privacy Policy",
+                            iconRes = R.drawable.setting_privacy,
+                            iconBackground = Color(0xFFF3F2F7),
+                            showArrow = false
+                        )
+                        SettingsDivider()
+                        SettingsRow(
+                            title = "Account Management",
+                            iconRes = R.drawable.setting_account,
+                            iconBackground = Color(0xFFF3F2F7),
+                            onClick = onAccountManagement
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    ShadowButton(
+                        text = "Log Out",
+                        background = Color(0xFFFF6E73),
+                        width = 154.dp,
+                        height = 56.dp,
+                        onClick = onLogout
                     )
                 }
-
-                SettingsGroupCard {
-                    SettingsRow(
-                        title = "Safety Center",
-                        iconRes = R.drawable.setting_safety,
-                        iconBackground = Color(0xFFF1EDFC),
-                        onClick = onSafetyCenter
-                    )
-                    SettingsDivider()
-                    SettingsRow(
-                        title = "Help & Support",
-                        iconRes = R.drawable.setting_help_support,
-                        iconBackground = Color(0xFFEEF8E9),
-                        onClick = onHelpSupport
-                    )
-                    SettingsDivider()
-                    SettingsRow(
-                        title = "Suggest a Feature",
-                        iconRes = R.drawable.setting_suggest,
-                        iconBackground = Color(0xFFFDEEF5),
-                        onClick = onSuggestFeature
-                    )
-                }
-
-                SettingsGroupCard {
-                    SettingsRow(
-                        title = "Terms of Service",
-                        iconRes = R.drawable.setting_terms,
-                        iconBackground = Color(0xFFF3F2F7),
-                        showArrow = false
-                    )
-                    SettingsDivider()
-                    SettingsRow(
-                        title = "Privacy Policy",
-                        iconRes = R.drawable.setting_privacy,
-                        iconBackground = Color(0xFFF3F2F7),
-                        showArrow = false
-                    )
-                    SettingsDivider()
-                    SettingsRow(
-                        title = "Account Management",
-                        iconRes = R.drawable.setting_account,
-                        iconBackground = Color(0xFFF3F2F7),
-                        onClick = onAccountManagement
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-                ShadowButton(
-                    text = "Log Out",
-                    background = Color(0xFFFF6E73),
-                    width = 154.dp,
-                    height = 56.dp,
-                    onClick = onLogout
-                )
             }
         }
     }
-}
-
-private fun requestPostNotificationPermissionIfNeeded(context: Context) {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-    if (
-        ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.POST_NOTIFICATIONS
-        ) == PackageManager.PERMISSION_GRANTED
-    ) {
-        return
-    }
-
-    context.findActivity()?.let { activity ->
-        ActivityCompat.requestPermissions(
-            activity,
-            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-            POST_NOTIFICATIONS_REQUEST_CODE
-        )
-    }
-}
-
-private tailrec fun Context.findActivity(): Activity? = when (this) {
-    is Activity -> this
-    is ContextWrapper -> baseContext.findActivity()
-    else -> null
 }
 
 @Composable
@@ -495,107 +471,107 @@ private fun AccountManagementContent(
     }
 
     SettingsBackground(modifier = modifier) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(start = 20.dp, top = 48.dp)
-        ) {
-            BackButton(onClick = {
-                if (activeSheet != null) {
-                    activeSheet = null
-                } else {
-                    onBack()
-                }
-            })
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = "Account Management",
-                color = Color(0xFF252525),
-                fontSize = 20.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
         Column(
-            verticalArrangement = Arrangement.spacedBy(18.dp),
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 28.dp)
-                .padding(top = 138.dp)
+                .verticalScroll(rememberScrollState())
         ) {
-            SettingsGroupCard {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Phone number",
-                            color = Color.Black,
-                            fontSize = 15.sp,
-                            fontFamily = GaretFontFamily,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "+91 97983 23456",
-                            color = Color(0xFF7D7D7D),
-                            fontSize = 14.sp,
-                            fontFamily = GaretFontFamily,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(SettingsAccent)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = { activeSheet = AccountManagementSheet.UpdatePhone }
-                            )
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        Text(
-                            text = "Update",
-                            color = Color.White,
-                            fontSize = 14.sp,
-                            fontFamily = GaretFontFamily,
-                            fontWeight = FontWeight.Bold
-                        )
+            SettingsWhiteHeader(
+                title = "Account Management",
+                subtitle = settingsSubtitleFor("Account Management"),
+                onBack = {
+                    if (activeSheet != null) {
+                        activeSheet = null
+                    } else {
+                        onBack()
                     }
                 }
-            }
+            )
 
-            SettingsGroupCard {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
+            SettingsPurpleCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 570.dp)
+            ) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 28.dp, vertical = 34.dp)
                 ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0xFFFFF0F2))
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = null,
-                            tint = Color(0xFFFF5B63),
-                            modifier = Modifier.size(22.dp)
-                        )
+                    SettingsGroupCard {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Phone number",
+                                    color = Color.Black,
+                                    fontSize = 15.sp,
+                                    fontFamily = GaretFontFamily,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "+91 97983 23456",
+                                    color = Color(0xFF7D7D7D),
+                                    fontSize = 14.sp,
+                                    fontFamily = GaretFontFamily,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(SettingsAccent)
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null,
+                                        onClick = { activeSheet = AccountManagementSheet.UpdatePhone }
+                                    )
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = "Update",
+                                    color = Color.White,
+                                    fontSize = 14.sp,
+                                    fontFamily = GaretFontFamily,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
-                    Spacer(modifier = Modifier.width(18.dp))
-                    Text(
-                        text = "Delete account",
-                        color = Color(0xFFFF5B63),
-                        fontSize = 15.sp,
-                        fontFamily = GaretFontFamily,
-                        fontWeight = FontWeight.Medium
-                    )
+
+                    SettingsGroupCard {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .size(42.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFFFFF0F2))
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = null,
+                                    tint = Color(0xFFFF5B63),
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(18.dp))
+                            Text(
+                                text = "Delete account",
+                                color = Color(0xFFFF5B63),
+                                fontSize = 15.sp,
+                                fontFamily = GaretFontFamily,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -643,32 +619,132 @@ private fun SettingsDetailScaffold(
     content: @Composable ColumnScope.() -> Unit
 ) {
     SettingsBackground(modifier = modifier) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(start = 20.dp, top = 48.dp)
-        ) {
-            BackButton(onClick = onBack)
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = title,
-                color = Color(0xFF252525),
-                fontSize = 24.sp,
-                fontFamily = FreedokaFontFamily,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 28.dp)
-                .padding(top = 138.dp, bottom = 32.dp),
-            content = content
+        ) {
+            SettingsWhiteHeader(
+                title = title,
+                subtitle = settingsSubtitleFor(title),
+                onBack = onBack
+            )
+            SettingsPurpleCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 570.dp)
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 28.dp, vertical = 34.dp),
+                    content = content
+                )
+            }
+        }
+    }
+}
+
+private fun settingsSubtitleFor(title: String): String =
+    when (title) {
+        "Notifications" -> "Control your alerts and updates"
+        "Help & Support" -> "We're here when you need us"
+        "Suggest A Feature" -> "We'd love to hear your suggestions"
+        "Account Management" -> "Keep your account up to date"
+        "Safety Center" -> "Stay safe while having fun"
+        else -> ""
+    }
+
+@Composable
+private fun SettingsWhiteHeader(
+    title: String,
+    subtitle: String,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(198.dp)
+            .background(Color.White)
+    ) {
+        BackButton(
+            onClick = onBack,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 20.dp, top = 48.dp)
         )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 100.dp)
+                .padding(horizontal = 20.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.gift_vibe_sparkle),
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp),
+                    contentScale = ContentScale.Fit
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = title,
+                    color = SettingsHeaderText,
+                    fontSize = 32.sp,
+                    lineHeight = 32.sp,
+                    fontFamily = FreedokaFontFamily,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Image(
+                    painter = painterResource(id = R.drawable.gift_vibe_sparkle),
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp),
+                    contentScale = ContentScale.Fit
+                )
+            }
+            if (subtitle.isNotBlank()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = subtitle,
+                    color = Color(0xFF454545),
+                    fontSize = 16.sp,
+                    lineHeight = 18.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsPurpleCard(
+    modifier: Modifier = Modifier,
+    content: @Composable BoxScope.() -> Unit
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .background(SettingsPurple)
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.settings_bg_object),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.FillBounds
+        )
+        content()
     }
 }
 
@@ -680,14 +756,8 @@ private fun SettingsBackground(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(SettingsPurple)
+            .background(Color.White)
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.settings_bg_object),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.FillBounds
-        )
         content()
     }
 }

@@ -116,7 +116,6 @@ private fun LoginScreenContent(
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.FillBounds
         )
-
         if (uiState.showOtp) {
             OtpTopContent(
                 otpCode = uiState.otpCode,
@@ -139,14 +138,14 @@ private fun LoginScreenContent(
                 onClick = onSkipLogin,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .offset(x = (-17).dp, y = 28.dp)
+                    .offset(x = (-17).dp, y = 48.dp)
             )
 
             Column(
                 horizontalAlignment = Alignment.Start,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .offset(y = 88.dp)
+                    .offset(y = 94.dp)
                     .width(screenWidth * 0.68f)
             ) {
                 Text(

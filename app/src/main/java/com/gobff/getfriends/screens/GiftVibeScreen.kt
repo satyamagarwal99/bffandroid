@@ -78,7 +78,7 @@ private fun GiftVibeHeader(onBack: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(390.dp)
+            .height(335.dp)
             .background(Color.White)
     ) {
         Icon(
@@ -95,7 +95,13 @@ private fun GiftVibeHeader(onBack: () -> Unit) {
                     onClick = onBack
                 )
         )
-        Image( painter = painterResource(id = R.drawable.gift_vibe_header), contentDescription = null, modifier = Modifier .align(Alignment.TopCenter) .padding(top = 96.dp) .size(width = 270.dp, height = 60.dp), contentScale = ContentScale.Fit )
+        Image( painter = painterResource(id = R.drawable.gift_vibe_header),
+            contentDescription = null,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 92.dp)
+                .size(width = 270.dp, height = 60.dp),
+            contentScale = ContentScale.Fit )
 
         Text(
             text = "Little surprise from friends",
@@ -105,7 +111,7 @@ private fun GiftVibeHeader(onBack: () -> Unit) {
             fontWeight = FontWeight.Medium,
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 202.dp)
+                .padding(top = 158.dp)
         )
         Row(
             horizontalArrangement = Arrangement.spacedBy(16.dp),

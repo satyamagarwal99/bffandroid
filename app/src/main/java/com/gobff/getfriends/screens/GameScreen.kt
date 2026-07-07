@@ -42,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Brush
@@ -84,23 +85,13 @@ fun GameScreen(
         modifier = modifier
             .fillMaxSize()
             .background(
-                Brush.linearGradient(
-                    colors = listOf(Color(0xFFECE1FB), Color(0xFFE9E0FA))
-                )
+                color = Color.White
             )
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.game_screen_bg_object),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.FillBounds
-        )
-
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = 104.dp)
                 .verticalScroll(rememberScrollState())
         ) {
             Box(
@@ -115,8 +106,8 @@ fun GameScreen(
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(start = 20.dp, top = 48.dp)
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .size(34.dp)
+                        .clip(RoundedCornerShape(7.dp))
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
@@ -137,71 +128,100 @@ fun GameScreen(
                         .align(Alignment.TopCenter)
                         .padding(top = 122.dp)
                 )
-                CurvedChatTagline(
+                Text(
+                    text = "Play together, Talk together",
+                    color = Color(0xFF3B3A40),
+                    fontSize = 16.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = TextAlign.Center,
                     modifier = Modifier
                         .align(Alignment.TopCenter)
-                        .offset(y = 170.dp)
+                        .padding(top = 170.dp)
                 )
             }
 
-            GameCard(
-                title = "TRUTH\nOR DARE",
-                cta = "Just",
-                price = "35",
-                imageRes = R.drawable.game_screen_truth_dare,
-                imageWidth = 146.dp,
-                imageHeight = 156.dp,
-                imageOffsetX = 187.dp,
-                imageOffsetY = (-24).dp,
-                gradient = Brush.linearGradient(
-                    colors = listOf(Color(0xFFFC9071), Color(0xFFFD8461))
-                ),
-                onClick = onTruthDareSelected
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-
-            GameCard(
-                title = "TIC TAC\nTOE",
-                cta = "Just",
-                price = "25",
-                imageRes = R.drawable.game_screen_tictactoe,
-                imageWidth = 168.dp,
-                imageHeight = 142.dp,
-                imageOffsetX = 178.dp,
-                imageOffsetY = (-4).dp,
-                gradient = Brush.linearGradient(
-                    colors = listOf(Color(0xFFF97AB9), Color(0xFFF15AA3))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(Color(0xFFECE1FB), Color(0xFFE9E0FA))
+                        )
+                    )
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.game_screen_bg_object),
+                    contentDescription = null,
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.FillBounds
                 )
-            )
-            Spacer(modifier = Modifier.height(12.dp))
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 28.dp, bottom = 120.dp)
+                ) {
+                    GameCard(
+                        title = "TRUTH\nOR DARE",
+                        cta = "Just",
+                        price = "35",
+                        imageRes = R.drawable.game_screen_truth_dare,
+                        imageWidth = 146.dp,
+                        imageHeight = 156.dp,
+                        imageOffsetX = 187.dp,
+                        imageOffsetY = (-20).dp,
+                        gradient = Brush.linearGradient(
+                            colors = listOf(Color(0xFFFC9071), Color(0xFFFD8461))
+                        ),
+                        onClick = onTruthDareSelected
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
 
-            GameCard(
-                title = "UNO",
-                cta = "Coming soon",
-                imageRes = R.drawable.game_screen_uno,
-                imageWidth = 198.dp,
-                imageHeight = 148.dp,
-                imageOffsetX = 150.dp,
-                imageOffsetY = (-14).dp,
-                gradient = Brush.linearGradient(
-                    colors = listOf(Color(0xFFB892EE), Color(0xFF9678F4))
-                )
-            )
-            Spacer(modifier = Modifier.height(12.dp))
+                    GameCard(
+                        title = "TIC TAC\nTOE",
+                        cta = "Just",
+                        price = "25",
+                        imageRes = R.drawable.game_screen_tictactoe,
+                        imageWidth = 168.dp,
+                        imageHeight = 142.dp,
+                        imageOffsetX = 178.dp,
+                        imageOffsetY = (-8).dp,
+                        gradient = Brush.linearGradient(
+                            colors = listOf(Color(0xFFF97AB9), Color(0xFFF15AA3))
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
 
-            GameCard(
-                title = "LUDO",
-                cta = "Coming soon",
-                imageRes = R.drawable.game_screen_ludo,
-                imageWidth = 197.dp,
-                imageHeight = 158.dp,
-                imageOffsetX = 152.dp,
-                imageOffsetY = (-4).dp,
-                gradient = Brush.linearGradient(
-                    colors = listOf(Color(0xFF82B5F2), Color(0xFF6398EF))
-                )
-            )
-            Spacer(modifier = Modifier.height(16.dp))
+                    GameCard(
+                        title = "UNO",
+                        cta = "Coming soon",
+                        imageRes = R.drawable.game_screen_uno,
+                        imageWidth = 198.dp,
+                        imageHeight = 148.dp,
+                        imageOffsetX = 150.dp,
+                        imageOffsetY = (-16).dp,
+                        gradient = Brush.linearGradient(
+                            colors = listOf(Color(0xFFB892EE), Color(0xFF9678F4))
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    GameCard(
+                        title = "LUDO",
+                        cta = "Coming soon",
+                        imageRes = R.drawable.game_screen_ludo,
+                        imageWidth = 197.dp,
+                        imageHeight = 158.dp,
+                        imageOffsetX = 152.dp,
+                        imageOffsetY = (-4).dp,
+                        gradient = Brush.linearGradient(
+                            colors = listOf(Color(0xFF82B5F2), Color(0xFF6398EF))
+                        )
+                    )
+                }
+            }
         }
 
     }
@@ -209,21 +229,46 @@ fun GameScreen(
 
 @Composable
 private fun GameHeader(modifier: Modifier = Modifier) {
-
-    Box(
-        contentAlignment = Alignment.Center,
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
         modifier = modifier
             .fillMaxWidth()
             .height(48.dp)
     ) {
-            Image(
-                painter = painterResource(R.drawable.game_screen_header),
-                contentDescription = null,
-                modifier = Modifier.size(width = 330.dp, height = 76.dp),
-                contentScale = ContentScale.Fit
-            )
-
-
+        Image(
+            painter = painterResource(R.drawable.gift_vibe_sparkle),
+            contentDescription = null,
+            modifier = Modifier.size(24.dp),
+            contentScale = ContentScale.Fit
+        )
+        Spacer(modifier = Modifier.size(8.dp))
+        Text(
+            text = "GAME",
+            color = Color(0xFF7358E8),
+            fontSize = 32.sp,
+            lineHeight = 32.sp,
+            fontFamily = FreedokaFontFamily,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.size(8.dp))
+        Text(
+            text = "CENTER",
+            color = Color(0xFF6398EF),
+            fontSize = 32.sp,
+            lineHeight = 32.sp,
+            fontFamily = FreedokaFontFamily,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.size(8.dp))
+        Image(
+            painter = painterResource(R.drawable.gift_vibe_sparkle),
+            contentDescription = null,
+            modifier = Modifier.size(24.dp),
+            contentScale = ContentScale.Fit
+        )
     }
 }
 
@@ -241,10 +286,10 @@ private fun GameCard(
     price: String? = null,
     onClick: (() -> Unit)? = null
 ) {
-    val shape = RoundedCornerShape(32.dp)
+    val shape = RoundedCornerShape(28.dp)
     Box(
         modifier = modifier
-            .size(width = 329.dp, height = 166.dp)
+            .size(width = 329.dp, height = 164.dp)
             .then(
                 if (onClick != null) {
                     Modifier.clickable(
@@ -261,10 +306,16 @@ private fun GameCard(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = 8.dp)
-                .size(width = 329.dp, height = 150.dp)
+                .size(width = 329.dp, height = 148.dp)
+                .shadow(
+                    elevation = 8.dp,
+                    shape = shape,
+                    spotColor = Color.Black.copy(alpha = 0.22f),
+                    ambientColor = Color.Black.copy(alpha = 0.12f)
+                )
                 .clip(shape)
                 .background(gradient)
-                .border(2.dp, Color.White, shape)
+                .border(1.5.dp, Color.White, shape)
         ) {
             Text(
                 text = title,
@@ -282,14 +333,14 @@ private fun GameCard(
                 ),
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .padding(start = 24.dp, bottom = 34.dp)
+                    .padding(start = 24.dp, bottom = 32.dp)
             )
             GamePill(
                 label = cta,
                 price = price,
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .padding(start = 24.dp, bottom = 24.dp)
+                    .padding(start = 24.dp, bottom = 22.dp)
             )
         }
         Image(

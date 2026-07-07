@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -28,6 +29,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AttachFile
@@ -50,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
@@ -69,10 +73,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gobff.getfriends.R
 import com.gobff.getfriends.ui.component.BffHeartChip
+import com.gobff.getfriends.ui.component.ChatBubbleShape
+import com.gobff.getfriends.ui.component.HandDrawnCardShape
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
+import com.gobff.getfriends.ui.theme.FreedokaFontFamily
 import com.gobff.getfriends.ui.theme.GaretFontFamily
 
 private val ChatBlue = Color(0xFF335FAA)
+private val PersonalChatBlue = Color(0xFF335FAA)
+private val PersonalChatChromeBlue = Color(0xFF4C7FD0)
+private val ChatYellow = Color(0xFFFDCE4E)
+
 
 @Composable
 fun ChatScreen(
@@ -97,54 +108,32 @@ fun ChatScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(ChatBlue)
+            .background(Color.White)
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.chat_screen_background_object),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.FillBounds
-        )
-        ChatTopBar(
-            walletHearts = walletHearts,
-            onBack = onBack,
-            onRechargeRequested = onRechargeRequested,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 48.dp, start = 20.dp, end = 20.dp)
-        )
-
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = 112.dp)
+                .verticalScroll(rememberScrollState())
         ) {
-            ChatHeader()
-            ChatSearchBar(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(horizontal = 22.dp)
-                    .offset(y = 214.dp)
+            Spacer(modifier = Modifier.height(48.dp))
+            ChatTopBar(
+                walletHearts = walletHearts,
+                onBack = onBack,
+                onRechargeRequested = onRechargeRequested,
+                modifier = Modifier.padding(horizontal = 20.dp)
             )
-
-            if (filteredMessages.isEmpty()) {
-                ChatEmptyState(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(top = 318.dp)
-                )
-            } else {
-                ChatMessageList(
-                    messages = filteredMessages,
-                    onChatSelected = onChatSelected,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 22.dp)
-                        .padding(top = 295.dp)
-                )
-            }
+            Spacer(modifier = Modifier.height(34.dp))
+            ChatHeader()
+            Spacer(modifier = Modifier.height(2.dp))
+            ChatContentCard(
+                searchQuery = searchQuery,
+                onSearchChange = { searchQuery = it },
+                messages = filteredMessages,
+                onChatSelected = onChatSelected,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 636.dp)
+            )
         }
     }
 }
@@ -164,7 +153,7 @@ private fun ChatTopBar(
         Icon(
             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
             contentDescription = "Back",
-            tint = Color.White,
+            tint = Color.Black,
             modifier = Modifier
                 .size(24.dp)
                 .clickable(
@@ -182,67 +171,111 @@ private fun ChatTopBar(
 
 @Composable
 private fun ChatHeader() {
-    Box(
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .fillMaxWidth()
-            .height(210.dp)
+            .height(84.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            ChatHeaderSparkle()
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "CHAT",
+                color = ChatBlue,
+                fontSize = 32.sp,
+                lineHeight = 32.sp,
+                letterSpacing = 0.64.sp,
+                fontFamily = FreedokaFontFamily,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "VIBES",
+                color = Color(0xFFF7BC36),
+                fontSize = 32.sp,
+                lineHeight = 32.sp,
+                letterSpacing = 0.64.sp,
+                fontFamily = FreedokaFontFamily,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            ChatHeaderSparkle()
+        }
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = "Where conversations happen",
+            color = ChatBlue,
+            fontSize = 13.sp,
+            lineHeight = 13.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+private fun ChatHeaderSparkle() {
+    Image(
+        painter = painterResource(id = R.drawable.gift_vibe_sparkle),
+        contentDescription = null,
+        modifier = Modifier.size(22.dp),
+        contentScale = ContentScale.Fit,
+        colorFilter = ColorFilter.tint(ChatBlue)
+    )
+}
+
+@Composable
+private fun ChatContentCard(
+    searchQuery: String,
+    onSearchChange: (String) -> Unit,
+    messages: List<ChatMessage>,
+    onChatSelected: (String, Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .background(ChatBlue)
     ) {
         Image(
-            painter = painterResource(id = R.drawable.chat_screen_message),
+            painter = painterResource(id = R.drawable.chat_screen_background_object),
             contentDescription = null,
-            modifier = Modifier
-                .offset(x = 25.dp, y = 138.dp)
-                .size(width = 42.52.dp, height = 36.21.dp),
-            contentScale = ContentScale.Fit
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.FillBounds
         )
-        Image(
-            painter = painterResource(id = R.drawable.chat_screen_legs),
-            contentDescription = null,
+        Column(
             modifier = Modifier
-                .offset(x = 240.dp, y = 78.dp)
-                .size(width = 23.dp, height = 24.dp)
-                .graphicsLayer { rotationZ = 11.46f },
-            contentScale = ContentScale.Fit
-        )
-        Image(
-            painter = painterResource(id = R.drawable.chat_screen_eyes),
-            contentDescription = null,
-            modifier = Modifier
-                .offset(x = 78.dp, y = 81.dp)
-                .size(width = 31.59.dp, height = 24.dp)
-                .graphicsLayer { rotationZ = 11.46f },
-            contentScale = ContentScale.Fit
-        )
-        Image(
-            painter = painterResource(id = R.drawable.chat_screen_hearder),
-            contentDescription = null,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = 108.dp)
-                .size(width = 332.dp, height = 42.dp),
-            contentScale = ContentScale.Fit
-        )
-        CurvedChatTagline(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .offset(y = 156.dp)
-        )
-        Image(
-            painter = painterResource(id = R.drawable.chat_screen_filled_sparkle),
-            contentDescription = null,
-            modifier = Modifier
-                .offset(x = 22.dp, y = 109.dp)
-                .size(width = 38.32.dp, height = 18.dp),
-            contentScale = ContentScale.Fit
-        )
-        Image(
-            painter = painterResource(id = R.drawable.chat_screen_sparkle),
-            contentDescription = null,
-            modifier = Modifier
-                .offset(x = 326.dp, y = 140.dp)
-                .size(width = 18.32.dp, height = 18.dp),
-            contentScale = ContentScale.Fit
-        )
+                .fillMaxWidth()
+                .padding(start = 22.dp, top = 46.dp, end = 22.dp, bottom = 112.dp)
+        ) {
+            ChatSearchBar(
+                value = searchQuery,
+                onValueChange = onSearchChange,
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (messages.isEmpty()) {
+                ChatEmptyState(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(548.dp)
+                )
+            } else {
+                Spacer(modifier = Modifier.height(42.dp))
+                ChatMessageList(
+                    messages = messages,
+                    onChatSelected = onChatSelected,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
     }
 }
 
@@ -478,7 +511,7 @@ private fun ChatMessageRow(
                 maxLines = 1
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             if (message.unreadCount > 0) {
                 Box(
@@ -580,42 +613,62 @@ fun PersonalChatScreen(
 
     var messageText by remember { mutableStateOf("") }
 
-    Box(
+    Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFFFEFEFE))
+            .background(PersonalChatBlue)
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.chat_screen_background_object),
-            contentDescription = null,
+        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer { alpha = 0.055f },
-            contentScale = ContentScale.FillBounds
-        )
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 22.dp)
-                .padding(top = 42.dp, bottom = 98.dp)
+                .fillMaxWidth()
+                .height(106.dp)
+                .background(PersonalChatChromeBlue)
         ) {
             PersonalChatHeader(
                 personName = personName,
                 avatarRes = avatarRes,
-                onBack = onBack
+                onBack = onBack,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(start = 20.dp, end = 20.dp, bottom = 12.dp)
             )
-            Spacer(modifier = Modifier.height(58.dp))
-            PersonalMessageList()
         }
 
-        PersonalChatComposer(
-            value = messageText,
-            onValueChange = { messageText = it },
+        Box(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(horizontal = 24.dp, vertical = 26.dp)
-        )
+                .fillMaxWidth()
+                .weight(1f)
+                .background(PersonalChatBlue)
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.chat_screen_background_object),
+                contentDescription = null,
+                modifier = Modifier
+                    .matchParentSize(),
+                contentScale = ContentScale.FillBounds
+            )
+            PersonalMessageList(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 22.dp, vertical = 42.dp)
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(80.dp)
+                .background(PersonalChatChromeBlue)
+        ) {
+            PersonalChatComposer(
+                value = messageText,
+                onValueChange = { messageText = it },
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = 24.dp)
+            )
+        }
     }
 }
 
@@ -623,11 +676,12 @@ fun PersonalChatScreen(
 private fun PersonalChatHeader(
     personName: String,
     avatarRes: Int,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
     ) {
         Icon(
             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -654,7 +708,7 @@ private fun PersonalChatHeader(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = personName,
-                color = Color.Black,
+                color = Color.White,
                 fontSize = 14.sp,
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Bold
@@ -662,7 +716,7 @@ private fun PersonalChatHeader(
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "Online now",
-                color = Color(0xFF15A849),
+                color = Color(0xFF8DE81E),
                 fontSize = 11.sp,
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Medium
@@ -670,27 +724,36 @@ private fun PersonalChatHeader(
         }
         PersonalHeaderIcon(resId = R.drawable.chat_screen_phone)
         Spacer(modifier = Modifier.width(14.dp))
-        PersonalHeaderIcon(resId = R.drawable.chat_screen_gift)
+        PersonalHeaderIcon(    backgroundColor = Color(0xFFFF5A9D)
+                ,resId = R.drawable.chat_screen_gift)
     }
 }
 
 @Composable
-private fun PersonalHeaderIcon(resId: Int) {
+private fun PersonalHeaderIcon(
+    resId: Int,
+    modifier: Modifier = Modifier,
+    backgroundColor: Color = Color(0xFFFFC431)
+) {
     val shape = RoundedCornerShape(9.dp)
-    Box(modifier = Modifier.size(32.dp)) {
+
+    Box(
+        modifier = modifier.size(32.dp)
+    ) {
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .offset(x = 2.dp, y = 2.dp)
+                .offset(x = 1.5.dp, y = 2.dp)
                 .clip(shape)
                 .background(Color.Black)
         )
+
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .matchParentSize()
                 .clip(shape)
-                .background(Color(0xFFFFC431))
+                .background(backgroundColor)
                 .border(1.4.dp, Color.Black, shape)
         ) {
             Image(
@@ -704,10 +767,10 @@ private fun PersonalHeaderIcon(resId: Int) {
 }
 
 @Composable
-private fun PersonalMessageList() {
+private fun PersonalMessageList(modifier: Modifier = Modifier) {
     Column(
         verticalArrangement = Arrangement.spacedBy(30.dp),
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
     ) {
         PersonalMessageBubble(
             text = "Hi, How are you doing? did you\nget a change to watch the movie?",
@@ -742,12 +805,7 @@ private fun PersonalMessageBubble(
         horizontalAlignment = if (isMine) Alignment.End else Alignment.Start,
         modifier = Modifier.fillMaxWidth()
     ) {
-        val bubbleShape = RoundedCornerShape(
-            topStart = 18.dp,
-            topEnd = 18.dp,
-            bottomStart = if (isMine) 18.dp else 4.dp,
-            bottomEnd = if (isMine) 4.dp else 18.dp
-        )
+        val bubbleShape = ChatBubbleShape
         Box(
             modifier = Modifier
                 .fillMaxWidth(if (isMine) 0.78f else 0.78f)
@@ -756,13 +814,13 @@ private fun PersonalMessageBubble(
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .offset(x = 4.dp, y = 5.dp)
+                    .offset(x = 2.dp, y = 2.dp)
                     .clip(bubbleShape)
                     .background(Color.Black)
             )
             Text(
                 text = text,
-                color = if (isMine) Color.Black else Color.White,
+                color = Color.Black,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
                 fontFamily = GaretFontFamily,
@@ -770,15 +828,15 @@ private fun PersonalMessageBubble(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(bubbleShape)
-                    .background(if (isMine) Color.White else ChatBlue)
+                    .background(if (isMine) Color.White else ChatYellow)
                     .border(1.2.dp, Color.Black, bubbleShape)
                     .padding(horizontal = 18.dp, vertical = 14.dp)
             )
         }
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = time,
-            color = Color(0xFF6D6D6D),
+            color = Color.White,
             fontSize = 11.sp,
             fontFamily = GaretFontFamily,
             fontWeight = FontWeight.Normal,
@@ -806,7 +864,7 @@ private fun PersonalChatComposer(
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .offset(x = 4.dp, y = 5.dp)
+                    .offset(x = 2.dp, y = 2.dp)
                     .clip(shape)
                     .background(Color.Black)
             )
@@ -865,18 +923,36 @@ private fun PersonalChatComposer(
         }
         Spacer(modifier = Modifier.width(14.dp))
         Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(56.dp)
-                .clip(CircleShape)
-                .background(ChatBlue)
+            modifier = Modifier.size(48.dp)
         ) {
-            Icon(
-                imageVector = Icons.Default.Mic,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(30.dp)
+
+            // Shadow
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .offset(x = 1.dp, y = 2.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black)
             )
+
+            // Main Circle
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .matchParentSize()
+                    .clip(CircleShape)
+                    .background(Color(0xFFFFC431)) // Yellow
+                    .border(1.dp, Color.Black, CircleShape)
+            ) {
+
+                Image(
+                    painter = painterResource(id = R.drawable.chat_mic), // Your drawable
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    contentScale = ContentScale.Fit
+                )
+
+            }
         }
     }
 }
@@ -932,3 +1008,11 @@ private fun ChatScreenPreview() {
         ChatScreen()
     }
 }
+//@Composable
+//fun PersonalChatScreenPreview() {
+//        PersonalChatScreen(
+//            personName = "Sophia",
+//            avatarRes = R.drawable.man_avatar3, // Replace with your drawable
+//            onBack = {}
+//        )
+//}

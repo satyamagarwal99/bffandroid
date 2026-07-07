@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -51,7 +50,6 @@ import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -69,7 +67,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -77,11 +74,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gobff.getfriends.R
 import com.gobff.getfriends.data.model.UserProfileUiState
@@ -108,6 +102,7 @@ fun ProfileScreen(
     onSettingsRequested: () -> Unit = {},
     isAvailableForCalls: Boolean = true,
     onAvailabilityChanged: (Boolean) -> Unit = {},
+    onNotificationAccessRequested: (onAccessReady: () -> Unit) -> Unit = { onAccessReady -> onAccessReady() },
     homeOptionsViewModel: HomeOptionsViewModel = viewModel(),
     userProfileViewModel: UserProfileViewModel = viewModel()
 ) {
@@ -131,6 +126,7 @@ fun ProfileScreen(
         onSettingsRequested = onSettingsRequested,
         isAvailableForCalls = isAvailableForCalls,
         onAvailabilityChanged = onAvailabilityChanged,
+        onNotificationAccessRequested = onNotificationAccessRequested,
         onSaveLanguages = { languages, onComplete ->
             userProfileViewModel.saveLanguages(languages, onComplete)
         },
@@ -159,13 +155,13 @@ private fun ProfileScreenContent(
     onSettingsRequested: () -> Unit = {},
     isAvailableForCalls: Boolean = true,
     onAvailabilityChanged: (Boolean) -> Unit = {},
+    onNotificationAccessRequested: (onAccessReady: () -> Unit) -> Unit = { onAccessReady -> onAccessReady() },
     onSaveLanguages: (Set<String>, () -> Unit) -> Unit = { _, onComplete -> onComplete() },
     onSaveVibes: (Set<String>, () -> Unit) -> Unit = { _, onComplete -> onComplete() },
     onSaveAvatar: (String, () -> Unit) -> Unit = { _, onComplete -> onComplete() },
     onSaveName: (String, () -> Unit) -> Unit = { _, onComplete -> onComplete() }
 ) {
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
     var openSheet by remember { mutableStateOf<ProfileSheet?>(null) }
     var selectedLanguages by remember { mutableStateOf(setOf<String>()) }
     var selectedVibes by remember { mutableStateOf(setOf<String>()) }
@@ -180,44 +176,6 @@ private fun ProfileScreenContent(
     var isOnline by remember { mutableStateOf(isAvailableForCalls) }
     var notificationPermissionMessage by remember { mutableStateOf<String?>(null) }
 
-    fun areNotificationsAllowed(): Boolean {
-        val hasRuntimePermission = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) == PackageManager.PERMISSION_GRANTED
-
-        return hasRuntimePermission && NotificationManagerCompat.from(context).areNotificationsEnabled()
-    }
-
-    fun setOnlineIfNotificationsAllowed() {
-        if (areNotificationsAllowed()) {
-            notificationPermissionMessage = null
-            isOnline = true
-            onAvailabilityChanged(true)
-        } else {
-            isOnline = false
-            onAvailabilityChanged(false)
-            notificationPermissionMessage =
-                "Turn on notifications to receive call alerts and other BFF notifications."
-        }
-    }
-
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted && areNotificationsAllowed()) {
-            notificationPermissionMessage = null
-            isOnline = true
-            onAvailabilityChanged(true)
-        } else {
-            isOnline = false
-            onAvailabilityChanged(false)
-            notificationPermissionMessage =
-                "Notifications are off. You won't get call notifications or other BFF notifications."
-        }
-    }
-
     fun toggleAvailability() {
         if (isOnline) {
             notificationPermissionMessage = null
@@ -226,16 +184,11 @@ private fun ProfileScreenContent(
             return
         }
 
-        if (areNotificationsAllowed()) {
+        notificationPermissionMessage = null
+        onNotificationAccessRequested {
             notificationPermissionMessage = null
             isOnline = true
             onAvailabilityChanged(true)
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            notificationPermissionMessage =
-                "Please allow notifications so you can receive incoming call alerts."
-            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        } else {
-            setOnlineIfNotificationsAllowed()
         }
     }
 
@@ -330,20 +283,6 @@ private fun ProfileScreenContent(
         }
     }
 
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_START) {
-                isOnline = true
-                notificationPermissionMessage = null
-            }
-        }
-
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
-
     BackHandler {
         if (starHostScreen == StarHostScreen.Queue) {
             starHostScreen = StarHostScreen.Profile
@@ -400,22 +339,13 @@ private fun ProfileScreenContent(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(ProfileCoral)
+            .background(Color.White)
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.profile_screen_bg_objects),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.FillBounds
-        )
-
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(top = 48.dp, bottom = 30.dp)
         ) {
             ProfileTopBar(
                 onBack = onBack,
@@ -423,9 +353,12 @@ private fun ProfileScreenContent(
                 walletHearts = walletHearts,
                 onWalletRequested = onWalletRequested,
                 onRechargeRequested = onRechargeRequested,
-                onSettingsRequested = onSettingsRequested
+                onSettingsRequested = onSettingsRequested,
+                modifier = Modifier
+                    .padding(horizontal = 20.dp)
+                    .padding(top = 48.dp)
             )
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(46.dp))
             ProfileIdentity(
                 displayName = userProfileState.displayName,
                 avatarUrl = userProfileState.avatarUrl,
@@ -442,17 +375,15 @@ private fun ProfileScreenContent(
                     openSheet = ProfileSheet.Name
                 }
             )
-            Spacer(modifier = Modifier.height(16.dp))
-            BecomeStarHostCard(onClick = { starHostScreen = StarHostScreen.Progress })
-            Spacer(modifier = Modifier.height(24.dp))
-            ProfileInfoGrid(
+            Spacer(modifier = Modifier.height(18.dp))
+            ProfileContentCard(
+                onStarHostClick = { starHostScreen = StarHostScreen.Progress },
                 onLanguageClick = { openSheet = ProfileSheet.Language },
                 onInterestClick = { openSheet = ProfileSheet.Interests },
                 onVibeClick = { openSheet = ProfileSheet.Vibe },
-                onGameStatsClick = { openSheet = ProfileSheet.GameStats }
+                onGameStatsClick = { openSheet = ProfileSheet.GameStats },
+                onGiftVibeRequested = onGiftVibeRequested
             )
-            Spacer(modifier = Modifier.height(24.dp))
-            GiftReceivedCard(onViewAll = onGiftVibeRequested)
         }
 
         if (openSheet != null) {
@@ -546,16 +477,17 @@ private fun ProfileTopBar(
     walletHearts: Int,
     onWalletRequested: () -> Unit,
     onRechargeRequested: () -> Unit,
-    onSettingsRequested: () -> Unit
+    onSettingsRequested: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
     ) {
         Icon(
             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
             contentDescription = "Back",
-            tint = Color.White,
+            tint = Color.Black,
             modifier = Modifier
                 .size(24.dp)
                 .clickable(
@@ -718,7 +650,7 @@ private fun ProfileIdentity(
         ) {
             Text(
                 text = displayName?.takeIf { it.isNotBlank() } ?: "Profile",
-                color = Color.White,
+                color = Color.Black,
                 fontSize = 24.sp,
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Bold
@@ -757,7 +689,7 @@ private fun ProfileIdentity(
             } else {
                 "You're currently unavailable for calls"
             },
-            color = Color.White.copy(alpha = 0.82f),
+            color = Color(0xFF7D7D7D),
             fontSize = 14.sp,
             fontFamily = GaretFontFamily,
             fontWeight = FontWeight.Bold
@@ -766,7 +698,7 @@ private fun ProfileIdentity(
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = message,
-                color = Color.White,
+                color = Color(0xFF7D7D7D),
                 fontSize = 12.sp,
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Bold,
@@ -857,6 +789,49 @@ private fun ProfileAvailabilityToggle(
     }
 }
 
+
+@Composable
+private fun ProfileContentCard(
+    onStarHostClick: () -> Unit,
+    onLanguageClick: () -> Unit,
+    onInterestClick: () -> Unit,
+    onVibeClick: () -> Unit,
+    onGameStatsClick: () -> Unit,
+    onGiftVibeRequested: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .background(ProfileCoral)
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.profile_screen_bg_objects),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.FillBounds
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(top = 26.dp, bottom = 0.dp)
+        ) {
+            BecomeStarHostCard(onClick = onStarHostClick)
+            Spacer(modifier = Modifier.height(24.dp))
+            ProfileInfoGrid(
+                onLanguageClick = onLanguageClick,
+                onInterestClick = onInterestClick,
+                onVibeClick = onVibeClick,
+                onGameStatsClick = onGameStatsClick
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            GiftReceivedCard(onViewAll = onGiftVibeRequested)
+            Spacer(modifier = Modifier.height(24.dp))
+
+        }
+    }
+}
 
 @Composable
 private fun ProfileInfoGrid(

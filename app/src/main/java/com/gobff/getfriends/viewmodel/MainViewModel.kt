@@ -28,12 +28,11 @@ class MainViewModel(
     private val mainRepository = MainRepository()
     private val otpDeviceProvider = OtpDeviceProvider(application.applicationContext)
     private var presenceJob: Job? = null
-    var userAvailableForCalls by mutableStateOf(true)
+    var userAvailableForCalls by mutableStateOf(!AppSession.getBoolean(Constant.USER_UNAVAILABLE_FOR_CALLS_KEY))
         private set
 
     fun onAppOpen() {
         AppSession.logSnapshot("MainViewModel.onAppOpen")
-        userAvailableForCalls = true
         if (!TokenUtils.hasStoredSession()) {
             Log.d(TAG, "onAppOpen skipped: no stored session")
             return
@@ -54,7 +53,7 @@ class MainViewModel(
             Log.d(TAG, "onAppClose skipped: no stored session")
             return
         }
-        stopForegroundHeartbeat(markOffline = !PresenceHeartbeat.isAlwaysOnlineEnabled())
+        stopForegroundHeartbeat(markOffline = false)
     }
 
     private fun startForegroundHeartbeat() {
@@ -73,6 +72,7 @@ class MainViewModel(
 
     fun updateUserAvailableForCalls(available: Boolean) {
         userAvailableForCalls = available
+        AppSession.putBoolean(Constant.USER_UNAVAILABLE_FOR_CALLS_KEY, !available)
         if (!TokenUtils.hasStoredSession()) {
             Log.d(TAG, "Availability changed locally only: no stored session available=$available")
             return

@@ -79,6 +79,8 @@ import com.gobff.getfriends.ui.component.BffHeartChip
 import com.gobff.getfriends.ui.component.HandDrawnCardShape
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.GaretFontFamily
+import com.gobff.getfriends.utils.AppSession
+import com.gobff.getfriends.utils.Constant
 import com.gobff.getfriends.viewmodel.HomeScreenViewModel
 import com.gobff.getfriends.viewmodel.HomeOptionsViewModel
 import com.gobff.getfriends.viewmodel.UserProfileViewModel
@@ -96,6 +98,7 @@ fun HomeScreen(
     onHistoryRequested: () -> Unit = {},
     onGamesRequested: () -> Unit = {},
     onProfileRequested: () -> Unit = {},
+    onNotificationAccessRequested: (onAccessReady: () -> Unit) -> Unit = { onAccessReady -> onAccessReady() },
     homeOptionsViewModel: HomeOptionsViewModel = viewModel(),
     homeScreenViewModel: HomeScreenViewModel = viewModel(),
     userProfileViewModel: UserProfileViewModel = viewModel()
@@ -112,7 +115,9 @@ fun HomeScreen(
     var selectedLanguages by remember { mutableStateOf(setOf<String>()) }
     var selectedVibes by remember { mutableStateOf(setOf<String>()) }
     var callDragProgress by remember { mutableStateOf(0f) }
-    var notifyWhenHostAvailable by remember { mutableStateOf(false) }
+    var notifyWhenHostAvailable by remember {
+        mutableStateOf(AppSession.getBoolean(Constant.NOTIFY_WHEN_HOST_AVAILABLE_KEY))
+    }
 
     LaunchedEffect(Unit) {
         homeOptionsViewModel.loadHomeOptions()
@@ -197,7 +202,17 @@ fun HomeScreen(
                     }
                     EmptyConnectState(
                         notifyEnabled = notifyWhenHostAvailable,
-                        onNotifyChange = { notifyWhenHostAvailable = it },
+                        onNotifyChange = { enabled ->
+                            if (enabled) {
+                                onNotificationAccessRequested {
+                                    notifyWhenHostAvailable = true
+                                    AppSession.putBoolean(Constant.NOTIFY_WHEN_HOST_AVAILABLE_KEY, true)
+                                }
+                            } else {
+                                notifyWhenHostAvailable = false
+                                AppSession.putBoolean(Constant.NOTIFY_WHEN_HOST_AVAILABLE_KEY, false)
+                            }
+                        },
                         modifier = Modifier.fillMaxSize()
                     )
                 } else {

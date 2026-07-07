@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -39,13 +40,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -55,6 +60,7 @@ import com.gobff.getfriends.R
 import com.gobff.getfriends.data.model.CallHistoryItemResponse
 import com.gobff.getfriends.ui.component.BffHeartChip
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
+import com.gobff.getfriends.ui.theme.FreedokaFontFamily
 import com.gobff.getfriends.ui.theme.GaretFontFamily
 import com.gobff.getfriends.viewmodel.CallHistoryViewModel
 import com.gobff.getfriends.viewmodel.callTypeLabel
@@ -62,7 +68,7 @@ import com.gobff.getfriends.viewmodel.displayCallerName
 import com.gobff.getfriends.viewmodel.displayDuration
 import com.gobff.getfriends.viewmodel.displayTimestamp
 
-private val HistoryOrange = Color(0xFFD87400)
+private val HistoryOrange = Color(0xFFFD8663)
 
 @Composable
 fun HistoryScreen(
@@ -86,18 +92,11 @@ fun HistoryScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(HistoryOrange)
+            .background(Color.White)
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.history_screen_bg_object),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.FillBounds
-        )
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = 88.dp)
                 .verticalScroll(rememberScrollState())
         ) {
             Spacer(modifier = Modifier.height(48.dp))
@@ -107,40 +106,149 @@ fun HistoryScreen(
                 onRechargeRequested = onRechargeRequested,
                 modifier = Modifier.padding(horizontal = 20.dp)
             )
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(40.dp))
             HistoryTopArea()
-            Spacer(modifier = Modifier.height(34.dp))
+            Spacer(modifier = Modifier.height(24.dp))
             HistoryTabs()
-            Spacer(modifier = Modifier.height(18.dp))
             when {
                 callHistoryUiState.isLoading -> {
-                    HistoryStatusText(
-                        text = "Loading calls...",
-                        modifier = Modifier.padding(horizontal = 24.dp)
-                    )
+                    HistoryContentCard()
                 }
                 callHistoryUiState.errorMessage != null -> {
-                    HistoryStatusText(
-                        text = callHistoryUiState.errorMessage,
-                        modifier = Modifier.padding(horizontal = 24.dp)
-                    )
+                    HistoryContentCard {
+                        HistoryStatusText(
+                            text = callHistoryUiState.errorMessage,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 24.dp, vertical = 80.dp)
+                        )
+                    }
                 }
                 callHistoryUiState.calls.isEmpty() -> {
-                    HistoryStatusText(
-                        text = "No calls yet",
-                        modifier = Modifier.padding(horizontal = 24.dp)
-                    )
+                    HistoryContentCard {
+                        HistoryEmptyState(onCallNow = onConnectSelected)
+                    }
                 }
                 else -> {
-                    HistoryCallList(
-                        calls = callHistoryUiState.calls.map { it.toHistoryCall() },
-                        modifier = Modifier.padding(horizontal = 24.dp)
-                    )
+                    HistoryContentCard {
+                        HistoryCallList(
+                            calls = callHistoryUiState.calls.map { it.toHistoryCall() },
+                            modifier = Modifier.padding(start = 24.dp, top = 30.dp, end = 24.dp, bottom = 48.dp)
+                        )
+                    }
                 }
             }
-            Spacer(modifier = Modifier.height(28.dp))
         }
 
+    }
+}
+
+@Composable
+private fun HistoryContentCard(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit = {
+        HistoryStatusText(
+            text = "Loading calls...",
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 80.dp)
+        )
+    }
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 570.dp)
+            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .background(HistoryOrange)
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.history_screen_bg_object),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.FillBounds
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 58.dp)
+                .size(width = 122.dp, height = 4.dp)
+                .clip(RoundedCornerShape(bottomStart = 10.dp, bottomEnd = 10.dp))
+                .background(Color(0xFFB44E35))
+        )
+        content()
+    }
+}
+
+@Composable
+private fun HistoryEmptyState(
+    onCallNow: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+            .fillMaxWidth()
+            .height(604.dp)
+            .padding(horizontal = 36.dp)
+    ) {
+        Spacer(modifier = Modifier.height(74.dp))
+        Image(
+            painter = painterResource(id = R.drawable.history_empty_screen),
+            contentDescription = null,
+            modifier = Modifier.size(width = 276.dp, height = 228.dp),
+            contentScale = ContentScale.Fit
+        )
+        Spacer(modifier = Modifier.height(22.dp))
+        Text(
+            text = "No calls yet",
+            color = Color.Black,
+            fontSize = 16.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "You haven't called anyone yet.\nStart a call and create some awesome memories!",
+            color = Color.Black,
+            fontSize = 12.sp,
+            lineHeight = 18.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(36.dp))
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(width = 156.dp, height = 48.dp)
+                .offset(x = 3.dp, y = 4.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color.Black)
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .matchParentSize()
+                    .offset(x = (-3).dp, y = (-4).dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onCallNow
+                    )
+            ) {
+                Text(
+                    text = "Call now !",
+                    color = Color.Black,
+                    fontSize = 15.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
     }
 }
 
@@ -170,34 +278,76 @@ private fun HistoryTopBar(
                 ),
             contentScale = ContentScale.Crop
         )
-        BffHeartChip(
-            hearts = walletHearts,
-            onClick = onRechargeRequested
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            BffHeartChip(
+                hearts = walletHearts,
+                onClick = onRechargeRequested
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Image(
+                painter = painterResource(id = R.drawable.game_screen_question),
+                contentDescription = "Help",
+                modifier = Modifier.size(32.dp),
+                contentScale = ContentScale.Fit
+            )
+        }
     }
 }
 
 @Composable
 private fun HistoryTopArea() {
-    Box(
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .fillMaxWidth()
-            .height(151.dp)
+            .height(86.dp)
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.history_screen_header),
-            contentDescription = null,
-            modifier = Modifier
-                .size(
-                    width = 372.dp,
-                    height = 99.dp
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.gift_vibe_sparkle),
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                contentScale = ContentScale.Fit
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "FRIENDSHIP LOG",
+                color = HistoryOrange,
+                fontSize = 32.sp,
+                lineHeight = 32.sp,
+                letterSpacing = 1.28.sp,
+                fontFamily = FreedokaFontFamily,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                style = TextStyle(
+                    shadow = Shadow(
+                        color = Color.Black,
+                        offset = Offset(1f, 1f),
+                        blurRadius = 0f
+                    )
                 )
-                .align(Alignment.TopStart)
-                .offset(
-                    x = 11.dp,
-                    y = 12.dp
-                ),
-            contentScale = ContentScale.FillBounds
+            )
+            Spacer(modifier = Modifier.width(2.dp))
+            Image(
+                painter = painterResource(id = R.drawable.gift_vibe_sparkle),
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                contentScale = ContentScale.Fit
+            )
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "See who you've talked with",
+            color = Color(0xFF3A393D),
+            fontSize = 16.sp,
+            lineHeight = 18.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center
         )
     }
 }
@@ -207,7 +357,7 @@ private fun HistoryTabs() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(55.dp)
+            .height(32.dp)
             .padding(horizontal = 37.dp),
         verticalAlignment = Alignment.Top
     ) {
@@ -216,7 +366,7 @@ private fun HistoryTabs() {
             contentAlignment = Alignment.Center
         ) {
             HistoryTabLabel(
-                text = "All calls",
+                text = "Video",
                 selected = true
             )
         }
@@ -226,7 +376,7 @@ private fun HistoryTabs() {
             contentAlignment = Alignment.Center
         ) {
             HistoryTabLabel(
-                text = "Missed",
+                text = "Audio",
                 selected = false
             )
         }
@@ -240,31 +390,11 @@ private fun HistoryTabLabel(text: String, selected: Boolean) {
     ) {
         Text(
             text = text,
-            color = Color.White.copy(
-                alpha = if (selected) 1f else 0.86f
-            ),
+            color = Color.Black.copy(alpha = if (selected) 1f else 0.78f),
             fontSize = 16.sp,
             fontFamily = GaretFontFamily,
-            fontWeight = FontWeight.Medium
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
         )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        if (selected) {
-            Box(
-                modifier = Modifier
-                    .size(
-                        width = 122.dp,
-                        height = 3.dp
-                    )
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color.White)
-            )
-        } else {
-            Spacer(
-                modifier = Modifier.height(3.dp)
-            )
-        }
     }
 }
 @Composable
@@ -356,10 +486,10 @@ private fun HistoryCallRow(call: HistoryCall) {
                 modifier = Modifier
                     .size(width = 48.dp, height = 32.dp)
                     .clip(RoundedCornerShape(24.dp))
-                    .background(Color(0xFFA032B3))
+                    .background(Color(0xFF35A9E6))
             ) {
                 Icon(
-                    painter = painterResource(R.drawable.chat_screen_phone),
+                    painter = painterResource(R.drawable.call_screen_camera),
                     contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier.size(20.dp)
@@ -439,6 +569,48 @@ private fun String?.toHistoryAvatarRes(): Int =
 @Composable
 private fun HistoryScreenPreview() {
     BffAndroidTheme {
-        HistoryScreen()
+        HistoryScreenPreviewContent()
     }
 }
+
+@Composable
+private fun HistoryScreenPreviewContent() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+        ) {
+            Spacer(modifier = Modifier.height(48.dp))
+            HistoryTopBar(
+                walletHearts = 3230,
+                onProfileRequested = {},
+                onRechargeRequested = {},
+                modifier = Modifier.padding(horizontal = 20.dp)
+            )
+            Spacer(modifier = Modifier.height(40.dp))
+            HistoryTopArea()
+            Spacer(modifier = Modifier.height(24.dp))
+            HistoryTabs()
+            HistoryContentCard {
+                HistoryCallList(
+                    calls = previewHistoryCalls(),
+                    modifier = Modifier.padding(start = 24.dp, top = 30.dp, end = 24.dp, bottom = 48.dp)
+                )
+            }
+        }
+    }
+}
+
+private fun previewHistoryCalls(): List<HistoryCall> =
+    listOf(
+        HistoryCall("Anshu", "12 Jun, 10:32pm", "12 min", R.drawable.women_avatar1),
+        HistoryCall("Riya", "13 Jun, 9:15am", "8 min", R.drawable.women_avatar1),
+        HistoryCall("Karan", "13 Jun, 11:47am", "15 min", R.drawable.women_avatar1),
+        HistoryCall("Meera", "14 Jun, 2:05pm", "10 min", R.drawable.women_avatar1),
+        HistoryCall("Aditya", "14 Jun, 5:30pm", "7 min", R.drawable.women_avatar1)
+    )

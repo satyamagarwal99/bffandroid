@@ -1,26 +1,46 @@
 package com.gobff.getfriends.navigation
 
+import android.Manifest
 import android.app.Activity
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -31,11 +51,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -71,6 +94,10 @@ import com.gobff.getfriends.ui.component.BffBottomBar
 import com.gobff.getfriends.ui.component.MainBottomTab
 import com.gobff.getfriends.utils.AppSession
 import com.gobff.getfriends.utils.Constant
+import com.gobff.getfriends.utils.NotificationPermissionAction
+import com.gobff.getfriends.utils.NotificationPermissionState
+import com.gobff.getfriends.utils.NotificationPermissionState.findActivity
+import com.gobff.getfriends.utils.NotificationPermissionUiState
 import com.gobff.getfriends.utils.PresenceHeartbeat
 import com.gobff.getfriends.utils.TokenUtils
 import com.gobff.getfriends.viewmodel.MainViewModel
@@ -95,6 +122,7 @@ fun AppNavGraph(
     val lifecycleOwner = LocalLifecycleOwner.current
     val configuration = LocalConfiguration.current
     val context = LocalContext.current
+    val activity = context.findActivity()
     val walletViewModel: WalletViewModel = viewModel()
     val userProfileViewModel: UserProfileViewModel = viewModel()
     val coroutineScope = rememberCoroutineScope()
@@ -111,6 +139,73 @@ fun AppNavGraph(
         .coerceIn(MIN_BOTTOM_BAR_CONTENT_PADDING, MAX_BOTTOM_BAR_CONTENT_PADDING)
     val appBottomBarContentPadding = if (selectedBottomTab == null) 0.dp else adaptiveBottomPadding
     var lastHomeBackPressAt by remember { mutableStateOf(0L) }
+    var notificationPermissionUiState by remember {
+        mutableStateOf(NotificationPermissionState.currentUiState(context, activity))
+    }
+    var pendingNotificationAccessAction by remember {
+        mutableStateOf<(() -> Unit)?>(null)
+    }
+    var pendingNotificationSettingsReturn by remember { mutableStateOf(false) }
+    val notificationBannerTopPadding by animateDpAsState(
+        targetValue = if (notificationPermissionUiState.showBanner) {
+            NOTIFICATION_BANNER_CONTENT_HEIGHT
+        } else {
+            0.dp
+        },
+        animationSpec = tween(NOTIFICATION_BANNER_ANIMATION_DURATION_MS),
+        label = "notificationBannerTopPadding"
+    )
+
+    fun refreshNotificationPermissionState() {
+        notificationPermissionUiState = NotificationPermissionState.currentUiState(context, activity)
+    }
+
+    fun resolvePendingNotificationAction(clearWhenAccessMissing: Boolean) {
+        val pendingAction = pendingNotificationAccessAction ?: return
+        if (NotificationPermissionState.hasNotificationAccess(context)) {
+            pendingNotificationAccessAction = null
+            pendingNotificationSettingsReturn = false
+            pendingAction()
+        } else if (clearWhenAccessMissing) {
+            pendingNotificationAccessAction = null
+            pendingNotificationSettingsReturn = false
+        }
+    }
+
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        NotificationPermissionState.markRuntimePermissionRequested()
+        if (granted) {
+            NotificationPermissionState.clearRuntimePermissionDenied()
+        } else {
+            NotificationPermissionState.markRuntimePermissionDenied()
+        }
+        refreshNotificationPermissionState()
+        resolvePendingNotificationAction(clearWhenAccessMissing = true)
+    }
+
+    fun requestNotificationAccess(onAccessReady: () -> Unit = {}) {
+        if (NotificationPermissionState.hasNotificationAccess(context)) {
+            onAccessReady()
+            refreshNotificationPermissionState()
+            return
+        }
+
+        pendingNotificationAccessAction = onAccessReady
+        val latestState = NotificationPermissionState.currentUiState(context, activity)
+        notificationPermissionUiState = latestState
+        when (latestState.action) {
+            NotificationPermissionAction.RequestPermission -> {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            NotificationPermissionAction.OpenSettings -> {
+                pendingNotificationSettingsReturn = true
+                NotificationPermissionState.openAppNotificationSettings(context)
+            }
+            NotificationPermissionAction.None -> Unit
+        }
+    }
 
     BackHandler(enabled = currentRoute == AppRoute.Home2.route) {
         val now = System.currentTimeMillis()
@@ -135,14 +230,31 @@ fun AppNavGraph(
         navController.navigateSingleTop(AppRoute.Call)
     }
 
+    LaunchedEffect(Unit) {
+        refreshNotificationPermissionState()
+        if (NotificationPermissionState.shouldRequestOnAppStart(context)) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_START -> {
+                    refreshNotificationPermissionState()
+                    if (pendingNotificationSettingsReturn) {
+                        resolvePendingNotificationAction(clearWhenAccessMissing = true)
+                    }
                     if (initialAppOpenDispatched) {
                         mainViewModel.onAppOpen()
                     } else {
                         initialAppOpenDispatched = true
+                    }
+                }
+                Lifecycle.Event.ON_RESUME -> {
+                    refreshNotificationPermissionState()
+                    if (pendingNotificationSettingsReturn) {
+                        resolvePendingNotificationAction(clearWhenAccessMissing = true)
                     }
                 }
                 Lifecycle.Event.ON_STOP -> mainViewModel.onAppClose()
@@ -180,7 +292,10 @@ fun AppNavGraph(
             modifier = Modifier
                 .fillMaxSize()
                 .navigationBarsPadding()
-                .padding(bottom = appBottomBarContentPadding)
+                .padding(
+                    top = notificationBannerTopPadding,
+                    bottom = appBottomBarContentPadding
+                )
         ) {
         composable(AppRoute.Splash.route) {
             LaunchedEffect(Unit) {
@@ -269,6 +384,9 @@ fun AppNavGraph(
                 onHistoryRequested = { navController.navigateSingleTop(AppRoute.History) },
                 onGamesRequested = { navController.navigateSingleTop(AppRoute.Games) },
                 onProfileRequested = { navController.navigateSingleTop(AppRoute.Profile) },
+                onNotificationAccessRequested = { onAccessReady ->
+                    requestNotificationAccess(onAccessReady)
+                },
                 userProfileViewModel = userProfileViewModel
             )
         }
@@ -321,6 +439,9 @@ fun AppNavGraph(
                 onSettingsRequested = { navController.navigateSingleTop(AppRoute.Settings) },
                 isAvailableForCalls = mainViewModel.userAvailableForCalls,
                 onAvailabilityChanged = mainViewModel::updateUserAvailableForCalls,
+                onNotificationAccessRequested = { onAccessReady ->
+                    requestNotificationAccess(onAccessReady)
+                },
                 userProfileViewModel = userProfileViewModel
             )
         }
@@ -328,6 +449,7 @@ fun AppNavGraph(
         composable(AppRoute.Settings.route) {
             SettingsScreen(
                 onBack = navController::navigateUp,
+                hasNotificationAccess = NotificationPermissionState.hasNotificationAccess(context),
                 onAlwaysOnlineChanged = { enabled ->
                     if (enabled) {
                         mainViewModel.stopForegroundHeartbeat()
@@ -336,6 +458,9 @@ fun AppNavGraph(
                         PresenceForegroundService.stop(context.applicationContext)
                         mainViewModel.onAppOpen()
                     }
+                },
+                onNotificationAccessRequested = {
+                    requestNotificationAccess(it)
                 },
                 onLogout = {
                     PresenceHeartbeat.setAlwaysOnlineEnabled(false)
@@ -468,6 +593,77 @@ fun AppNavGraph(
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()
             )
+        }
+
+        GlobalNotificationPermissionBanner(
+            uiState = notificationPermissionUiState,
+            onEnableClick = {
+                requestNotificationAccess()
+            },
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .statusBarsPadding()
+        )
+    }
+}
+
+@Composable
+private fun GlobalNotificationPermissionBanner(
+    uiState: NotificationPermissionUiState,
+    onEnableClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    AnimatedVisibility(
+        visible = uiState.showBanner,
+        enter = slideInVertically(
+            animationSpec = tween(NOTIFICATION_BANNER_ANIMATION_DURATION_MS),
+            initialOffsetY = { fullHeight -> -fullHeight }
+        ) + fadeIn(animationSpec = tween(NOTIFICATION_BANNER_FADE_DURATION_MS)),
+        exit = slideOutVertically(
+            animationSpec = tween(NOTIFICATION_BANNER_ANIMATION_DURATION_MS),
+            targetOffsetY = { fullHeight -> -fullHeight }
+        ) + fadeOut(animationSpec = tween(NOTIFICATION_BANNER_FADE_DURATION_MS)),
+        modifier = modifier
+    ) {
+        Surface(
+            color = Color(0xFFFFF6D6),
+            shadowElevation = 6.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = NOTIFICATION_BANNER_CONTENT_HEIGHT)
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.NotificationsActive,
+                    contentDescription = null,
+                    tint = Color(0xFFFF7A1A)
+                )
+                Text(
+                    text = "Enable notifications for call alerts.",
+                    color = Color(0xFF241A10),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = "Enable",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(Color(0xFF111111))
+                        .clickable(onClick = onEnableClick)
+                        .padding(horizontal = 12.dp, vertical = 7.dp)
+                )
+                Spacer(modifier = Modifier.width(2.dp))
+            }
         }
     }
 }
@@ -638,3 +834,6 @@ private const val NAVIGATION_TRANSITION_DURATION_MS = 280
 private const val NAVIGATION_FADE_DURATION_MS = 180
 private const val NAVIGATION_SCALE_IN = 0.98f
 private const val NAVIGATION_SCALE_OUT = 0.99f
+private const val NOTIFICATION_BANNER_ANIMATION_DURATION_MS = 240
+private const val NOTIFICATION_BANNER_FADE_DURATION_MS = 160
+private val NOTIFICATION_BANNER_CONTENT_HEIGHT = 44.dp

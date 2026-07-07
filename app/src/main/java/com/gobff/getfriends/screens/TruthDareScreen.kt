@@ -1,8 +1,11 @@
 package com.gobff.getfriends.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -18,6 +21,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -31,6 +35,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -62,11 +67,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gobff.getfriends.R
+import com.gobff.getfriends.data.model.ConnectUserResponse
 import com.gobff.getfriends.ui.component.BffHeartChip
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.FreedokaFontFamily
 import com.gobff.getfriends.ui.theme.GaretFontFamily
+import com.gobff.getfriends.viewmodel.HomeScreenViewModel
 import kotlinx.coroutines.delay
 import kotlin.math.cos
 import kotlin.math.sin
@@ -115,9 +123,15 @@ fun TruthDareScreen(
     modifier: Modifier = Modifier,
     walletHearts: Int = 0,
     onBack: () -> Unit = {},
-    onRechargeRequested: () -> Unit = {}
+    onRechargeRequested: () -> Unit = {},
+    homeScreenViewModel: HomeScreenViewModel = viewModel()
 ) {
     var phase by remember { mutableStateOf(TruthDarePhase.Lobby) }
+    val connectUsersState = homeScreenViewModel.connectUsersUiState
+
+    LaunchedEffect(Unit) {
+        homeScreenViewModel.loadConnectUsers()
+    }
 
     BackHandler {
         when (phase) {
@@ -130,6 +144,9 @@ fun TruthDareScreen(
     when (phase) {
         TruthDarePhase.Lobby -> TruthDareLobbyScreen(
             walletHearts = walletHearts,
+            users = connectUsersState.users,
+            hasLoadedUsers = connectUsersState.hasLoaded,
+            isLoadingUsers = connectUsersState.isLoading,
             onBack = onBack,
             onRechargeRequested = onRechargeRequested,
             onPlay = { phase = TruthDarePhase.Loading },
@@ -151,20 +168,19 @@ fun TruthDareScreen(
 @Composable
 private fun TruthDareLobbyScreen(
     walletHearts: Int,
+    users: List<ConnectUserResponse>,
+    hasLoadedUsers: Boolean,
+    isLoadingUsers: Boolean,
     onBack: () -> Unit,
     onRechargeRequested: () -> Unit,
     onPlay: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val players = remember {
-        listOf(
-            TruthDarePlayer("Anshu", R.drawable.women_avatar3, "4.6", listOf("தமிழ்", "हिंदी")),
-            TruthDarePlayer("Meera", R.drawable.women_avatar5, "4.9", listOf("English", "বাংলা")),
-            TruthDarePlayer("Rose", R.drawable.women_avatar8, "4.4", listOf("తెలుగు", "मराठी")),
-            TruthDarePlayer("Nisha", R.drawable.women_avatar7, "4.8", listOf("മലയാളം", "ગુજરાતી")),
-            TruthDarePlayer("Raj", R.drawable.women_avatar6, "4.4", listOf("తెలుగు", "मराठी"))
-        )
+    val players = remember(users) {
+        users.toTruthDarePlayers()
     }
+    val showEmptyState = hasLoadedUsers && !isLoadingUsers && players.isEmpty()
+    var notifyWhenHostAvailable by remember { mutableStateOf(false) }
 
     Box(
         modifier = modifier
@@ -182,25 +198,49 @@ private fun TruthDareLobbyScreen(
                 onRechargeRequested = onRechargeRequested
             )
 
-            Spacer(modifier = Modifier.height(40.dp))
-            TruthDareSearchBar(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-            )
-            Spacer(modifier = Modifier.height(48.dp))
-            Column(
-                verticalArrangement = Arrangement.spacedBy(28.dp),
-                modifier = Modifier.padding(horizontal = 20.dp)
-            ) {
-                players.forEach { player ->
-                    TruthDarePlayerCard(
-                        player = player,
-                        onPlay = onPlay
+                    .heightIn(min = 620.dp)
+                    .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(Color(0xFFFC9071), TruthDareOrange)
+                        )
                     )
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.truth_dare_bg_object),
+                    contentDescription = null,
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.FillBounds
+                )
+                if (showEmptyState) {
+                    TruthDareEmptyState(
+                        notifyEnabled = notifyWhenHostAvailable,
+                        onNotifyChange = { notifyWhenHostAvailable = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                    )
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 20.dp, top = 24.dp, end = 20.dp, bottom = 34.dp)
+                    ) {
+                        TruthDareSearchBar(modifier = Modifier.fillMaxWidth())
+                        Spacer(modifier = Modifier.height(40.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(28.dp)) {
+                            players.forEach { player ->
+                                TruthDarePlayerCard(
+                                    player = player,
+                                    onPlay = onPlay
+                                )
+                            }
+                        }
+                    }
                 }
             }
-            Spacer(modifier = Modifier.height(34.dp))
         }
     }
 }
@@ -215,24 +255,13 @@ private fun TruthDareLobbyHeader(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(250.dp)
-            .clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(Color(0xFFFC9071), TruthDareOrange)
-                )
-            )
+            .height(234.dp)
+            .background(Color.White)
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.truth_dare_bg_object),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.FillBounds
-        )
         Icon(
             imageVector = Icons.Default.ArrowBack,
             contentDescription = "Back",
-            tint = Color.White,
+            tint = Color.Black,
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .padding(start = 20.dp, top = 48.dp)
@@ -243,26 +272,74 @@ private fun TruthDareLobbyHeader(
                     onClick = onBack
                 )
         )
-        BffHeartChip(
-            hearts = walletHearts,
-            onClick = onRechargeRequested,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = 48.dp, end = 20.dp)
-        )
-        Image(
-            painter = painterResource(id = R.drawable.truth_dare_heading),
-            contentDescription = null,
+        ) {
+            BffHeartChip(
+                hearts = walletHearts,
+                onClick = onRechargeRequested
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Image(
+                painter = painterResource(id = R.drawable.game_screen_question),
+                contentDescription = null,
+                modifier = Modifier.size(32.dp),
+                contentScale = ContentScale.Fit
+            )
+        }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 112.dp)
-                .size(width = 423.dp, height = 76.dp),
-            contentScale = ContentScale.Fit
+                .align(Alignment.TopStart)
+                .padding(start = 20.dp, top = 132.dp)
+        ) {
+            Text(
+                text = "Truth",
+                color = Color(0xFF5162C6),
+                fontSize = 28.sp,
+                fontFamily = FreedokaFontFamily,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Image(
+                painter = painterResource(id = R.drawable.truth_dare_heart),
+                contentDescription = null,
+                modifier = Modifier.size(width = 32.dp, height = 28.dp),
+                contentScale = ContentScale.Fit
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = "Dare",
+                color = Color(0xFF5162C6),
+                fontSize = 28.sp,
+                fontFamily = FreedokaFontFamily,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Image(
+                painter = painterResource(id = R.drawable.truth_dare_sparkle),
+                contentDescription = null,
+                modifier = Modifier.size(32.dp),
+                contentScale = ContentScale.Fit
+            )
+        }
+        Text(
+            text = "Play, Laugh, Connect",
+            color = Color(0xFF9C9CA3),
+            fontSize = 14.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 20.dp, top = 172.dp)
         )
         TruthDarePricePill(
             modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 196.dp)
+                .align(Alignment.TopEnd)
+                .padding(top = 148.dp, end = 20.dp)
         )
     }
 }
@@ -273,7 +350,7 @@ private fun TruthDarePricePill(modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
         modifier = modifier
-            .height(34.dp)
+            .height(32.dp)
             .clip(RoundedCornerShape(30.dp))
             .background(Color(0xFFFFD861))
             .padding(horizontal = 14.dp)
@@ -494,6 +571,142 @@ private fun ShadowPlayButton(onClick: () -> Unit) {
             style = TextStyle(
                 shadow = Shadow(Color(0xFF6A259B), offset = Offset(1f, 2f), blurRadius = 0f)
             )
+        )
+    }
+}
+
+@Composable
+private fun TruthDareEmptyState(
+    notifyEnabled: Boolean,
+    onNotifyChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier.padding(start = 28.dp, top = 92.dp, end = 28.dp, bottom = 68.dp)
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.no_host_connect_screen),
+            contentDescription = null,
+            modifier = Modifier.size(width = 236.dp, height = 190.dp),
+            contentScale = ContentScale.Fit
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Text(
+            text = "No friends are available to\nplay right now",
+            color = Color.Black,
+            fontSize = 18.sp,
+            lineHeight = 25.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "Please try again in few minutes",
+            color = Color.Black,
+            fontSize = 14.sp,
+            lineHeight = 18.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(38.dp))
+        TruthDareNotifyWhenHostAvailableCard(
+            enabled = notifyEnabled,
+            onToggle = { onNotifyChange(!notifyEnabled) },
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+private fun TruthDareNotifyWhenHostAvailableCard(
+    enabled: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(14.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .height(74.dp)
+            .clip(shape)
+            .background(Color.White.copy(alpha = 0.13f))
+            .border(1.dp, Color.White.copy(alpha = 0.42f), shape)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onToggle
+            )
+            .padding(horizontal = 14.dp)
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(Color(0xFF4967D8))
+        ) {
+            Icon(
+                imageVector = Icons.Default.Notifications,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+        Spacer(modifier = Modifier.width(14.dp))
+        Text(
+            text = "We'll notify you know\nwhen a friend is available",
+            color = Color.White,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f)
+        )
+        TruthDareSmoothNotifyToggle(
+            enabled = enabled,
+            onToggle = onToggle
+        )
+    }
+}
+
+@Composable
+private fun TruthDareSmoothNotifyToggle(
+    enabled: Boolean,
+    onToggle: () -> Unit
+) {
+    val trackColor by animateColorAsState(
+        targetValue = if (enabled) Color(0xFF02C96B) else Color(0xFFFD8663),
+        label = "truthDareNotifyTrackColor"
+    )
+    val thumbOffset by animateDpAsState(
+        targetValue = if (enabled) 30.dp else 2.dp,
+        animationSpec = spring(dampingRatio = 0.82f, stiffness = 360f),
+        label = "truthDareNotifyThumbOffset"
+    )
+
+    Box(
+        modifier = Modifier
+            .size(width = 62.dp, height = 34.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(trackColor)
+            .border(1.5.dp, Color.White, RoundedCornerShape(20.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onToggle
+            )
+            .padding(2.dp, end = 3.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .offset(x = thumbOffset)
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(Color.White)
         )
     }
 }
@@ -1688,6 +1901,79 @@ private fun randomTruthDarePrompt(kind: TruthDareKind): String {
     return prompts.random()
 }
 
+private fun List<ConnectUserResponse>.toTruthDarePlayers(): List<TruthDarePlayer> {
+    return map { user ->
+        TruthDarePlayer(
+            name = user.displayName?.takeIf { it.isNotBlank() } ?: "Someone",
+            avatarRes = user.avatarUrl.toTruthDareAvatarRes(),
+            rating = user.stableTruthDareRating(),
+            languages = user.languages.toTruthDareLanguages()
+        )
+    }
+}
+
+private fun ConnectUserResponse.stableTruthDareRating(): String {
+    val seed = (userId ?: displayName ?: avatarUrl).orEmpty().hashCode() and Int.MAX_VALUE
+    return listOf("4.4", "4.6", "4.8", "4.9")[seed % 4]
+}
+
+private fun List<String>?.toTruthDareLanguages(): List<String> {
+    return orEmpty()
+        .mapNotNull { it.truthDareLanguageLabel() }
+        .take(2)
+        .ifEmpty { listOf("தமிழ்", "हिंदी") }
+}
+
+private fun String.truthDareLanguageLabel(): String? {
+    return when (trim().uppercase()) {
+        "ENGLISH" -> "English"
+        "TAMIL" -> "தமிழ்"
+        "HINDI" -> "हिंदी"
+        "MALAYALAM" -> "മലയാളം"
+        "KANNADA" -> "ಕನ್ನಡ"
+        "MARATHI" -> "मराठी"
+        "PUNJABI" -> "ਪੰਜਾਬੀ"
+        "BENGALI" -> "বাংলা"
+        "GUJARATI" -> "ગુજરાતી"
+        "TELUGU" -> "తెలుగు"
+        "URDU" -> "Urdu"
+        "ODIA" -> "ଓଡ଼ିଆ"
+        else -> takeIf { it.isNotBlank() }?.replaceFirstChar { char ->
+            if (char.isLowerCase()) char.titlecase() else char.toString()
+        }
+    }
+}
+
+private fun String?.toTruthDareAvatarRes(): Int {
+    return when (this?.trim().orEmpty()) {
+        "women_avatar1" -> R.drawable.women_avatar1
+        "women_avatar2" -> R.drawable.women_avatar2
+        "women_avatar3" -> R.drawable.women_avatar3
+        "women_avatar4" -> R.drawable.women_avatar4
+        "women_avatar5" -> R.drawable.women_avatar5
+        "women_avatar6" -> R.drawable.women_avatar6
+        "women_avatar7" -> R.drawable.women_avatar7
+        "women_avatar8" -> R.drawable.women_avatar8
+        "women_avatar9" -> R.drawable.women_avatar9
+        "women_avatar10" -> R.drawable.women_avatar10
+        "women_avatar11" -> R.drawable.women_avatar11
+        "women_avatar12" -> R.drawable.women_avatar12
+        "man_avatar1" -> R.drawable.man_avatar1
+        "man_avatar2" -> R.drawable.man_avatar2
+        "man_avatar3" -> R.drawable.man_avatar3
+        "man_avatar4" -> R.drawable.man_avatar4
+        "man_avatar5" -> R.drawable.man_avatar5
+        "man_avatar6" -> R.drawable.man_avatar6
+        "man_avatar7" -> R.drawable.man_avatar7
+        "man_avatar8" -> R.drawable.man_avatar8
+        "man_avatar9" -> R.drawable.man_avatar9
+        "man_avatar10" -> R.drawable.man_avatar10
+        "man_avatar11" -> R.drawable.man_avatar11
+        "man_avatar12" -> R.drawable.man_avatar12
+        else -> R.drawable.man_avatar1
+    }
+}
+
 @Composable
 private fun QuestionSparkle(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier.size(24.dp)) {
@@ -1706,15 +1992,23 @@ private fun QuestionSparkle(modifier: Modifier = Modifier) {
 }
 
 @Preview(showBackground = true, widthDp = 393, heightDp = 852)
-//@Composable
-//private fun TruthDareScreenPreview() {
-//    BffAndroidTheme {
-//        TruthDareScreen()
-//    }
-//}
 @Composable
-private fun TruthDareGameScreenPreview() {
-    TruthDareGameScreen(
-        onBack = {}
-    )
+private fun TruthDareScreenPreview() {
+    BffAndroidTheme {
+        TruthDareLobbyScreen(
+            walletHearts = 0,
+            users = emptyList(),
+            hasLoadedUsers = true,
+            isLoadingUsers = false,
+            onBack = {},
+            onRechargeRequested = {},
+            onPlay = {}
+        )
+    }
 }
+//@Composable
+//private fun TruthDareGameScreenPreview() {
+//    TruthDareGameScreen(
+//        onBack = {}
+//    )
+//}

@@ -15,4 +15,8 @@ object Constant {
     const val PREVIOUS_FCM_TOKEN_KEY = "previous_fcm_token"
     const val IS_USER_LOGGED_IN = "isUserLoggedIn"
     const val ALWAYS_ONLINE_FOR_CALLS_KEY = "always_online_for_calls"
+    const val USER_UNAVAILABLE_FOR_CALLS_KEY = "user_unavailable_for_calls"
+    const val NOTIFY_WHEN_HOST_AVAILABLE_KEY = "notify_when_host_available"
+    const val NOTIFICATION_PERMISSION_REQUESTED_KEY = "notification_permission_requested"
+    const val NOTIFICATION_PERMISSION_DENIED_KEY = "notification_permission_denied"
 }
