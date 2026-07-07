@@ -10,6 +10,7 @@ import com.gobff.getfriends.data.MainRepository
 import com.gobff.getfriends.data.model.CallRoomUiState
 import com.gobff.getfriends.data.model.CreateRoomBody
 import com.gobff.getfriends.data.model.JoinRoomBody
+import com.gobff.getfriends.data.model.RoomFeedbackBody
 import com.gobff.getfriends.data.model.RoomRole
 import com.gobff.getfriends.data.model.RoomType
 import com.gobff.getfriends.data.model.RtcTokenBody
@@ -234,6 +235,82 @@ class CallViewModel(
 
     fun declineVideoUpgrade() {
         respondToVideoUpgrade(accept = false)
+    }
+
+    fun submitFeedback(
+        rating: Int,
+        tags: List<String>,
+        comment: String?,
+        addFriend: Boolean,
+        roomId: String? = uiState.room?.id,
+        onSubmitted: () -> Unit = {}
+    ) {
+        val token = TokenUtils.getToken()
+        if (token.isBlank() || roomId.isNullOrBlank() || uiState.isSubmittingFeedback) {
+            uiState = uiState.copy(
+                feedbackErrorMessage = "Unable to submit feedback"
+            )
+            return
+        }
+
+        viewModelScope.launch {
+            uiState = uiState.copy(
+                isSubmittingFeedback = true,
+                feedbackErrorMessage = null
+            )
+
+            val body = RoomFeedbackBody(
+                rating = rating,
+                tags = tags,
+                comment = comment?.takeIf { it.isNotBlank() },
+                addFriend = addFriend
+            )
+
+            runCatching {
+                mainRepository.submitRoomFeedback(
+                    bearerToken = token,
+                    roomId = roomId,
+                    body = body
+                )
+            }.onSuccess { response ->
+                if (response.isSuccessful) {
+                    uiState = uiState.copy(
+                        isSubmittingFeedback = false,
+                        feedbackSubmitted = true,
+                        feedbackErrorMessage = null
+                    )
+                    onSubmitted()
+                } else {
+                    uiState = uiState.copy(
+                        isSubmittingFeedback = false,
+                        feedbackErrorMessage = "Unable to submit feedback"
+                    )
+                }
+            }.onFailure { error ->
+                uiState = uiState.copy(
+                    isSubmittingFeedback = false,
+                    feedbackErrorMessage = error.message ?: "Unable to submit feedback"
+                )
+            }
+        }
+    }
+
+    fun refreshFeedbackStatus(roomId: String? = uiState.room?.id) {
+        val token = TokenUtils.getToken()
+        if (token.isBlank() || roomId.isNullOrBlank()) return
+
+        viewModelScope.launch {
+            runCatching {
+                mainRepository.getRoomFeedbackStatus(
+                    bearerToken = token,
+                    roomId = roomId
+                )
+            }.onSuccess { response ->
+                if (response.isSuccessful) {
+                    uiState = uiState.copy(feedbackStatus = response.body())
+                }
+            }
+        }
     }
 
     private fun respondToVideoUpgrade(accept: Boolean) {

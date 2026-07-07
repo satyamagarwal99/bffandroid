@@ -6,6 +6,7 @@ import com.gobff.getfriends.data.model.CountryLoginConfig
 import com.gobff.getfriends.data.model.ConnectUserResponse
 import com.gobff.getfriends.data.model.CreateRoomBody
 import com.gobff.getfriends.data.model.EndRoomResponse
+import com.gobff.getfriends.data.model.FriendListUserResponse
 import com.gobff.getfriends.data.model.GameCatalogItemDto
 import com.gobff.getfriends.data.model.GiftCatalogResponse
 import com.gobff.getfriends.data.model.GoogleAuthBody
@@ -27,6 +28,9 @@ import com.gobff.getfriends.data.model.RechargeQuoteResponse
 import com.gobff.getfriends.data.model.RefreshTokenBody
 import com.gobff.getfriends.data.model.RefreshTokenResponse
 import com.gobff.getfriends.data.model.RoomResponse
+import com.gobff.getfriends.data.model.RoomFeedbackBody
+import com.gobff.getfriends.data.model.RoomFeedbackResponse
+import com.gobff.getfriends.data.model.RoomFeedbackStatusResponse
 import com.gobff.getfriends.data.model.RtcTokenBody
 import com.gobff.getfriends.data.model.RtcTokenResponse
 import com.gobff.getfriends.data.model.UpdateProfileBody
@@ -168,6 +172,19 @@ interface ApiService {
         @Path("roomId") roomId: String
     ): Response<EndRoomResponse>
 
+    @POST("rooms/{roomId}/feedback")
+    suspend fun submitRoomFeedback(
+        @Header("Authorization") bearerToken: String,
+        @Path("roomId") roomId: String,
+        @Body body: RoomFeedbackBody
+    ): Response<RoomFeedbackResponse>
+
+    @GET("rooms/{roomId}/feedback")
+    suspend fun getRoomFeedbackStatus(
+        @Header("Authorization") bearerToken: String,
+        @Path("roomId") roomId: String
+    ): Response<RoomFeedbackStatusResponse>
+
     @POST("rooms/{roomId}/rtc-token")
     suspend fun getRtcToken(
         @Header("Authorization") bearerToken: String,
@@ -226,6 +243,11 @@ interface ApiService {
         @Header("Authorization") bearerToken: String,
         @Query("size") size: Int = 10
     ): Response<List<ConnectUserResponse>>
+
+    @GET("home/friends")
+    suspend fun getMyFriends(
+        @Header("Authorization") bearerToken: String
+    ): Response<List<FriendListUserResponse>>
 
     @Multipart
     @POST("home/profile/voice-verification")

@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -56,6 +57,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -114,6 +116,7 @@ fun CallScreen(
     var showAddTimeSheet by remember { mutableStateOf(false) }
     var showGiftSheet by remember { mutableStateOf(false) }
     var showGameSheet by remember { mutableStateOf(false) }
+    var showSafetySheet by remember { mutableStateOf(false) }
     var showFeedbackPopup by remember { mutableStateOf(false) }
     var showVideoUpgradeRequestSheet by remember { mutableStateOf(false) }
     var selectedAddTimeOption by remember { mutableStateOf(AddTimeOptions.first()) }
@@ -193,6 +196,7 @@ fun CallScreen(
             showVideoUpgradePrompt -> callViewModel.declineVideoUpgrade()
             showGameSheet -> showGameSheet = false
             showGiftSheet -> showGiftSheet = false
+            showSafetySheet -> showSafetySheet = false
             showAddTimeSheet -> showAddTimeSheet = false
             showFeedbackPopup -> showFeedbackPopup = false
             else -> leaveAndClose()
@@ -310,6 +314,7 @@ fun CallScreen(
                     isSpeakerEnabled = uiState.isSpeakerEnabled,
                     onMuteToggle = { callViewModel.setMuted(!uiState.isMuted) },
                     onSpeakerToggle = { callViewModel.setSpeakerEnabled(!uiState.isSpeakerEnabled) },
+                    onSafetyClick = { showSafetySheet = true },
                     onEndCall = {
                         callViewModel.leaveCall()
                         showFeedbackPopup = true
@@ -323,6 +328,7 @@ fun CallScreen(
                     onTimerClick = { showAddTimeSheet = true },
                     onGiftClick = { showGiftSheet = true },
                     onGameClick = { showGameSheet = true },
+                    onSafetyClick = { showSafetySheet = true },
                     isMuted = uiState.isMuted,
                     isSpeakerEnabled = uiState.isSpeakerEnabled,
                     onMuteToggle = { callViewModel.setMuted(!uiState.isMuted) },
@@ -439,6 +445,19 @@ fun CallScreen(
             )
         }
 
+        if (showSafetySheet) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.42f))
+                    .clickable { showSafetySheet = false }
+            )
+            CallSafetyBottomSheet(
+                onReportClick = { showSafetySheet = false },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
+
         sendingGift?.let { gift ->
             GiftDeliveryOverlay(
                 gift = gift,
@@ -455,6 +474,17 @@ fun CallScreen(
             )
             CallFeedbackPopup(
                 personName = personName,
+                isSubmitting = uiState.isSubmittingFeedback,
+                errorMessage = uiState.feedbackErrorMessage,
+                onSubmitFeedback = { rating, tags, comment, addFriend, onSubmitted ->
+                    callViewModel.submitFeedback(
+                        rating = rating,
+                        tags = tags,
+                        comment = comment,
+                        addFriend = addFriend,
+                        onSubmitted = onSubmitted
+                    )
+                },
                 onDismiss = onBack,
                 modifier = Modifier.align(Alignment.Center)
             )
@@ -821,6 +851,7 @@ private fun ActiveCallContent(
     onTimerClick: () -> Unit,
     onGiftClick: () -> Unit,
     onGameClick: () -> Unit,
+    onSafetyClick: () -> Unit,
     isMuted: Boolean,
     isSpeakerEnabled: Boolean,
     onMuteToggle: () -> Unit,
@@ -842,7 +873,7 @@ private fun ActiveCallContent(
                 onClick = onTimerClick
             )
             Spacer(modifier = Modifier.weight(1f))
-            CallSafetyButton()
+            CallSafetyButton(onClick = onSafetyClick)
         }
 
         Row(
@@ -927,6 +958,7 @@ private fun VideoCallContent(
     isSpeakerEnabled: Boolean,
     onMuteToggle: () -> Unit,
     onSpeakerToggle: () -> Unit,
+    onSafetyClick: () -> Unit,
     onEndCall: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -969,7 +1001,7 @@ private fun VideoCallContent(
         ) {
             CallTimerChip(secondsRemaining = callSecondsRemaining, onClick = {})
             Spacer(modifier = Modifier.weight(1f))
-            CallSafetyButton()
+            CallSafetyButton(onClick = onSafetyClick)
         }
 
         if (remoteUserId == null) {
@@ -2171,17 +2203,34 @@ private fun GiftPriceLine(
 @Composable
 private fun CallFeedbackPopup(
     personName: String,
+    isSubmitting: Boolean,
+    errorMessage: String?,
+    onSubmitFeedback: (
+        rating: Int,
+        tags: List<String>,
+        comment: String?,
+        addFriend: Boolean,
+        onSubmitted: () -> Unit
+    ) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var selectedRating by remember { mutableStateOf<FeedbackRating?>(null) }
+    var selectedOptions by remember { mutableStateOf(setOf<String>()) }
+    var comment by remember { mutableStateOf("") }
+    var addToFriends by remember { mutableStateOf(false) }
+    var submittedRating by remember { mutableStateOf<FeedbackRating?>(null) }
+    val cardHeight = when {
+        submittedRating != null -> 214.dp
+        selectedRating == null -> 300.dp
+        selectedRating?.isPositive == true -> 506.dp
+        else -> 454.dp
+    }
 
     Box(
         modifier = modifier
-            .width(356.dp)
-            .height(428.dp)
-            .padding(horizontal = 28.dp)
-
+            .width(342.dp)
+            .height(cardHeight)
     ) {
         Box(
             modifier = Modifier
@@ -2202,11 +2251,22 @@ private fun CallFeedbackPopup(
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.FillBounds
             )
+
+            submittedRating?.let { rating ->
+                FeedbackThankYouContent(
+                    rating = rating,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable(onClick = onDismiss)
+                )
+                return@Box
+            }
+
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 28.dp, vertical = 28.dp)
+                    .padding(horizontal = 24.dp, vertical = 24.dp)
             ) {
                 Text(
                     text = "Did you enjoy\ntalking with $personName?",
@@ -2217,7 +2277,7 @@ private fun CallFeedbackPopup(
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center
                 )
-                Spacer(modifier = Modifier.height(58.dp))
+                Spacer(modifier = Modifier.height(if (selectedRating == null) 38.dp else 24.dp))
                 Row(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
@@ -2227,48 +2287,134 @@ private fun CallFeedbackPopup(
                         FeedbackEmojiButton(
                             rating = rating,
                             isSelected = selectedRating == rating,
-                            onClick = { selectedRating = rating }
+                            onClick = {
+                                selectedRating = rating
+                                selectedOptions = emptySet()
+                                comment = ""
+                                addToFriends = false
+                            }
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(24.dp))
-                Text(
-                    text = selectedRating?.label ?: "Tap any emoji to rate",
-                    color = selectedRating?.labelColor ?: Color(0xFFC7C7C7),
-                    fontSize = 16.sp,
-                    fontFamily = GaretFontFamily,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .size(width = 252.dp, height = 54.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFFFFC137))
-                        .border(1.2.dp, Color.Black, RoundedCornerShape(12.dp))
-                        .clickable(onClick = onDismiss)
-                ) {
+
+                if (selectedRating == null) {
+                    Spacer(modifier = Modifier.height(24.dp))
                     Text(
-                        text = "Add to friend list",
-                        color = Color.Black,
-                        fontSize = 17.sp,
+                        text = "Tap any emoji to rate",
+                        color = Color(0xFFC7C7C7),
+                        fontSize = 16.sp,
                         fontFamily = GaretFontFamily,
                         fontWeight = FontWeight.Bold
                     )
+                    Spacer(modifier = Modifier.weight(1f))
+                    FeedbackSubmitButton(
+                        text = "Maybe later",
+                        onClick = onDismiss
+                    )
+                } else {
+                    val rating = selectedRating ?: return@Column
+                    Spacer(modifier = Modifier.height(22.dp))
+                    Text(
+                        text = rating.prompt,
+                        color = Color.Black,
+                        fontSize = 13.sp,
+                        fontFamily = GaretFontFamily,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    FeedbackOptionGrid(
+                        options = rating.options,
+                        selectedOptions = selectedOptions,
+                        onOptionClick = { option ->
+                            selectedOptions = if (option in selectedOptions) {
+                                selectedOptions - option
+                            } else {
+                                selectedOptions + option
+                            }
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    FeedbackCommentBox(
+                        value = comment,
+                        onValueChange = { comment = it }
+                    )
+                    if (rating.isPositive) {
+                        Spacer(modifier = Modifier.height(14.dp))
+                        FeedbackAddFriendCard(
+                            checked = addToFriends,
+                            onToggle = { addToFriends = !addToFriends }
+                        )
+                    }
+                    if (!errorMessage.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = errorMessage,
+                            color = Color(0xFFE53935),
+                            fontSize = 11.sp,
+                            lineHeight = 14.sp,
+                            fontFamily = GaretFontFamily,
+                            fontWeight = FontWeight.Medium,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                    FeedbackSubmitButton(
+                        text = if (isSubmitting) "Submitting..." else rating.submitText,
+                        enabled = !isSubmitting,
+                        onClick = {
+                            onSubmitFeedback(
+                                rating.rating,
+                                selectedOptions.toList(),
+                                comment.trim().takeIf { it.isNotBlank() },
+                                addToFriends
+                            ) {
+                                submittedRating = rating
+                            }
+                        }
+                    )
                 }
-                Spacer(modifier = Modifier.height(18.dp))
-                Text(
-                    text = "Maybe later",
-                    color = Color(0xFF7B7B7B),
-                    fontSize = 16.sp,
-                    fontFamily = GaretFontFamily,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier
-                        .border(0.7.dp, Color.Transparent)
-                        .clickable(onClick = onDismiss)
-                )
             }
+        }
+    }
+}
+
+@Composable
+private fun FeedbackCommentBox(
+    value: String,
+    onValueChange: (String) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White)
+            .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 9.dp)
+    ) {
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            textStyle = androidx.compose.ui.text.TextStyle(
+                color = Color(0xFF1F2430),
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Medium
+            ),
+            singleLine = false,
+            cursorBrush = SolidColor(Color(0xFF7D2DE2)),
+            modifier = Modifier.fillMaxSize()
+        )
+        if (value.isBlank()) {
+            Text(
+                text = "Add a comment",
+                color = Color(0xFFB4B4B4),
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Medium
+            )
         }
     }
 }
@@ -2282,7 +2428,7 @@ private fun FeedbackEmojiButton(
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
-            .size(50.dp)
+            .size(if (isSelected) 56.dp else 44.dp)
             .shadow(if (isSelected) 6.dp else 0.dp, CircleShape, clip = false)
             .clip(CircleShape)
             .background(if (isSelected) Color.White else Color.Transparent)
@@ -2293,21 +2439,447 @@ private fun FeedbackEmojiButton(
             )
             .clickable(onClick = onClick)
     ) {
+        Image(
+            painter = painterResource(id = rating.iconRes),
+            contentDescription = rating.id,
+            modifier = Modifier.size(if (isSelected) 48.dp else 44.dp),
+            contentScale = ContentScale.Fit
+        )
+        if (isSelected) {
+            Image(
+                painter = painterResource(id = R.drawable.call_feedback_sign),
+                contentDescription = null,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 5.dp, y = (-4).dp)
+                    .size(18.dp),
+                contentScale = ContentScale.Fit
+            )
+        }
+    }
+}
+
+@Composable
+private fun FeedbackOptionGrid(
+    options: List<String>,
+    selectedOptions: Set<String>,
+    onOptionClick: (String) -> Unit
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(9.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        options.chunked(2).forEach { rowOptions ->
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                rowOptions.forEach { option ->
+                    FeedbackOptionChip(
+                        text = option,
+                        isSelected = option in selectedOptions,
+                        onClick = { onOptionClick(option) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FeedbackOptionChip(
+    text: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+        modifier = Modifier
+            .height(28.dp)
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (isSelected) Color(0xFFE9D7FF) else Color.White)
+            .border(1.dp, Color(0xFFE0E0E0), RoundedCornerShape(999.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp)
+    ) {
         Text(
-            text = rating.emoji,
-            fontSize = if (isSelected) 39.sp else 34.sp,
-            textAlign = TextAlign.Center
+            text = if (isSelected) "✓" else "+",
+            color = if (isSelected) Color(0xFF7D2DE2) else Color(0xFF1F2430),
+            fontSize = 15.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.width(5.dp))
+        Text(
+            text = text,
+            color = if (isSelected) Color(0xFF7D2DE2) else Color(0xFF1F2430),
+            fontSize = 12.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold
         )
     }
 }
 
 @Composable
-private fun CallSafetyButton() {
-    Box(modifier = Modifier.size(36.dp)) {
+private fun FeedbackAddFriendCard(
+    checked: Boolean,
+    onToggle: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(42.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFFEEE5F6))
+            .clickable(onClick = onToggle)
+            .padding(horizontal = 10.dp)
+    ) {
+        Text(text = "💗", fontSize = 17.sp)
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = "Add to Friends list",
+            color = Color(0xFF5A5361),
+            fontSize = 13.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f)
+        )
+        FeedbackToggle(checked = checked)
+    }
+}
+
+@Composable
+private fun FeedbackToggle(checked: Boolean) {
+    Box(
+        modifier = Modifier
+            .size(width = 42.dp, height = 24.dp)
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (checked) Color(0xFF7D2DE2) else Color(0xFFD7D7D7))
+            .padding(2.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .align(if (checked) Alignment.CenterEnd else Alignment.CenterStart)
+                .size(20.dp)
+                .clip(CircleShape)
+                .background(Color.White)
+        )
+    }
+}
+
+@Composable
+private fun FeedbackSubmitButton(
+    text: String,
+    enabled: Boolean = true,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(12.dp)
+    Box(
+        modifier = Modifier
+            .width(252.dp)
+            .height(48.dp)
+    ) {
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .offset(x = 3.dp, y = 4.dp)
+                .offset(x = 4.dp, y = 4.dp)
+                .clip(shape)
+                .background(Color.Black)
+        )
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(if (enabled) Color(0xFFFFC137) else Color(0xFFD7D7D7))
+                .clickable(enabled = enabled, onClick = onClick)
+        ) {
+            Text(
+                text = text,
+                color = Color.Black,
+                fontSize = 15.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+private fun FeedbackThankYouContent(
+    rating: FeedbackRating,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = modifier.padding(horizontal = 30.dp)
+    ) {
+        Image(
+            painter = painterResource(
+                id = if (rating.isPositive) {
+                    R.drawable.call_feedback_positive
+                } else {
+                    R.drawable.call_feedback_negative
+                }
+            ),
+            contentDescription = null,
+            modifier = Modifier.size(66.dp),
+            contentScale = ContentScale.Fit
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+        Text(
+            text = if (rating.isPositive) "Thank you!" else "Thank you for\nyour feedback",
+            color = Color.Black,
+            fontSize = 22.sp,
+            lineHeight = 28.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(14.dp))
+        Text(
+            text = if (rating.isPositive) {
+                "Your feedback helps us\nimprove and connect better"
+            } else {
+                "We'll review your feedback to\nhelp improve future conversations."
+            },
+            color = Color(0xFF8E8E8E),
+            fontSize = 15.sp,
+            lineHeight = 21.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+private data class CallSafetyItem(
+    val title: String,
+    val body: String,
+    val iconRes: Int,
+    val iconBackground: Color
+)
+
+private val CallSafetyItems = listOf(
+    CallSafetyItem(
+        title = "Keep your info private",
+        body = "Never share personal details like your address, phone number, email, or financial information.",
+        iconRes = R.drawable.call_screen_lock,
+        iconBackground = Color(0xFFF1EDFC)
+    ),
+    CallSafetyItem(
+        title = "Be respectful",
+        body = "Treat others with kindness and respect. Harassment or abusive behavior is not allowed.",
+        iconRes = R.drawable.call_screen_account,
+        iconBackground = Color(0xFFD0EEFE)
+    ),
+    CallSafetyItem(
+        title = "Report & block",
+        body = "If someone makes you uncomfortable, you can report or block them anytime.",
+        iconRes = R.drawable.call_screen_report,
+        iconBackground = Color(0xFFFEC5C0)
+    ),
+    CallSafetyItem(
+        title = "Stay within the app",
+        body = "For your safety, keep conversations and payments within the app.",
+        iconRes = R.drawable.call_screen_money,
+        iconBackground = Color(0xFFFDECC2)
+    ),
+    CallSafetyItem(
+        title = "We're here to help",
+        body = "Our team is available 24/7. Reach out if you need any assistance.",
+        iconRes = R.drawable.call_screen_support,
+        iconBackground = Color(0xFFFCE2EC)
+    )
+)
+
+@Composable
+private fun CallSafetyBottomSheet(
+    onReportClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(625.dp)
+            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .background(Color.White)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(103.dp)
+                .background(Color(0x1A60E3AB))
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 12.dp)
+                    .size(width = 82.dp, height = 6.dp)
+                    .clip(RoundedCornerShape(100.dp))
+                    .background(Color(0xFFD6D6D6))
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .width(345.dp).padding(top = 18.dp)
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.call_screen_shield),
+                    contentDescription = null,
+                    modifier = Modifier.size(40.dp),
+                    contentScale = ContentScale.Fit
+                )
+                Column {
+                    Text(
+                        text = "Your Safety is Our Priority",
+                        color = Color(0xFF242436),
+                        fontSize = 17.sp,
+                        lineHeight = 22.sp,
+                        fontFamily = GaretFontFamily,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = "We're here to help you feel safe and secure.",
+                        color = Color(0xFF242436),
+                        fontSize = 12.sp,
+                        lineHeight = 18.sp,
+                        fontFamily = GaretFontFamily,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Column(
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        ) {
+            CallSafetyItems.forEach { item ->
+                CallSafetyInfoRow(item = item)
+            }
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        CallSafetyReportButton(
+            onClick = onReportClick,
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        )
+
+        Spacer(modifier = Modifier.height(38.dp))
+    }
+}
+
+@Composable
+private fun CallSafetyInfoRow(
+    item: CallSafetyItem,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = modifier
+            .width(345.dp)
+            .height(65.dp)
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(44.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(item.iconBackground)
+        ) {
+            Image(
+                painter = painterResource(id = item.iconRes),
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                contentScale = ContentScale.Fit
+            )
+        }
+        Column(
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = item.title,
+                color = Color(0xFF242436),
+                fontSize = 14.sp,
+                lineHeight = 16.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = item.body,
+                color = Color(0xFF242436),
+                fontSize = 12.sp,
+                lineHeight = 14.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+@Composable
+private fun CallSafetyReportButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(14.dp)
+    Box(
+        modifier = modifier
+            .width(345.dp)
+            .height(58.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(x = 4.dp, y = 4.dp)
+                .clip(shape)
+                .background(Color.Black)
+        )
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(Color(0xFFFF6252))
+                .clickable(onClick = onClick)
+        ) {
+            Text(
+                text = "Report",
+                color = Color.Black,
+                fontSize = 15.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+private fun CallSafetyButton(
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clickable(onClick = onClick)
+    ) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(x = 2.dp, y = 2.dp)
                 .clip(RoundedCornerShape(10.dp))
                 .background(Color.Black)
         )
@@ -2663,9 +3235,13 @@ private enum class GiftSectionLayout {
 }
 
 private data class FeedbackRating(
-    val emoji: String,
-    val label: String,
-    val labelColor: Color
+    val id: String,
+    val rating: Int,
+    val iconRes: Int,
+    val prompt: String,
+    val submitText: String,
+    val options: List<String>,
+    val isPositive: Boolean
 )
 
 private val AddTimeOptions = listOf(
@@ -2890,11 +3466,85 @@ private fun String?.toGiftDrawableRes(giftCode: String): Int =
     }
 
 private val FeedbackRatings = listOf(
-    FeedbackRating("😡", "Very poor", Color(0xFFE23D3D)),
-    FeedbackRating("☹️", "Poor", Color(0xFFE08A2F)),
-    FeedbackRating("😐", "Normal", Color(0xFF8E8E8E)),
-    FeedbackRating("😊", "Good", Color(0xFF1EA24A)),
-    FeedbackRating("😍", "Excellent", Color(0xFFE83D73))
+    FeedbackRating(
+        id = "angry",
+        rating = 1,
+        iconRes = R.drawable.call_feedback_angry,
+        prompt = "Oh no! What went wrong?",
+        submitText = "Report & Submit",
+        options = listOf(
+            "Sexual talks",
+            "Poor connection",
+            "Rude behaviour",
+            "Abusive language",
+            "Fake profile",
+            "Others"
+        ),
+        isPositive = false
+    ),
+    FeedbackRating(
+        id = "sad",
+        rating = 2,
+        iconRes = R.drawable.call_feedback_sad,
+        prompt = "Oh no! What went wrong?",
+        submitText = "Report & Submit",
+        options = listOf(
+            "Not engaging",
+            "Long wait",
+            "Poor connection",
+            "Didn't match",
+            "Ended soon",
+            "Others"
+        ),
+        isPositive = false
+    ),
+    FeedbackRating(
+        id = "just_okay",
+        rating = 3,
+        iconRes = R.drawable.call_feedback_just_okay,
+        prompt = "Tell us more !",
+        submitText = "Done",
+        options = listOf(
+            "Average convo",
+            "Not very engaging",
+            "Poor connection",
+            "Could be better",
+            "Ended soon",
+            "Others"
+        ),
+        isPositive = false
+    ),
+    FeedbackRating(
+        id = "good",
+        rating = 4,
+        iconRes = R.drawable.call_feedback_good,
+        prompt = "What did you like ?",
+        submitText = "Done",
+        options = listOf(
+            "Cute voice",
+            "Friendly",
+            "Funny",
+            "Good listener",
+            "Others"
+        ),
+        isPositive = true
+    ),
+    FeedbackRating(
+        id = "loved_it",
+        rating = 5,
+        iconRes = R.drawable.call_feedback_loved_it,
+        prompt = "What stood out the most?",
+        submitText = "Done",
+        options = listOf(
+            "Cute voice",
+            "Great personality",
+            "Friendly",
+            "Would talk again",
+            "Funny",
+            "Others"
+        ),
+        isPositive = true
+    )
 )
 
 private fun formatCallTime(secondsRemaining: Int): String {
@@ -2921,13 +3571,19 @@ private fun CallAvatar(
     )
 }
 
-@Preview(showBackground = true, widthDp = 393, heightDp = 852)
+@Preview(showBackground = true, widthDp = 393, heightDp = 625)
+//@Composable
+//private fun CallScreenPreview() {
+//    BffAndroidTheme {
+//        CallScreen(
+//            personName = "Anshu",
+//            onBack = {}
+//        )
+//    }
+//}
 @Composable
-private fun CallScreenPreview() {
-    BffAndroidTheme {
-        CallScreen(
-            personName = "Anshu",
-            onBack = {}
+private fun CallSafetyBottomSheetPreview() {
+        CallSafetyBottomSheet(
+            onReportClick = {}
         )
     }
-}

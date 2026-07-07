@@ -550,7 +550,9 @@ fun AppNavGraph(
 
         composable(AppRoute.Friends.route) {
             FriendsListScreen(
-                onBack = navController::navigateUp
+                walletHearts = walletHearts,
+                onBack = navController::navigateUp,
+                onRechargeRequested = { navController.navigateSingleTop(AppRoute.Recharge) }
             )
         }
 

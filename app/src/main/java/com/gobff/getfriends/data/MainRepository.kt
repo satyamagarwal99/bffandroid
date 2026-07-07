@@ -6,6 +6,7 @@ import com.gobff.getfriends.data.model.CountryLoginConfig
 import com.gobff.getfriends.data.model.ConnectUserResponse
 import com.gobff.getfriends.data.model.CreateRoomBody
 import com.gobff.getfriends.data.model.EndRoomResponse
+import com.gobff.getfriends.data.model.FriendListUserResponse
 import com.gobff.getfriends.data.model.GameCatalogItemDto
 import com.gobff.getfriends.data.model.GiftCatalogResponse
 import com.gobff.getfriends.data.model.GoogleAuthBody
@@ -27,6 +28,9 @@ import com.gobff.getfriends.data.model.RechargeQuoteResponse
 import com.gobff.getfriends.data.model.RefreshTokenBody
 import com.gobff.getfriends.data.model.RefreshTokenResponse
 import com.gobff.getfriends.data.model.RoomResponse
+import com.gobff.getfriends.data.model.RoomFeedbackBody
+import com.gobff.getfriends.data.model.RoomFeedbackResponse
+import com.gobff.getfriends.data.model.RoomFeedbackStatusResponse
 import com.gobff.getfriends.data.model.RtcTokenBody
 import com.gobff.getfriends.data.model.RtcTokenResponse
 import com.gobff.getfriends.data.model.UpdateProfileBody
@@ -129,6 +133,17 @@ class MainRepository(
         roomId: String
     ): Response<EndRoomResponse> = apiService.endRoom(bearerToken, roomId)
 
+    suspend fun submitRoomFeedback(
+        bearerToken: String,
+        roomId: String,
+        body: RoomFeedbackBody
+    ): Response<RoomFeedbackResponse> = apiService.submitRoomFeedback(bearerToken, roomId, body)
+
+    suspend fun getRoomFeedbackStatus(
+        bearerToken: String,
+        roomId: String
+    ): Response<RoomFeedbackStatusResponse> = apiService.getRoomFeedbackStatus(bearerToken, roomId)
+
     suspend fun getRtcToken(
         bearerToken: String,
         roomId: String,
@@ -185,6 +200,10 @@ class MainRepository(
         bearerToken: String,
         size: Int = 10
     ): Response<List<ConnectUserResponse>> = apiService.getConnectUsers(bearerToken, size)
+
+    suspend fun getMyFriends(
+        bearerToken: String
+    ): Response<List<FriendListUserResponse>> = apiService.getMyFriends(bearerToken)
 
     suspend fun submitVoiceVerification(
         bearerToken: String,

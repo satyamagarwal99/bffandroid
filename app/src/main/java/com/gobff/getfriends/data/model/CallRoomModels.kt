@@ -26,6 +26,30 @@ data class EndRoomResponse(
     @SerializedName("room") val room: RoomResponse?
 )
 
+data class RoomFeedbackBody(
+    @SerializedName("rating") val rating: Int,
+    @SerializedName("tags") val tags: List<String>,
+    @SerializedName("comment") val comment: String?,
+    @SerializedName("addFriend") val addFriend: Boolean
+)
+
+data class RoomFeedbackResponse(
+    @SerializedName("roomId") val roomId: String?,
+    @SerializedName("rating") val rating: Int?,
+    @SerializedName("tags") val tags: List<String>?,
+    @SerializedName("comment") val comment: String?,
+    @SerializedName("addFriend") val addFriend: Boolean?,
+    @SerializedName("createdAt") val createdAt: String?,
+    @SerializedName("message") val message: String?
+)
+
+data class RoomFeedbackStatusResponse(
+    @SerializedName("status") val status: Boolean?,
+    @SerializedName("feedbackSubmitted") val feedbackSubmitted: Boolean?,
+    @SerializedName("roomId") val roomId: String?,
+    @SerializedName("message") val message: String?
+)
+
 data class CallHistoryItemResponse(
     @SerializedName("roomId") val roomId: String?,
     @SerializedName("roomType") val roomType: String?,
@@ -87,6 +111,10 @@ data class CallRoomUiState(
     val rtcToken: RtcTokenResponse? = null,
     val videoUpgradeStatus: VideoUpgradeStatusResponse? = null,
     val isVideoUpgradeActionLoading: Boolean = false,
+    val isSubmittingFeedback: Boolean = false,
+    val feedbackSubmitted: Boolean = false,
+    val feedbackStatus: RoomFeedbackStatusResponse? = null,
+    val feedbackErrorMessage: String? = null,
     val errorMessage: String? = null
 )
 
