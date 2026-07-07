@@ -20,6 +20,7 @@ import io.agora.rtc2.Constants
 import io.agora.rtc2.IRtcEngineEventHandler
 import io.agora.rtc2.RtcEngine
 import io.agora.rtc2.RtcEngineConfig
+import io.agora.rtc2.video.VideoCanvas
 import kotlinx.coroutines.launch
 
 class CallViewModel(
@@ -143,12 +144,17 @@ class CallViewModel(
         uiState = uiState.copy(isSpeakerEnabled = isEnabled)
     }
 
+    fun switchCamera() {
+        rtcEngine?.switchCamera()
+    }
+
     fun leaveCall(roomId: String? = uiState.room?.id) {
         rtcEngine?.leaveChannel()
         endCurrentBackendRoom(roomId)
         uiState = uiState.copy(
             isJoiningRtc = false,
             isRtcJoined = false,
+            isVideoEnabled = false,
             remoteAudioUserIds = emptyList()
         )
     }
@@ -174,10 +180,91 @@ class CallViewModel(
         if (token.isBlank() || roomId.isNullOrBlank()) return
 
         viewModelScope.launch {
+            uiState = uiState.copy(isVideoUpgradeActionLoading = true, errorMessage = null)
             runCatching { mainRepository.requestVideoUpgrade(token, roomId) }
+                .onSuccess { response ->
+                    response.body()?.let { status ->
+                        applyVideoStateFromStatus(
+                            status = status,
+                            baseState = uiState.copy(
+                                isVideoUpgradeActionLoading = false,
+                                videoUpgradeStatus = status,
+                                errorMessage = null
+                            )
+                        )
+                    } ?: run {
+                        uiState = uiState.copy(
+                            isVideoUpgradeActionLoading = false,
+                            errorMessage = null
+                        )
+                    }
+                }
                 .onFailure { error ->
                     uiState = uiState.copy(
+                        isVideoUpgradeActionLoading = false,
                         errorMessage = error.message ?: "Unable to request video upgrade"
+                    )
+                }
+        }
+    }
+
+    fun refreshVideoUpgradeStatus() {
+        val token = TokenUtils.getToken()
+        val roomId = uiState.room?.id
+        if (token.isBlank() || roomId.isNullOrBlank()) return
+
+        viewModelScope.launch {
+            runCatching { mainRepository.getVideoUpgradeStatus(token, roomId) }
+                .onSuccess { response ->
+                    if (response.isSuccessful) {
+                        response.body()?.let { status ->
+                            applyVideoStateFromStatus(
+                                status = status,
+                                baseState = uiState.copy(videoUpgradeStatus = status)
+                            )
+                        }
+                    }
+                }
+        }
+    }
+
+    fun acceptVideoUpgrade() {
+        respondToVideoUpgrade(accept = true)
+    }
+
+    fun declineVideoUpgrade() {
+        respondToVideoUpgrade(accept = false)
+    }
+
+    private fun respondToVideoUpgrade(accept: Boolean) {
+        val token = TokenUtils.getToken()
+        val roomId = uiState.room?.id
+        if (token.isBlank() || roomId.isNullOrBlank() || uiState.isVideoUpgradeActionLoading) return
+
+        viewModelScope.launch {
+            uiState = uiState.copy(isVideoUpgradeActionLoading = true, errorMessage = null)
+            val result = if (accept) {
+                runCatching { mainRepository.acceptVideoUpgrade(token, roomId) }
+            } else {
+                runCatching { mainRepository.declineVideoUpgrade(token, roomId) }
+            }
+
+            result
+                .onSuccess { response ->
+                    val status = response.body() ?: uiState.videoUpgradeStatus
+                    applyVideoStateFromStatus(
+                        status = status,
+                        baseState = uiState.copy(
+                            isVideoUpgradeActionLoading = false,
+                            videoUpgradeStatus = status,
+                            errorMessage = if (response.isSuccessful) null else "Unable to respond to video request"
+                        )
+                    )
+                }
+                .onFailure { error ->
+                    uiState = uiState.copy(
+                        isVideoUpgradeActionLoading = false,
+                        errorMessage = error.message ?: "Unable to respond to video request"
                     )
                 }
         }
@@ -373,6 +460,7 @@ class CallViewModel(
             val engine = getOrCreateRtcEngine(appId)
             engine.enableAudio()
             engine.disableVideo()
+            engine.enableLocalVideo(false)
             engine.setClientRole(Constants.CLIENT_ROLE_BROADCASTER)
             engine.setDefaultAudioRoutetoSpeakerphone(uiState.isSpeakerEnabled)
             engine.setEnableSpeakerphone(uiState.isSpeakerEnabled)
@@ -397,6 +485,61 @@ class CallViewModel(
                 isJoiningRtc = false,
                 errorMessage = error.message ?: "Unable to join Agora audio channel"
             )
+        }
+    }
+
+    private fun applyVideoStateFromStatus(
+        status: com.gobff.getfriends.data.model.VideoUpgradeStatusResponse?,
+        baseState: CallRoomUiState = uiState
+    ) {
+        val shouldEnableVideo = status?.status == "COMPLETED" &&
+            status.roomType == RoomType.OneToOneVideoCall
+
+        if (shouldEnableVideo && !baseState.isVideoEnabled) {
+            enableVideoChannel()
+        }
+
+        uiState = baseState.copy(isVideoEnabled = shouldEnableVideo)
+    }
+
+    private fun enableVideoChannel() {
+        val engine = rtcEngine ?: return
+
+        runCatching {
+            engine.enableVideo()
+            engine.enableLocalVideo(true)
+            engine.setClientRole(Constants.CLIENT_ROLE_BROADCASTER)
+            engine.updateChannelMediaOptions(
+                ChannelMediaOptions().apply {
+                    channelProfile = Constants.CHANNEL_PROFILE_LIVE_BROADCASTING
+                    clientRoleType = Constants.CLIENT_ROLE_BROADCASTER
+                    publishMicrophoneTrack = true
+                    autoSubscribeAudio = true
+                    publishCameraTrack = true
+                    autoSubscribeVideo = true
+                }
+            )
+            engine.startPreview()
+        }
+    }
+
+    fun bindVideoViews(
+        localView: android.view.View?,
+        remoteView: android.view.View?,
+        remoteUid: Int?
+    ) {
+        val engine = rtcEngine ?: return
+        runCatching {
+            localView?.let {
+                engine.setupLocalVideo(
+                    VideoCanvas(it, VideoCanvas.RENDER_MODE_HIDDEN, 0)
+                )
+            }
+            remoteView?.let {
+                engine.setupRemoteVideo(
+                    VideoCanvas(it, VideoCanvas.RENDER_MODE_HIDDEN, remoteUid ?: 0)
+                )
+            }
         }
     }
 

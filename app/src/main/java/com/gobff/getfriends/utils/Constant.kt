@@ -9,6 +9,7 @@ object Constant {
     const val REFRESH_TOKEN_KEY = "refresh_token"
     const val ACCESS_TOKEN_EXPIRES_AT_KEY = "access_token_expires_at"
     const val REFRESH_TOKEN_EXPIRES_AT_KEY = "refresh_token_expires_at"
+    const val USER_ID_KEY = "user_id"
     const val INSTALLATION_ID_KEY = "installation_id"
     const val FCM_TOKEN_KEY = "fcm_token"
     const val LAST_SYNCED_FCM_TOKEN_KEY = "last_synced_fcm_token"

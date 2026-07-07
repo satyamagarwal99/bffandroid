@@ -18,5 +18,6 @@ sealed class AppRoute(val route: String) {
     data object PersonalChat : AppRoute("personal_chat")
     data object Friends : AppRoute("friends")
     data object Recharge : AppRoute("recharge")
+    data object IncomingCall : AppRoute("incoming_call")
     data object Call : AppRoute("call")
 }

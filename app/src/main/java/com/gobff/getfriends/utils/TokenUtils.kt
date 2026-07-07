@@ -1,6 +1,8 @@
 package com.gobff.getfriends.utils
 
+import android.util.Base64
 import android.util.Log
+import org.json.JSONObject
 
 object TokenUtils {
     private const val TAG = "TokenUtils"
@@ -22,7 +24,8 @@ object TokenUtils {
         refreshToken: String?,
         accessTokenExpiresAt: String? = null,
         refreshTokenExpiresAt: String? = null,
-        installationId: String? = null
+        installationId: String? = null,
+        userId: String? = null
     ) {
         Log.d(
             TAG,
@@ -47,8 +50,16 @@ object TokenUtils {
         installationId?.takeIf { it.isNotBlank() }?.let {
             AppSession.putString(Constant.INSTALLATION_ID_KEY, it)
         }
+        userId?.takeIf { it.isNotBlank() }?.let {
+            AppSession.putString(Constant.USER_ID_KEY, it)
+        }
         AppSession.logSnapshot("after-saveTokens")
     }
+
+    fun getCurrentUserId(): String =
+        AppSession.getString(Constant.USER_ID_KEY)
+            ?.takeIf { it.isNotBlank() }
+            ?: getAccessToken().extractUserIdFromJwt().orEmpty()
 
     fun hasStoredSession(): Boolean {
         val loggedIn = AppSession.getBoolean(Constant.IS_USER_LOGGED_IN)
@@ -129,5 +140,16 @@ object TokenUtils {
     private fun redactedValue(value: String?): String {
         if (value.isNullOrBlank()) return "missing"
         return "present(len=${value.length}, tail=${value.takeLast(4)})"
+    }
+
+    private fun String.extractUserIdFromJwt(): String? {
+        val payload = split(".").getOrNull(1)?.takeIf { it.isNotBlank() } ?: return null
+        return runCatching {
+            val decoded = String(Base64.decode(payload, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING))
+            val json = JSONObject(decoded)
+            json.optString("userId")
+                .ifBlank { json.optString("sub") }
+                .takeIf { it.isNotBlank() }
+        }.getOrNull()
     }
 }

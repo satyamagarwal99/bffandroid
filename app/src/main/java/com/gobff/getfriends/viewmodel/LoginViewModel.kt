@@ -200,7 +200,8 @@ class LoginViewModel(
                             refreshToken = responseBody.refreshToken,
                             accessTokenExpiresAt = responseBody.accessTokenExpiresAt,
                             refreshTokenExpiresAt = responseBody.refreshTokenExpiresAt,
-                            installationId = otpDeviceProvider.installationId()
+                            installationId = otpDeviceProvider.installationId(),
+                            userId = responseBody.userId
                         )
                         syncFcmTokenAfterLogin(responseBody.accessToken, fcmToken)
                         AppSession.logSnapshot("LoginViewModel.otp.success")

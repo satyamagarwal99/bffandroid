@@ -39,8 +39,13 @@ data class CallHistoryItemResponse(
 
 data class VideoUpgradeStatusResponse(
     @SerializedName("roomId") val roomId: String?,
+    @SerializedName("roomType") val roomType: String?,
     @SerializedName("status") val status: String?,
     @SerializedName("requestedByUserId") val requestedByUserId: String?,
+    @SerializedName("requestedToUserId") val requestedToUserId: String?,
+    @SerializedName("respondedByUserId") val respondedByUserId: String?,
+    @SerializedName("canAccept") val canAccept: Boolean?,
+    @SerializedName("canDecline") val canDecline: Boolean?,
     @SerializedName("requestedAt") val requestedAt: String?,
     @SerializedName("respondedAt") val respondedAt: String?
 )
@@ -74,11 +79,14 @@ data class CallRoomUiState(
     val isFetchingRtcToken: Boolean = false,
     val isJoiningRtc: Boolean = false,
     val isRtcJoined: Boolean = false,
+    val isVideoEnabled: Boolean = false,
     val isMuted: Boolean = false,
     val isSpeakerEnabled: Boolean = true,
     val remoteAudioUserIds: List<Int> = emptyList(),
     val room: RoomResponse? = null,
     val rtcToken: RtcTokenResponse? = null,
+    val videoUpgradeStatus: VideoUpgradeStatusResponse? = null,
+    val isVideoUpgradeActionLoading: Boolean = false,
     val errorMessage: String? = null
 )
 

@@ -11,10 +11,15 @@ import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.Person
+import com.gobff.getfriends.AppForegroundState
+import com.gobff.getfriends.IncomingCallEvents
+import com.gobff.getfriends.IncomingCallPush
 import com.gobff.getfriends.MainActivity
 import com.gobff.getfriends.R
 import com.gobff.getfriends.data.MainRepository
 import com.gobff.getfriends.data.model.UpdateFcmTokenBody
+import com.gobff.getfriends.utils.AppSession
 import com.gobff.getfriends.utils.TokenUtils
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
@@ -27,6 +32,11 @@ import kotlinx.coroutines.launch
 class BffFirebaseMessagingService : FirebaseMessagingService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val mainRepository = MainRepository()
+
+    override fun onCreate() {
+        AppSession.initialize(applicationContext)
+        super.onCreate()
+    }
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
@@ -108,43 +118,81 @@ class BffFirebaseMessagingService : FirebaseMessagingService() {
         val roomId = data["roomId"] ?: data["callId"].orEmpty()
         val requestedRole = data["requestedRole"].orEmpty().ifBlank { "SPEAKER" }
         val callerName = data["callerName"].orEmpty().ifBlank { "Someone" }
+        val callerAvatarUrl = data["callerAvatarUrl"].orEmpty().ifBlank { data["avatarUrl"].orEmpty() }
         val roomType = data["roomType"].orEmpty()
         val title = "Incoming call"
         val body = "$callerName is calling you"
         val notificationId = roomId.ifBlank { System.currentTimeMillis().toString() }.hashCode()
 
-        val contentIntent = PendingIntent.getActivity(
+        val incomingCallPush = IncomingCallPush(
+            roomId = roomId,
+            requestedRole = requestedRole,
+            callerName = callerName,
+            callerAvatarUrl = callerAvatarUrl.takeIf { it.isNotBlank() },
+            notificationId = notificationId
+        )
+
+        if (roomId.isNotBlank() && AppForegroundState.isForeground) {
+            IncomingCallEvents.publish(incomingCallPush)
+            Log.d(
+                TAG,
+                "Incoming call delivered in-app only roomId=$roomId caller=$callerName"
+            )
+            return
+        }
+
+        val answerIntent = PendingIntent.getActivity(
             this,
             notificationId,
             buildIncomingCallIntent(
                 roomId = roomId,
                 requestedRole = requestedRole,
                 callerName = callerName,
-                roomType = roomType
+                callerAvatarUrl = callerAvatarUrl,
+                roomType = roomType,
+                notificationId = notificationId
             ),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val notification = NotificationCompat.Builder(this, INCOMING_CALL_CHANNEL_ID)
+        val declineIntent = PendingIntent.getBroadcast(
+            this,
+            notificationId,
+            Intent(this, IncomingCallActionReceiver::class.java).apply {
+                action = ACTION_DECLINE_CALL
+                putExtra(EXTRA_ROOM_ID, roomId)
+                putExtra(EXTRA_NOTIFICATION_ID, notificationId)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val caller = Person.Builder()
+            .setName(callerName)
+            .setImportant(true)
+            .build()
+
+        val notificationBuilder = NotificationCompat.Builder(this, INCOMING_CALL_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(title)
             .setContentText(body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-            .setOngoing(false)
-            .setAutoCancel(true)
+            .setOngoing(true)
+            .setAutoCancel(false)
             .setTimeoutAfter(INCOMING_CALL_TIMEOUT_MS)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
-            .setContentIntent(contentIntent)
-            .setFullScreenIntent(contentIntent, true)
-            .addAction(
-                R.drawable.ic_launcher_foreground,
-                "Answer",
-                contentIntent
+            .setContentIntent(answerIntent)
+            .setFullScreenIntent(answerIntent, true)
+            .setDeleteIntent(declineIntent)
+            .setStyle(
+                NotificationCompat.CallStyle.forIncomingCall(
+                    caller,
+                    declineIntent,
+                    answerIntent
+                )
             )
-            .build()
+        val notification = notificationBuilder.build()
 
         NotificationManagerCompat.from(this).notify(notificationId, notification)
         Log.d(
@@ -163,7 +211,9 @@ class BffFirebaseMessagingService : FirebaseMessagingService() {
         roomId: String,
         requestedRole: String,
         callerName: String,
-        roomType: String
+        callerAvatarUrl: String,
+        roomType: String,
+        notificationId: Int
     ): Intent {
         return Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -171,7 +221,9 @@ class BffFirebaseMessagingService : FirebaseMessagingService() {
             putExtra(EXTRA_ROOM_ID, roomId)
             putExtra(EXTRA_REQUESTED_ROLE, requestedRole)
             putExtra(EXTRA_CALLER_NAME, callerName)
+            putExtra(EXTRA_CALLER_AVATAR_URL, callerAvatarUrl)
             putExtra(EXTRA_ROOM_TYPE, roomType)
+            putExtra(EXTRA_NOTIFICATION_ID, notificationId)
         }
     }
 
@@ -247,8 +299,11 @@ class BffFirebaseMessagingService : FirebaseMessagingService() {
         const val EXTRA_ROOM_ID = "room_id"
         const val EXTRA_REQUESTED_ROLE = "requested_role"
         const val EXTRA_CALLER_NAME = "caller_name"
+        const val EXTRA_CALLER_AVATAR_URL = "caller_avatar_url"
         const val EXTRA_ROOM_TYPE = "room_type"
+        const val EXTRA_NOTIFICATION_ID = "notification_id"
         const val INCOMING_CALL_EVENT = "incoming_call"
+        const val ACTION_DECLINE_CALL = "com.gobff.getfriends.action.DECLINE_CALL"
         private const val INCOMING_CALL_TIMEOUT_MS = 30_000L
         private const val TAG = "BffFirebaseMessaging"
 

@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,6 +36,8 @@ class MainActivity : ComponentActivity() {
         AppSession.logSnapshot("MainActivity.onCreate")
         super.onCreate(savedInstanceState)
         incomingCallPush = intent?.toIncomingCallPush()
+        cancelIncomingCallNotification(incomingCallPush)
+        observeIncomingCalls()
         enableEdgeToEdge()
         setContent {
             BffAndroidTheme {
@@ -50,10 +53,12 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         incomingCallPush = intent.toIncomingCallPush()
+        cancelIncomingCallNotification(incomingCallPush)
     }
 
     override fun onStart() {
         super.onStart()
+        AppForegroundState.markForeground()
         Log.d(TAG, "onStart")
         AppSession.logSnapshot("MainActivity.onStart")
         if (PresenceHeartbeat.isAlwaysOnlineEnabled()) {
@@ -67,6 +72,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
+        AppForegroundState.markBackground()
         Log.d(TAG, "onStop")
         AppSession.logSnapshot("MainActivity.onStop")
         if (PresenceHeartbeat.isAlwaysOnlineEnabled()) {
@@ -116,13 +122,21 @@ class MainActivity : ComponentActivity() {
                 Log.w(TAG, "Current FCM token fetch failed", error)
             }
     }
-}
 
-data class IncomingCallPush(
-    val roomId: String,
-    val requestedRole: String,
-    val callerName: String
-)
+    private fun cancelIncomingCallNotification(push: IncomingCallPush?) {
+        push ?: return
+        NotificationManagerCompat.from(this).cancel(push.notificationId)
+    }
+
+    private fun observeIncomingCalls() {
+        lifecycleScope.launch {
+            IncomingCallEvents.events.collect { push ->
+                incomingCallPush = push
+                cancelIncomingCallNotification(push)
+            }
+        }
+    }
+}
 
 private fun android.content.Intent.toIncomingCallPush(): IncomingCallPush? {
     val event = getStringExtra(BffFirebaseMessagingService.EXTRA_PUSH_EVENT)
@@ -138,6 +152,8 @@ private fun android.content.Intent.toIncomingCallPush(): IncomingCallPush? {
             ?: "SPEAKER",
         callerName = getStringExtra(BffFirebaseMessagingService.EXTRA_CALLER_NAME)
             ?.takeIf { it.isNotBlank() }
-            ?: "Caller"
+            ?: "Caller",
+        callerAvatarUrl = getStringExtra(BffFirebaseMessagingService.EXTRA_CALLER_AVATAR_URL),
+        notificationId = getIntExtra(BffFirebaseMessagingService.EXTRA_NOTIFICATION_ID, roomId.hashCode())
     )
 }

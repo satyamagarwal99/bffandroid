@@ -2,6 +2,7 @@ package com.gobff.getfriends.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.view.View
 import androidx.compose.foundation.Image
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -46,6 +48,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -70,15 +73,24 @@ import com.gobff.getfriends.data.model.GameCatalogItemDto
 import com.gobff.getfriends.data.model.GiftCatalogResponse
 import com.gobff.getfriends.data.model.GiftCategoryDto
 import com.gobff.getfriends.data.model.GiftItemDto
+import com.gobff.getfriends.data.model.RoomType
 import com.gobff.getfriends.ui.component.HeartChipShape
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.GaretFontFamily
+import com.gobff.getfriends.utils.TokenUtils
 import com.gobff.getfriends.viewmodel.CallViewModel
 import com.gobff.getfriends.viewmodel.GameCatalogUiState
 import com.gobff.getfriends.viewmodel.GameCatalogViewModel
 import com.gobff.getfriends.viewmodel.GiftCatalogUiState
 import com.gobff.getfriends.viewmodel.GiftCatalogViewModel
+import io.agora.base.internal.SurfaceViewRenderer
 import kotlinx.coroutines.delay
+
+private enum class VideoPendingAction {
+    SHOW_REQUEST_SHEET,
+    REQUEST_VIDEO,
+    ACCEPT_VIDEO
+}
 
 private val CallYellow = Color(0xFFF5B120)
 
@@ -89,6 +101,7 @@ fun CallScreen(
     modifier: Modifier = Modifier,
     incomingRoomId: String? = null,
     incomingRequestedRole: String = "SPEAKER",
+    walletHearts: Int = 145,
     callViewModel: CallViewModel = viewModel(),
     giftCatalogViewModel: GiftCatalogViewModel = viewModel(),
     gameCatalogViewModel: GameCatalogViewModel = viewModel()
@@ -102,11 +115,32 @@ fun CallScreen(
     var showGiftSheet by remember { mutableStateOf(false) }
     var showGameSheet by remember { mutableStateOf(false) }
     var showFeedbackPopup by remember { mutableStateOf(false) }
+    var showVideoUpgradeRequestSheet by remember { mutableStateOf(false) }
     var selectedAddTimeOption by remember { mutableStateOf(AddTimeOptions.first()) }
     var sendingGift by remember { mutableStateOf<GiftItem?>(null) }
     var giftDeliveryPhase by remember { mutableStateOf<GiftDeliveryPhase?>(null) }
+    var hasCameraPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.CAMERA
+            ) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    var pendingVideoAction by remember { mutableStateOf<VideoPendingAction?>(null) }
     val giftCatalogUiState = giftCatalogViewModel.uiState
     val gameCatalogUiState = gameCatalogViewModel.uiState
+    val isOutgoingCall = incomingRoomId.isNullOrBlank()
+    val hasRemoteUserJoined = uiState.remoteAudioUserIds.isNotEmpty()
+    val shouldShowDialingScreen = isOutgoingCall && !hasRemoteUserJoined
+    val currentUserId = TokenUtils.getCurrentUserId()
+    val videoUpgradeStatus = uiState.videoUpgradeStatus
+    val shouldShowVideoCall = uiState.isVideoEnabled ||
+        (videoUpgradeStatus?.status == "COMPLETED" &&
+            videoUpgradeStatus.roomType == RoomType.OneToOneVideoCall)
+    val showVideoUpgradePrompt = videoUpgradeStatus?.status == "PENDING" &&
+        videoUpgradeStatus.requestedByUserId?.isNotBlank() == true &&
+        videoUpgradeStatus.requestedByUserId != currentUserId
     var hasAudioPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -114,6 +148,20 @@ fun CallScreen(
                 Manifest.permission.RECORD_AUDIO
             ) == PackageManager.PERMISSION_GRANTED
         )
+    }
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasCameraPermission = isGranted
+        val nextAction = pendingVideoAction
+        pendingVideoAction = null
+        if (!isGranted || nextAction == null) return@rememberLauncherForActivityResult
+
+        when (nextAction) {
+            VideoPendingAction.SHOW_REQUEST_SHEET -> showVideoUpgradeRequestSheet = true
+            VideoPendingAction.REQUEST_VIDEO -> callViewModel.requestVideoUpgrade()
+            VideoPendingAction.ACCEPT_VIDEO -> callViewModel.acceptVideoUpgrade()
+        }
     }
     val audioPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -126,8 +174,23 @@ fun CallScreen(
         onBack()
     }
 
+    val requestCameraPermission: (VideoPendingAction) -> Unit = { nextAction ->
+        if (hasCameraPermission) {
+            when (nextAction) {
+                VideoPendingAction.SHOW_REQUEST_SHEET -> showVideoUpgradeRequestSheet = true
+                VideoPendingAction.REQUEST_VIDEO -> callViewModel.requestVideoUpgrade()
+                VideoPendingAction.ACCEPT_VIDEO -> callViewModel.acceptVideoUpgrade()
+            }
+        } else {
+            pendingVideoAction = nextAction
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
     BackHandler {
         when {
+            showVideoUpgradeRequestSheet -> showVideoUpgradeRequestSheet = false
+            showVideoUpgradePrompt -> callViewModel.declineVideoUpgrade()
             showGameSheet -> showGameSheet = false
             showGiftSheet -> showGiftSheet = false
             showAddTimeSheet -> showAddTimeSheet = false
@@ -199,6 +262,14 @@ fun CallScreen(
         }
     }
 
+    LaunchedEffect(isConnected, uiState.room?.id) {
+        if (!isConnected || uiState.room?.id.isNullOrBlank()) return@LaunchedEffect
+        while (true) {
+            callViewModel.refreshVideoUpgradeStatus()
+            delay(10_000L)
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -212,24 +283,58 @@ fun CallScreen(
         )
 
 
-        if (isConnected) {
-            ActiveCallContent(
-                personName = personName,
-                callSecondsRemaining = callSecondsRemaining,
-                onTimerClick = { showAddTimeSheet = true },
-                onGiftClick = { showGiftSheet = true },
-                onGameClick = { showGameSheet = true },
-                isMuted = uiState.isMuted,
-                isSpeakerEnabled = uiState.isSpeakerEnabled,
-                onMuteToggle = { callViewModel.setMuted(!uiState.isMuted) },
-                onSpeakerToggle = { callViewModel.setSpeakerEnabled(!uiState.isSpeakerEnabled) },
-                onVideoClick = { callViewModel.requestVideoUpgrade() },
-                onEndCall = {
-                    callViewModel.leaveCall()
-                    showFeedbackPopup = true
+        if (shouldShowDialingScreen) {
+            DialingCallScreen(
+                callerName = personName,
+                callerAvatarUrl = null,
+                statusText = when {
+                    !hasAudioPermission -> "Microphone permission needed"
+                    uiState.errorMessage != null -> uiState.errorMessage
+                    uiState.isCreatingRoom -> "Starting call..."
+                    uiState.isFetchingRtcToken -> "Securing connection..."
+                    uiState.isJoiningRtc -> "Connecting..."
+                    uiState.isRtcJoined -> "Ringing..."
+                    else -> "Connecting..."
                 },
+                onCancel = ::leaveAndClose,
                 modifier = Modifier.fillMaxSize()
             )
+        } else if (isConnected) {
+            if (shouldShowVideoCall) {
+                VideoCallContent(
+                    personName = personName,
+                    callSecondsRemaining = callSecondsRemaining,
+                    callViewModel = callViewModel,
+                    remoteUserId = uiState.remoteAudioUserIds.firstOrNull(),
+                    isMuted = uiState.isMuted,
+                    isSpeakerEnabled = uiState.isSpeakerEnabled,
+                    onMuteToggle = { callViewModel.setMuted(!uiState.isMuted) },
+                    onSpeakerToggle = { callViewModel.setSpeakerEnabled(!uiState.isSpeakerEnabled) },
+                    onEndCall = {
+                        callViewModel.leaveCall()
+                        showFeedbackPopup = true
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                ActiveCallContent(
+                    personName = personName,
+                    callSecondsRemaining = callSecondsRemaining,
+                    onTimerClick = { showAddTimeSheet = true },
+                    onGiftClick = { showGiftSheet = true },
+                    onGameClick = { showGameSheet = true },
+                    isMuted = uiState.isMuted,
+                    isSpeakerEnabled = uiState.isSpeakerEnabled,
+                    onMuteToggle = { callViewModel.setMuted(!uiState.isMuted) },
+                    onSpeakerToggle = { callViewModel.setSpeakerEnabled(!uiState.isSpeakerEnabled) },
+                    onVideoClick = { requestCameraPermission(VideoPendingAction.SHOW_REQUEST_SHEET) },
+                    onEndCall = {
+                        callViewModel.leaveCall()
+                        showFeedbackPopup = true
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         } else {
             ConnectingCallContent(
                 personName = personName,
@@ -262,6 +367,43 @@ fun CallScreen(
                     callSecondsRemaining += selectedAddTimeOption.minutes * 60
                     showAddTimeSheet = false
                 },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
+
+        if (showVideoUpgradeRequestSheet) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.42f))
+                    .clickable { showVideoUpgradeRequestSheet = false }
+            )
+            VideoUpgradeSwitchBottomSheet(
+                heartsAvailable = walletHearts,
+                pricePerMinute = 30,
+                isLoading = uiState.isVideoUpgradeActionLoading,
+                onSwitchToVideo = {
+                    requestCameraPermission(VideoPendingAction.REQUEST_VIDEO)
+                    showVideoUpgradeRequestSheet = false
+                },
+                onDismiss = { showVideoUpgradeRequestSheet = false },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
+
+        if (showVideoUpgradePrompt) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.42f))
+            )
+            VideoUpgradeIncomingBottomSheet(
+                partnerName = personName,
+                heartsAvailable = walletHearts,
+                pricePerMinute = 30,
+                isLoading = uiState.isVideoUpgradeActionLoading,
+                onAccept = { requestCameraPermission(VideoPendingAction.ACCEPT_VIDEO) },
+                onDecline = callViewModel::declineVideoUpgrade,
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
@@ -414,6 +556,265 @@ private fun ConnectingCallContent(
 }
 
 @Composable
+private fun VideoUpgradeSwitchBottomSheet(
+    heartsAvailable: Int,
+    pricePerMinute: Int,
+    isLoading: Boolean,
+    onSwitchToVideo: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+            .background(Color.White)
+            .padding(start = 22.dp, end = 22.dp, top = 16.dp, bottom = 30.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 94.dp, height = 8.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color(0xFFD5D5D5))
+        )
+        Spacer(modifier = Modifier.height(34.dp))
+        Text(
+            text = "Switch to Video Call",
+            color = Color(0xFF4058C6),
+            fontSize = 30.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(28.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(2.dp)
+                    .background(Color(0xFFB168E1))
+            )
+            Text(
+                text = "$heartsAvailable Hearts Available",
+                color = Color(0xFF242424),
+                fontSize = 18.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 18.dp)
+            )
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(2.dp)
+                    .background(Color(0xFFB168E1))
+            )
+        }
+        Spacer(modifier = Modifier.height(40.dp))
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color(0xFFFFFAEE))
+                .padding(vertical = 28.dp, horizontal = 20.dp)
+        ) {
+            Text(
+                text = "$pricePerMinute hearts / min",
+                color = Color.Black,
+                fontSize = 27.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(18.dp))
+            Text(
+                text = "Charges will start only after you switch to video.",
+                color = Color(0xFF858585),
+                fontSize = 15.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+        }
+        Spacer(modifier = Modifier.height(34.dp))
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(58.dp)
+                .shadow(5.dp, RoundedCornerShape(14.dp), clip = false)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color(0xFFFFCD47))
+                .border(1.5.dp, Color.Black, RoundedCornerShape(14.dp))
+                .clickable(enabled = !isLoading, onClick = onSwitchToVideo)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = if (isLoading) "Please wait..." else "Switch to video call",
+                    color = Color.Black,
+                    fontSize = 18.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = Color.Black,
+                    modifier = Modifier.size(30.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(22.dp))
+        Text(
+            text = "Not now",
+            color = Color.Black,
+            fontSize = 17.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.clickable(enabled = !isLoading, onClick = onDismiss)
+        )
+    }
+}
+
+@Composable
+private fun VideoUpgradeIncomingBottomSheet(
+    partnerName: String,
+    heartsAvailable: Int,
+    pricePerMinute: Int,
+    isLoading: Boolean,
+    onAccept: () -> Unit,
+    onDecline: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+            .background(Color.White)
+            .padding(start = 22.dp, end = 22.dp, top = 16.dp, bottom = 30.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 94.dp, height = 8.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color(0xFFD5D5D5))
+        )
+        Spacer(modifier = Modifier.height(34.dp))
+        Text(
+            text = "Switch to Video Call",
+            color = Color(0xFF4058C6),
+            fontSize = 30.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(28.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(2.dp)
+                    .background(Color(0xFFB168E1))
+            )
+            Text(
+                text = "$heartsAvailable Hearts Available",
+                color = Color(0xFF242424),
+                fontSize = 18.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 18.dp)
+            )
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(2.dp)
+                    .background(Color(0xFFB168E1))
+            )
+        }
+        Spacer(modifier = Modifier.height(40.dp))
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color(0xFFFFFAEE))
+                .padding(vertical = 28.dp, horizontal = 20.dp)
+        ) {
+            Text(
+                text = "$pricePerMinute hearts / min",
+                color = Color.Black,
+                fontSize = 27.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(18.dp))
+            Text(
+                text = "$partnerName wants to switch this audio call to video.",
+                color = Color(0xFF858585),
+                fontSize = 15.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+        }
+        Spacer(modifier = Modifier.height(34.dp))
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(58.dp)
+                .shadow(5.dp, RoundedCornerShape(14.dp), clip = false)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color(0xFFFFCD47))
+                .border(1.5.dp, Color.Black, RoundedCornerShape(14.dp))
+                .clickable(enabled = !isLoading, onClick = onAccept)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = if (isLoading) "Please wait..." else "Accept video call",
+                    color = Color.Black,
+                    fontSize = 18.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.width(16.dp))
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = Color.Black,
+                    modifier = Modifier.size(30.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(22.dp))
+        Text(
+            text = "Decline",
+            color = Color.Black,
+            fontSize = 17.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.clickable(enabled = !isLoading, onClick = onDecline)
+        )
+    }
+}
+
+@Composable
 private fun ActiveCallContent(
     personName: String,
     callSecondsRemaining: Int,
@@ -509,6 +910,128 @@ private fun ActiveCallContent(
             onMuteToggle = onMuteToggle,
             onSpeakerToggle = onSpeakerToggle,
             onVideoClick = onVideoClick,
+            onEndCall = onEndCall,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
+    }
+
+}
+
+@Composable
+private fun VideoCallContent(
+    personName: String,
+    callSecondsRemaining: Int,
+    callViewModel: CallViewModel,
+    remoteUserId: Int?,
+    isMuted: Boolean,
+    isSpeakerEnabled: Boolean,
+    onMuteToggle: () -> Unit,
+    onSpeakerToggle: () -> Unit,
+    onEndCall: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var localVideoView by remember { mutableStateOf<View?>(null) }
+    var remoteVideoView by remember { mutableStateOf<View?>(null) }
+
+    LaunchedEffect(localVideoView, remoteVideoView, remoteUserId) {
+        callViewModel.bindVideoViews(
+            localView = localVideoView,
+            remoteView = remoteVideoView,
+            remoteUid = remoteUserId
+        )
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+        ) {
+            AndroidView(
+                factory = { context ->
+                    SurfaceViewRenderer(context).also { view ->
+                        remoteVideoView = view
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 20.dp, top = 28.dp)
+        ) {
+            CallTimerChip(secondsRemaining = callSecondsRemaining, onClick = {})
+            Spacer(modifier = Modifier.weight(1f))
+            CallSafetyButton()
+        }
+
+        if (remoteUserId == null) {
+            Text(
+                text = "Waiting for $personName to join video...",
+                color = Color.White,
+                fontSize = 16.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = 24.dp)
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 18.dp, bottom = 168.dp)
+                .size(width = 104.dp, height = 150.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(Color.Black.copy(alpha = 0.18f))
+                .border(1.5.dp, Color.White.copy(alpha = 0.75f), RoundedCornerShape(18.dp))
+        ) {
+            AndroidView(
+                factory = { context ->
+                    SurfaceViewRenderer(context).also { view ->
+                        localVideoView = view
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxSize()
+            )
+            Text(
+                text = "You",
+                color = Color.White,
+                fontSize = 13.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 8.dp)
+            )
+        }
+
+        VideoQuickActions(
+            onChatClick = { },
+            onGiftClick = { },
+            onGameClick = { },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 100.dp)
+        )
+
+        VideoCallControls(
+            isMuted = isMuted,
+            isSpeakerEnabled = isSpeakerEnabled,
+            onMuteToggle = onMuteToggle,
+            onSpeakerToggle = onSpeakerToggle,
+            onSwitchCamera = callViewModel::switchCamera,
             onEndCall = onEndCall,
             modifier = Modifier.align(Alignment.BottomCenter)
         )
@@ -1921,6 +2444,24 @@ private fun CallActionBubble(
 }
 
 @Composable
+private fun VideoQuickActions(
+    onChatClick: () -> Unit,
+    onGiftClick: () -> Unit,
+    onGameClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+    ) {
+        CallActionBubble(iconRes = R.drawable.call_screen_chats, onClick = onChatClick)
+        CallActionBubble(iconRes = R.drawable.call_screen_gift, onClick = onGiftClick)
+        CallActionBubble(iconRes = R.drawable.call_screen_games, onClick = onGameClick)
+    }
+}
+
+@Composable
 private fun CallControls(
     isMuted: Boolean,
     isSpeakerEnabled: Boolean,
@@ -1955,6 +2496,70 @@ private fun CallControls(
             iconRes = R.drawable.call_screen_camera,
             onClick = onVideoClick
         )
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(width = 88.dp, height = 44.dp)
+                .clip(RoundedCornerShape(26.dp))
+                .background(Color(0xFFF64A4A))
+                .clickable(onClick = onEndCall)
+        ) {
+            Icon(
+                imageVector = Icons.Default.CallEnd,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(30.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun VideoCallControls(
+    isMuted: Boolean,
+    isSpeakerEnabled: Boolean,
+    onMuteToggle: () -> Unit,
+    onSpeakerToggle: () -> Unit,
+    onSwitchCamera: () -> Unit,
+    onEndCall: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceAround,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 22.dp)
+            .height(72.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White)
+            .border(2.dp, Color.Black, RoundedCornerShape(18.dp))
+    ) {
+        CallControlIcon(
+            iconRes = R.drawable.call_screen_mic,
+            isSelected = isMuted,
+            onClick = onMuteToggle
+        )
+        CallControlIcon(
+            iconRes = R.drawable.call_screen_speaker,
+            isSelected = isSpeakerEnabled,
+            onClick = onSpeakerToggle
+        )
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(46.dp)
+                .clip(CircleShape)
+                .background(Color(0xFFFFE4E4))
+                .clickable(onClick = onSwitchCamera)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Cameraswitch,
+                contentDescription = null,
+                tint = Color.Black,
+                modifier = Modifier.size(28.dp)
+            )
+        }
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier

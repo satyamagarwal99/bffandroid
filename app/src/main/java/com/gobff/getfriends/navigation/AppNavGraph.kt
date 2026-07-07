@@ -81,6 +81,7 @@ import com.gobff.getfriends.screens.GiftVibeScreen
 import com.gobff.getfriends.screens.HistoryScreen
 import com.gobff.getfriends.screens.HomeScreen
 import com.gobff.getfriends.screens.HomeScreen2
+import com.gobff.getfriends.screens.IncomingCallScreen
 import com.gobff.getfriends.screens.LoginScreen
 import com.gobff.getfriends.screens.PersonalChatScreen
 import com.gobff.getfriends.screens.ProfileScreen
@@ -130,6 +131,7 @@ fun AppNavGraph(
     var activeCallName by remember { mutableStateOf("Anshu") }
     var incomingCallRoomId by remember { mutableStateOf<String?>(null) }
     var incomingCallRequestedRole by remember { mutableStateOf("SPEAKER") }
+    var incomingCallAvatarUrl by remember { mutableStateOf<String?>(null) }
     var activeChatName by remember { mutableStateOf("Anshu") }
     var activeChatAvatar by remember { mutableStateOf(R.drawable.women_avatar3) }
     var initialAppOpenDispatched by remember { mutableStateOf(false) }
@@ -226,8 +228,9 @@ fun AppNavGraph(
         activeCallName = push.callerName
         incomingCallRoomId = push.roomId
         incomingCallRequestedRole = push.requestedRole
+        incomingCallAvatarUrl = push.callerAvatarUrl
         onIncomingCallPushHandled()
-        navController.navigateSingleTop(AppRoute.Call)
+        navController.navigateSingleTop(AppRoute.IncomingCall)
     }
 
     LaunchedEffect(Unit) {
@@ -376,6 +379,7 @@ fun AppNavGraph(
                     activeCallName = personName
                     incomingCallRoomId = null
                     incomingCallRequestedRole = "SPEAKER"
+                    incomingCallAvatarUrl = null
                     navController.navigateSingleTop(AppRoute.Call)
                 },
                 onFriendsRequested = { navController.navigateSingleTop(AppRoute.Friends) },
@@ -557,11 +561,43 @@ fun AppNavGraph(
             )
         }
 
+        composable(AppRoute.IncomingCall.route) {
+            val roomId = incomingCallRoomId
+            IncomingCallScreen(
+                callerName = activeCallName,
+                callerAvatarUrl = incomingCallAvatarUrl,
+                onAccept = {
+                    if (!roomId.isNullOrBlank()) {
+                        navController.navigateSingleTop(AppRoute.Call)
+                    }
+                },
+                onDecline = {
+                    val declinedRoomId = roomId
+                    incomingCallRoomId = null
+                    incomingCallAvatarUrl = null
+                    navController.navigateHome()
+                    if (!declinedRoomId.isNullOrBlank()) {
+                        coroutineScope.launch {
+                            runCatching {
+                                val token = TokenUtils.getToken()
+                                if (token.isNotBlank()) {
+                                    mainRepository.endRoom(token, declinedRoomId)
+                                }
+                            }.onFailure { error ->
+                                Log.w(TAG, "Incoming call decline failed roomId=$declinedRoomId", error)
+                            }
+                        }
+                    }
+                }
+            )
+        }
+
         composable(AppRoute.Call.route) {
             CallScreen(
                 personName = activeCallName,
                 incomingRoomId = incomingCallRoomId,
                 incomingRequestedRole = incomingCallRequestedRole,
+                walletHearts = walletHearts,
                 onBack = { navController.navigateHome() }
             )
         }
@@ -774,11 +810,12 @@ private fun String?.navigationOrderIndex(): Int? =
         AppRoute.Friends.route -> 10
         AppRoute.PersonalChat.route -> 11
         AppRoute.TruthDare.route -> 12
-        AppRoute.Call.route -> 13
-        AppRoute.Gender.route -> 14
-        AppRoute.Audio.route -> 15
-        AppRoute.Login.route -> 16
-        AppRoute.Splash.route -> 17
+        AppRoute.IncomingCall.route -> 13
+        AppRoute.Call.route -> 14
+        AppRoute.Gender.route -> 15
+        AppRoute.Audio.route -> 16
+        AppRoute.Login.route -> 17
+        AppRoute.Splash.route -> 18
         else -> null
     }
 

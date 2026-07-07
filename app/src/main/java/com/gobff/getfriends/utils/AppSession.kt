@@ -215,6 +215,7 @@ object AppSession {
         key == Constant.REFRESH_TOKEN_KEY ||
         key == Constant.ACCESS_TOKEN_EXPIRES_AT_KEY ||
         key == Constant.REFRESH_TOKEN_EXPIRES_AT_KEY ||
+        key == Constant.USER_ID_KEY ||
         key == Constant.INSTALLATION_ID_KEY
 
     private fun redactedValue(value: String?): String {
