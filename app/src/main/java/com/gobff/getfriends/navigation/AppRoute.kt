@@ -2,6 +2,7 @@ package com.gobff.getfriends.navigation
 
 sealed class AppRoute(val route: String) {
     data object Splash : AppRoute("splash")
+    data object UpdateApp : AppRoute("update_app")
     data object Login : AppRoute("login")
     data object Gender : AppRoute("gender")
     data object Audio : AppRoute("audio")

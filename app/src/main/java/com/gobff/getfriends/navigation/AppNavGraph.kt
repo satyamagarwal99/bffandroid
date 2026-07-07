@@ -89,6 +89,7 @@ import com.gobff.getfriends.screens.RechargeScreen
 import com.gobff.getfriends.screens.SettingsScreen
 import com.gobff.getfriends.screens.SplashScreen
 import com.gobff.getfriends.screens.TruthDareScreen
+import com.gobff.getfriends.screens.UpdateAppScreen
 import com.gobff.getfriends.screens.WalletScreen
 import com.gobff.getfriends.service.PresenceForegroundService
 import com.gobff.getfriends.ui.component.BffBottomBar
@@ -303,16 +304,25 @@ fun AppNavGraph(
         composable(AppRoute.Splash.route) {
             LaunchedEffect(Unit) {
                 AppSession.logSnapshot("Splash.start")
-                runCatching {
+                val appVersionResponse = runCatching {
                     mainRepository.getAppVersion(Constant.DEVICE_PLATFORM, Constant.APP_VERSION)
                 }.onFailure { error ->
                     Log.w(TAG, "App version check failed during splash", error)
-                }
+                }.getOrNull()
                 val hasStoredSession = TokenUtils.hasStoredSession()
                 if (hasStoredSession) {
                     walletViewModel.loadWalletBalance()
                 }
                 delay(SPLASH_DURATION_MS)
+                val appVersionStatus = appVersionResponse?.body()?.status
+                if (!appVersionStatus.isNullOrBlank() && !appVersionStatus.equals("OK", ignoreCase = true)) {
+                    Log.d(TAG, "Splash navigating to update app status=$appVersionStatus")
+                    navController.navigate(AppRoute.UpdateApp.route) {
+                        popUpTo(AppRoute.Splash.route) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                    return@LaunchedEffect
+                }
                 val hasSessionAfterSplash = TokenUtils.hasStoredSession()
                 val nextRoute = if (hasSessionAfterSplash) {
                     val hasProfile = userProfileViewModel.refreshProfile()
@@ -332,6 +342,10 @@ fun AppNavGraph(
                 }
             }
             SplashScreen()
+        }
+
+        composable(AppRoute.UpdateApp.route) {
+            UpdateAppScreen()
         }
 
         composable(AppRoute.Login.route) {
@@ -817,7 +831,8 @@ private fun String?.navigationOrderIndex(): Int? =
         AppRoute.Gender.route -> 15
         AppRoute.Audio.route -> 16
         AppRoute.Login.route -> 17
-        AppRoute.Splash.route -> 18
+        AppRoute.UpdateApp.route -> 18
+        AppRoute.Splash.route -> 19
         else -> null
     }
 
