@@ -68,6 +68,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.gobff.getfriends.BuildConfig
 import com.gobff.getfriends.IncomingCallPush
 import com.gobff.getfriends.R
 import com.gobff.getfriends.data.MainRepository
@@ -305,7 +306,7 @@ fun AppNavGraph(
             LaunchedEffect(Unit) {
                 AppSession.logSnapshot("Splash.start")
                 val appVersionResponse = runCatching {
-                    mainRepository.getAppVersion(Constant.DEVICE_PLATFORM, Constant.APP_VERSION)
+                    mainRepository.getAppVersion(Constant.DEVICE_PLATFORM, BuildConfig.VERSION_NAME)
                 }.onFailure { error ->
                     Log.w(TAG, "App version check failed during splash", error)
                 }.getOrNull()
