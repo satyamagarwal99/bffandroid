@@ -13,6 +13,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.Person
 import com.gobff.getfriends.AppForegroundState
+import com.gobff.getfriends.CallEndedEvents
+import com.gobff.getfriends.CallEndedPush
 import com.gobff.getfriends.IncomingCallEvents
 import com.gobff.getfriends.IncomingCallPush
 import com.gobff.getfriends.MainActivity
@@ -73,6 +75,11 @@ class BffFirebaseMessagingService : FirebaseMessagingService() {
             return
         }
 
+        if (message.data["event"] == CALL_ENDED_EVENT) {
+            handleCallEnded(message.data)
+            return
+        }
+
         val title = message.notification?.title
             ?: message.data["title"]
             ?: getString(R.string.app_name)
@@ -109,6 +116,38 @@ class BffFirebaseMessagingService : FirebaseMessagingService() {
 
         notificationManager.notify(System.currentTimeMillis().toInt(), notification)
         Log.d(TAG, "FCM notification posted")
+    }
+
+    private fun handleCallEnded(data: Map<String, String>) {
+        val roomId = data["roomId"].orEmpty().ifBlank { data["callId"].orEmpty() }
+        if (roomId.isBlank()) {
+            Log.w(TAG, "Skipping call_ended push: roomId missing")
+            return
+        }
+
+        NotificationManagerCompat.from(this).cancel(roomId.hashCode())
+
+        val push = CallEndedPush(
+            callId = data["callId"].orEmpty().ifBlank { roomId },
+            roomId = roomId,
+            roomType = data["roomType"].orEmpty(),
+            status = data["status"].orEmpty(),
+            endedByUserId = data["endedByUserId"].orEmpty(),
+            endedByName = data["endedByName"].orEmpty(),
+            endedByAvatarUrl = data["endedByAvatarUrl"]?.takeIf { it.isNotBlank() },
+            createdByUserId = data["createdByUserId"].orEmpty(),
+            invitedUserId = data["invitedUserId"].orEmpty(),
+            endedAt = data["endedAt"].orEmpty(),
+            expiresAt = data["expiresAt"].orEmpty(),
+            connected = data["connected"]?.toBooleanStrictOrNull()
+        )
+
+        if (AppForegroundState.isForeground) {
+            CallEndedEvents.publish(push)
+            Log.d(TAG, "Call ended delivered in-app roomId=$roomId connected=${push.connected}")
+        } else {
+            Log.d(TAG, "Call ended received in background roomId=$roomId connected=${push.connected}")
+        }
     }
 
     private fun showIncomingCallNotification(data: Map<String, String>) {
@@ -303,6 +342,7 @@ class BffFirebaseMessagingService : FirebaseMessagingService() {
         const val EXTRA_ROOM_TYPE = "room_type"
         const val EXTRA_NOTIFICATION_ID = "notification_id"
         const val INCOMING_CALL_EVENT = "incoming_call"
+        const val CALL_ENDED_EVENT = "call_ended"
         const val ACTION_DECLINE_CALL = "com.gobff.getfriends.action.DECLINE_CALL"
         private const val INCOMING_CALL_TIMEOUT_MS = 30_000L
         private const val TAG = "BffFirebaseMessaging"

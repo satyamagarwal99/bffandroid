@@ -69,6 +69,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.gobff.getfriends.BuildConfig
+import com.gobff.getfriends.CallEndedPush
 import com.gobff.getfriends.IncomingCallPush
 import com.gobff.getfriends.R
 import com.gobff.getfriends.data.MainRepository
@@ -118,7 +119,9 @@ private val MAX_BOTTOM_BAR_CONTENT_PADDING = 0.dp
 fun AppNavGraph(
     navController: NavHostController = rememberNavController(),
     incomingCallPush: IncomingCallPush? = null,
-    onIncomingCallPushHandled: () -> Unit = {}
+    onIncomingCallPushHandled: () -> Unit = {},
+    callEndedPush: CallEndedPush? = null,
+    onCallEndedPushHandled: () -> Unit = {}
 ) {
     val mainRepository = remember { MainRepository() }
     val mainViewModel: MainViewModel = viewModel()
@@ -233,6 +236,31 @@ fun AppNavGraph(
         incomingCallAvatarUrl = push.callerAvatarUrl
         onIncomingCallPushHandled()
         navController.navigateSingleTop(AppRoute.IncomingCall)
+    }
+
+    LaunchedEffect(callEndedPush, currentRoute, incomingCallRoomId) {
+        val push = callEndedPush ?: return@LaunchedEffect
+        if (currentRoute == AppRoute.Call.route) return@LaunchedEffect
+
+        if (currentRoute == AppRoute.IncomingCall.route && push.matchesRoom(incomingCallRoomId)) {
+            incomingCallRoomId = null
+            incomingCallAvatarUrl = null
+            Toast.makeText(
+                context,
+                push.displayMessage(TokenUtils.getCurrentUserId()),
+                Toast.LENGTH_SHORT
+            ).show()
+            onCallEndedPushHandled()
+            navController.navigateHome()
+            return@LaunchedEffect
+        }
+
+        Toast.makeText(
+            context,
+            push.displayMessage(TokenUtils.getCurrentUserId()),
+            Toast.LENGTH_SHORT
+        ).show()
+        onCallEndedPushHandled()
     }
 
     LaunchedEffect(Unit) {
@@ -615,6 +643,8 @@ fun AppNavGraph(
                 incomingRoomId = incomingCallRoomId,
                 incomingRequestedRole = incomingCallRequestedRole,
                 walletHearts = walletHearts,
+                callEndedPush = callEndedPush,
+                onCallEndedPushHandled = onCallEndedPushHandled,
                 onBack = { navController.navigateHome() }
             )
         }

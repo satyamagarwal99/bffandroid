@@ -2,6 +2,7 @@ package com.gobff.getfriends.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.widget.Toast
 import android.view.View
 import androidx.compose.foundation.Image
 import androidx.activity.compose.BackHandler
@@ -70,6 +71,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.core.content.ContextCompat
+import com.gobff.getfriends.CallEndedPush
 import com.gobff.getfriends.R
 import com.gobff.getfriends.data.model.GameCatalogItemDto
 import com.gobff.getfriends.data.model.GiftCatalogResponse
@@ -104,6 +106,8 @@ fun CallScreen(
     incomingRoomId: String? = null,
     incomingRequestedRole: String = "SPEAKER",
     walletHearts: Int = 145,
+    callEndedPush: CallEndedPush? = null,
+    onCallEndedPushHandled: () -> Unit = {},
     callViewModel: CallViewModel = viewModel(),
     giftCatalogViewModel: GiftCatalogViewModel = viewModel(),
     gameCatalogViewModel: GameCatalogViewModel = viewModel()
@@ -119,6 +123,8 @@ fun CallScreen(
     var showSafetySheet by remember { mutableStateOf(false) }
     var showFeedbackPopup by remember { mutableStateOf(false) }
     var showVideoUpgradeRequestSheet by remember { mutableStateOf(false) }
+    var remoteCallEndMessage by remember { mutableStateOf<String?>(null) }
+    var remoteCallDeclined by remember { mutableStateOf(false) }
     var selectedAddTimeOption by remember { mutableStateOf(AddTimeOptions.first()) }
     var sendingGift by remember { mutableStateOf<GiftItem?>(null) }
     var giftDeliveryPhase by remember { mutableStateOf<GiftDeliveryPhase?>(null) }
@@ -131,6 +137,7 @@ fun CallScreen(
         )
     }
     var pendingVideoAction by remember { mutableStateOf<VideoPendingAction?>(null) }
+    var shouldEndBackendOnDispose by remember { mutableStateOf(true) }
     val giftCatalogUiState = giftCatalogViewModel.uiState
     val gameCatalogUiState = gameCatalogViewModel.uiState
     val isOutgoingCall = incomingRoomId.isNullOrBlank()
@@ -173,7 +180,13 @@ fun CallScreen(
     }
 
     fun leaveAndClose() {
+        shouldEndBackendOnDispose = true
         callViewModel.leaveCall(roomId = incomingRoomId ?: callViewModel.uiState.room?.id)
+        onBack()
+    }
+
+    fun closeEndedCallScreen() {
+        shouldEndBackendOnDispose = false
         onBack()
     }
 
@@ -198,7 +211,8 @@ fun CallScreen(
             showGiftSheet -> showGiftSheet = false
             showSafetySheet -> showSafetySheet = false
             showAddTimeSheet -> showAddTimeSheet = false
-            showFeedbackPopup -> showFeedbackPopup = false
+            showFeedbackPopup -> closeEndedCallScreen()
+            remoteCallEndMessage != null -> closeEndedCallScreen()
             else -> leaveAndClose()
         }
     }
@@ -222,8 +236,32 @@ fun CallScreen(
 
     DisposableEffect(Unit) {
         onDispose {
-            callViewModel.leaveCall(roomId = incomingRoomId ?: callViewModel.uiState.room?.id)
+            if (shouldEndBackendOnDispose) {
+                callViewModel.leaveCall(roomId = incomingRoomId ?: callViewModel.uiState.room?.id)
+            }
         }
+    }
+
+    LaunchedEffect(callEndedPush, incomingRoomId, uiState.room?.id) {
+        val push = callEndedPush ?: return@LaunchedEffect
+        val activeRoomId = incomingRoomId ?: uiState.room?.id
+        if (!push.matchesRoom(activeRoomId)) return@LaunchedEffect
+
+        val currentUser = TokenUtils.getCurrentUserId()
+        val message = push.displayMessage(currentUser)
+        val wasDeclined = push.wasDeclinedByCallee(currentUser)
+        shouldEndBackendOnDispose = false
+        callViewModel.handleRemoteCallEnded(activeRoomId)
+        remoteCallEndMessage = message
+        remoteCallDeclined = wasDeclined
+        showAddTimeSheet = false
+        showGiftSheet = false
+        showGameSheet = false
+        showSafetySheet = false
+        showVideoUpgradeRequestSheet = false
+        showFeedbackPopup = !wasDeclined
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        onCallEndedPushHandled()
     }
 
     LaunchedEffect(personName, isConnected) {
@@ -292,6 +330,7 @@ fun CallScreen(
                 callerName = personName,
                 callerAvatarUrl = null,
                 statusText = when {
+                    remoteCallEndMessage != null -> remoteCallEndMessage.orEmpty()
                     !hasAudioPermission -> "Microphone permission needed"
                     uiState.errorMessage != null -> uiState.errorMessage
                     uiState.isCreatingRoom -> "Starting call..."
@@ -300,7 +339,7 @@ fun CallScreen(
                     uiState.isRtcJoined -> "Ringing..."
                     else -> "Connecting..."
                 },
-                onCancel = ::leaveAndClose,
+                onCancel = if (remoteCallDeclined) ::closeEndedCallScreen else ::leaveAndClose,
                 modifier = Modifier.fillMaxSize()
             )
         } else if (isConnected) {
@@ -346,6 +385,7 @@ fun CallScreen(
                 personName = personName,
                 countdown = countdown,
                 statusText = when {
+                    remoteCallEndMessage != null -> remoteCallEndMessage.orEmpty()
                     !hasAudioPermission -> "Microphone permission needed"
                     uiState.errorMessage != null -> uiState.errorMessage
                     uiState.isCreatingRoom -> "Creating room..."
@@ -353,7 +393,7 @@ fun CallScreen(
                     uiState.isJoiningRtc -> "Joining audio..."
                     else -> "Connecting..."
                 },
-                onBack = ::leaveAndClose,
+                onBack = if (remoteCallEndMessage != null) ::closeEndedCallScreen else ::leaveAndClose,
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -474,6 +514,7 @@ fun CallScreen(
             )
             CallFeedbackPopup(
                 personName = personName,
+                callEndedMessage = remoteCallEndMessage,
                 isSubmitting = uiState.isSubmittingFeedback,
                 errorMessage = uiState.feedbackErrorMessage,
                 onSubmitFeedback = { rating, tags, comment, addFriend, onSubmitted ->
@@ -485,7 +526,7 @@ fun CallScreen(
                         onSubmitted = onSubmitted
                     )
                 },
-                onDismiss = onBack,
+                onDismiss = ::closeEndedCallScreen,
                 modifier = Modifier.align(Alignment.Center)
             )
         }
@@ -2203,6 +2244,7 @@ private fun GiftPriceLine(
 @Composable
 private fun CallFeedbackPopup(
     personName: String,
+    callEndedMessage: String?,
     isSubmitting: Boolean,
     errorMessage: String?,
     onSubmitFeedback: (
@@ -2220,12 +2262,13 @@ private fun CallFeedbackPopup(
     var comment by remember { mutableStateOf("") }
     var addToFriends by remember { mutableStateOf(false) }
     var submittedRating by remember { mutableStateOf<FeedbackRating?>(null) }
+    val callEndedMessageHeight = if (callEndedMessage.isNullOrBlank()) 0.dp else 30.dp
     val cardHeight = when {
         submittedRating != null -> 214.dp
         selectedRating == null -> 300.dp
         selectedRating?.isPositive == true -> 506.dp
         else -> 454.dp
-    }
+    } + callEndedMessageHeight
 
     Box(
         modifier = modifier
@@ -2268,6 +2311,18 @@ private fun CallFeedbackPopup(
                     .fillMaxSize()
                     .padding(horizontal = 24.dp, vertical = 24.dp)
             ) {
+                if (!callEndedMessage.isNullOrBlank()) {
+                    Text(
+                        text = callEndedMessage,
+                        color = Color(0xFFE25252),
+                        fontSize = 14.sp,
+                        lineHeight = 18.sp,
+                        fontFamily = GaretFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
                 Text(
                     text = "Did you enjoy\ntalking with $personName?",
                     color = Color.Black,

@@ -160,6 +160,17 @@ class CallViewModel(
         )
     }
 
+    fun handleRemoteCallEnded(roomId: String? = uiState.room?.id) {
+        roomId?.takeIf { it.isNotBlank() }?.let { endedRoomIds.add(it) }
+        rtcEngine?.leaveChannel()
+        uiState = uiState.copy(
+            isJoiningRtc = false,
+            isRtcJoined = false,
+            isVideoEnabled = false,
+            remoteAudioUserIds = emptyList()
+        )
+    }
+
     fun closeCurrentRoom() {
         val token = TokenUtils.getToken()
         val roomId = uiState.room?.id
