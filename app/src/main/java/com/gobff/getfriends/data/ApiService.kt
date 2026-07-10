@@ -31,6 +31,8 @@ import com.gobff.getfriends.data.model.RoomResponse
 import com.gobff.getfriends.data.model.RoomFeedbackBody
 import com.gobff.getfriends.data.model.RoomFeedbackResponse
 import com.gobff.getfriends.data.model.RoomFeedbackStatusResponse
+import com.gobff.getfriends.data.model.RoomMessageBody
+import com.gobff.getfriends.data.model.RoomMessageResponse
 import com.gobff.getfriends.data.model.RtcTokenBody
 import com.gobff.getfriends.data.model.RtcTokenResponse
 import com.gobff.getfriends.data.model.UpdateProfileBody
@@ -184,6 +186,19 @@ interface ApiService {
         @Header("Authorization") bearerToken: String,
         @Path("roomId") roomId: String
     ): Response<RoomFeedbackStatusResponse>
+
+    @GET("rooms/{roomId}/messages")
+    suspend fun getRoomMessages(
+        @Header("Authorization") bearerToken: String,
+        @Path("roomId") roomId: String
+    ): Response<List<RoomMessageResponse>>
+
+    @POST("rooms/{roomId}/messages")
+    suspend fun sendRoomMessage(
+        @Header("Authorization") bearerToken: String,
+        @Path("roomId") roomId: String,
+        @Body body: RoomMessageBody
+    ): Response<RoomMessageResponse>
 
     @POST("rooms/{roomId}/rtc-token")
     suspend fun getRtcToken(

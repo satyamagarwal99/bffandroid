@@ -7,10 +7,12 @@ import androidx.compose.foundation.Image
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -23,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -32,6 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Lock
@@ -55,9 +59,12 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -75,7 +82,9 @@ import com.gobff.getfriends.data.model.GameCatalogItemDto
 import com.gobff.getfriends.data.model.GiftCatalogResponse
 import com.gobff.getfriends.data.model.GiftCategoryDto
 import com.gobff.getfriends.data.model.GiftItemDto
+import com.gobff.getfriends.data.model.RoomMessageResponse
 import com.gobff.getfriends.data.model.RoomType
+import com.gobff.getfriends.ui.component.ChatBubbleShape
 import com.gobff.getfriends.ui.component.HeartChipShape
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.GaretFontFamily
@@ -116,6 +125,7 @@ fun CallScreen(
     var showAddTimeSheet by remember { mutableStateOf(false) }
     var showGiftSheet by remember { mutableStateOf(false) }
     var showGameSheet by remember { mutableStateOf(false) }
+    var showChatSheet by remember { mutableStateOf(false) }
     var showSafetySheet by remember { mutableStateOf(false) }
     var showFeedbackPopup by remember { mutableStateOf(false) }
     var showVideoUpgradeRequestSheet by remember { mutableStateOf(false) }
@@ -194,6 +204,7 @@ fun CallScreen(
         when {
             showVideoUpgradeRequestSheet -> showVideoUpgradeRequestSheet = false
             showVideoUpgradePrompt -> callViewModel.declineVideoUpgrade()
+            showChatSheet -> showChatSheet = false
             showGameSheet -> showGameSheet = false
             showGiftSheet -> showGiftSheet = false
             showSafetySheet -> showSafetySheet = false
@@ -312,6 +323,7 @@ fun CallScreen(
                     remoteUserId = uiState.remoteAudioUserIds.firstOrNull(),
                     isMuted = uiState.isMuted,
                     isSpeakerEnabled = uiState.isSpeakerEnabled,
+                    onChatClick = { showChatSheet = true },
                     onMuteToggle = { callViewModel.setMuted(!uiState.isMuted) },
                     onSpeakerToggle = { callViewModel.setSpeakerEnabled(!uiState.isSpeakerEnabled) },
                     onSafetyClick = { showSafetySheet = true },
@@ -326,6 +338,7 @@ fun CallScreen(
                     personName = personName,
                     callSecondsRemaining = callSecondsRemaining,
                     onTimerClick = { showAddTimeSheet = true },
+                    onChatClick = { showChatSheet = true },
                     onGiftClick = { showGiftSheet = true },
                     onGameClick = { showGameSheet = true },
                     onSafetyClick = { showSafetySheet = true },
@@ -427,6 +440,35 @@ fun CallScreen(
                 onSendGift = { gift ->
                     showGiftSheet = false
                     sendingGift = gift
+                },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
+
+        if (showChatSheet) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.42f))
+                    .clickable { showChatSheet = false }
+            )
+            CallChatBottomSheet(
+                messages = uiState.roomMessages,
+                isLoading = uiState.isLoadingRoomMessages,
+                isSending = uiState.isSendingRoomMessage,
+                errorMessage = uiState.roomMessageErrorMessage,
+                currentUserId = TokenUtils.getCurrentUserId(),
+                onLoadMessages = {
+                    callViewModel.loadRoomMessages(
+                        roomId = incomingRoomId ?: uiState.room?.id,
+                        forceRefresh = true
+                    )
+                },
+                onSendMessage = { message ->
+                    callViewModel.sendRoomMessage(
+                        message = message,
+                        roomId = incomingRoomId ?: uiState.room?.id
+                    )
                 },
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
@@ -849,6 +891,7 @@ private fun ActiveCallContent(
     personName: String,
     callSecondsRemaining: Int,
     onTimerClick: () -> Unit,
+    onChatClick: () -> Unit,
     onGiftClick: () -> Unit,
     onGameClick: () -> Unit,
     onSafetyClick: () -> Unit,
@@ -924,7 +967,10 @@ private fun ActiveCallContent(
                 .align(Alignment.BottomCenter)
                 .offset(y = (-126).dp)
         ) {
-            CallActionBubble(iconRes = R.drawable.call_screen_chats)
+            CallActionBubble(
+                iconRes = R.drawable.call_screen_chats,
+                onClick = onChatClick
+            )
             CallActionBubble(
                 iconRes = R.drawable.call_screen_gift,
                 onClick = onGiftClick
@@ -956,6 +1002,7 @@ private fun VideoCallContent(
     remoteUserId: Int?,
     isMuted: Boolean,
     isSpeakerEnabled: Boolean,
+    onChatClick: () -> Unit,
     onMuteToggle: () -> Unit,
     onSpeakerToggle: () -> Unit,
     onSafetyClick: () -> Unit,
@@ -1050,7 +1097,7 @@ private fun VideoCallContent(
         }
 
         VideoQuickActions(
-            onChatClick = { },
+            onChatClick = onChatClick,
             onGiftClick = { },
             onGameClick = { },
             modifier = Modifier
@@ -1235,6 +1282,281 @@ private fun AddTimeBottomSheet(
                 fontSize = 11.sp,
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+@Composable
+private fun CallChatBottomSheet(
+    messages: List<RoomMessageResponse>,
+    isLoading: Boolean,
+    isSending: Boolean,
+    errorMessage: String?,
+    currentUserId: String,
+    onLoadMessages: () -> Unit,
+    onSendMessage: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var draftMessage by remember { mutableStateOf("") }
+    val messageScrollState = rememberScrollState()
+    val consumeClicks = remember { MutableInteractionSource() }
+
+    LaunchedEffect(Unit) {
+        onLoadMessages()
+    }
+
+    LaunchedEffect(messages.size) {
+        messageScrollState.animateScrollTo(messageScrollState.maxValue)
+    }
+
+    Column(
+        modifier = modifier
+            .imePadding()
+            .fillMaxWidth()
+            .fillMaxHeight(0.6f)
+            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+            .background(Color.White)
+            .clickable(
+                interactionSource = consumeClicks,
+                indication = null,
+                onClick = {}
+            )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 10.dp)
+                    .size(width = 60.dp, height = 5.dp)
+                    .clip(RoundedCornerShape(100.dp))
+                    .background(Color(0xFFD6D6D6))
+            )
+            Text(
+                text = "Chat",
+                color = Color.Black,
+                fontSize = 18.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 24.dp, top = 12.dp)
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .background(Color(0xFFFFF7E5))
+                .verticalScroll(messageScrollState)
+                .padding(horizontal = 22.dp, vertical = 18.dp)
+        ) {
+            when {
+                isLoading -> {
+                    CallChatStatusText(text = "Loading messages...")
+                }
+                messages.isEmpty() -> {
+                    CallChatStatusText(text = errorMessage ?: "No messages yet")
+                }
+                else -> {
+                    messages.forEach { message ->
+                        CallChatBubble(
+                            message = message,
+                            isMine = message.senderUserId == currentUserId
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                    }
+                    if (!errorMessage.isNullOrBlank()) {
+                        CallChatStatusText(text = errorMessage)
+                    }
+                }
+            }
+        }
+
+        CallChatInputBar(
+            value = draftMessage,
+            onValueChange = { draftMessage = it },
+            isSending = isSending,
+            onSend = {
+                val text = draftMessage.trim()
+                if (text.isNotBlank()) {
+                    onSendMessage(text)
+                    draftMessage = ""
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun CallChatStatusText(text: String) {
+    Text(
+        text = text,
+        color = Color(0xFF8B8B8B),
+        fontSize = 13.sp,
+        fontFamily = GaretFontFamily,
+        fontWeight = FontWeight.Medium,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 24.dp)
+    )
+}
+
+@Composable
+private fun CallChatBubble(
+    message: RoomMessageResponse,
+    isMine: Boolean
+) {
+    Column(
+        horizontalAlignment = if (isMine) Alignment.End else Alignment.Start,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        val bubbleShape = ChatBubbleShape
+        Box(
+            modifier = Modifier
+                .width(if (isMine) 250.dp else 164.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .offset(x = 2.dp, y = 3.dp)
+                    .clip(bubbleShape)
+                    .background(Color.Black)
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(bubbleShape)
+                    .background(if (isMine) Color.White else Color(0xFFFFC137))
+                    .border(1.2.dp, Color.Black, bubbleShape)
+                    .padding(horizontal = 14.dp, vertical = 10.dp)
+            ) {
+                Text(
+                    text = message.body.orEmpty(),
+                    color = Color.Black,
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = message.createdAt.toCallChatTime(),
+            color = Color.Black,
+            fontSize = 10.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(
+                end = if (isMine) 6.dp else 0.dp,
+                start = if (isMine) 0.dp else 6.dp
+            )
+        )
+    }
+}
+
+@Composable
+private fun CallChatInputBar(
+    value: String,
+    onValueChange: (String) -> Unit,
+    isSending: Boolean,
+    onSend: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(86.dp)
+            .background(Color.White)
+            .padding(horizontal = 24.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(46.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .offset(x = 3.dp, y = 3.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Color.Black)
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .matchParentSize()
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Color.White)
+                    .border(1.2.dp, Color.Black, RoundedCornerShape(24.dp))
+                    .padding(start = 12.dp, end = 10.dp)
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.chat_bottom_sheet_emoji), // Replace with your drawable
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    contentScale = ContentScale.Fit
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Box(modifier = Modifier.weight(1f)) {
+                    BasicTextField(
+                        value = value,
+                        onValueChange = onValueChange,
+                        singleLine = true,
+                        cursorBrush = SolidColor(Color.Black),
+                        textStyle = androidx.compose.ui.text.TextStyle(
+                            color = Color.Black,
+                            fontSize = 13.sp,
+                            fontFamily = GaretFontFamily,
+                            fontWeight = FontWeight.Medium
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (value.isBlank()) {
+                        Text(
+                            text = "Type your message...",
+                            color = Color(0xFFB6B6B6),
+                            fontSize = 13.sp,
+                            fontFamily = GaretFontFamily,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+                Icon(
+                    imageVector = Icons.Default.AttachFile,
+                    contentDescription = null,
+                    tint = Color(0xFF7E7E7E),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            QuestionSparkle(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(x = 38.dp, y = (-8).dp)
+            )
+        }
+        Spacer(modifier = Modifier.width(14.dp))
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(46.dp)
+                .clip(CircleShape)
+                .background(Color(0xFFFFC137))
+                .border(1.2.dp, Color.Black, CircleShape)
+                .clickable(enabled = !isSending, onClick = onSend)
+        ) {
+            Icon(
+                painter = painterResource(id = R.drawable.chat_bottom_sheet_sent), // Replace with your drawable ,
+                contentDescription = "Send",
+                tint = Color.Black,
+                modifier = Modifier.size(24.dp)
             )
         }
     }
@@ -3554,6 +3876,41 @@ private fun formatCallTime(secondsRemaining: Int): String {
     return "$minutes:${seconds.toString().padStart(2, '0')}"
 }
 
+private fun String?.toCallChatTime(): String {
+    val value = this?.takeIf { it.isNotBlank() } ?: return ""
+    val timePart = value.substringAfter("T", missingDelimiterValue = value)
+        .substringBefore(".")
+        .substringBefore("Z")
+    val parts = timePart.split(":")
+    if (parts.size < 2) return ""
+
+    val hour24 = parts[0].toIntOrNull() ?: return ""
+    val minute = parts[1].padStart(2, '0')
+    val amPm = if (hour24 >= 12) "PM" else "AM"
+    val hour12 = when (val hour = hour24 % 12) {
+        0 -> 12
+        else -> hour
+    }
+    return "$hour12:$minute $amPm"
+}
+
+@Composable
+private fun QuestionSparkle(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier.size(18.dp)) {
+        val center = Offset(size.width / 2f, size.height / 2f)
+        val path = Path().apply {
+            moveTo(center.x, 0f)
+            quadraticTo(center.x + 3f, center.y - 3f, size.width, center.y)
+            quadraticTo(center.x + 3f, center.y + 3f, center.x, size.height)
+            quadraticTo(center.x - 3f, center.y + 3f, 0f, center.y)
+            quadraticTo(center.x - 3f, center.y - 3f, center.x, 0f)
+            close()
+        }
+        drawPath(path, color = Color(0xFFFFD33F))
+        drawPath(path, color = Color(0xFF4B6EFF), style = Stroke(width = 1.5f))
+    }
+}
+
 @Composable
 private fun CallAvatar(
     avatarRes: Int,
@@ -3582,8 +3939,33 @@ private fun CallAvatar(
 //    }
 //}
 @Composable
-private fun CallSafetyBottomSheetPreview() {
-        CallSafetyBottomSheet(
-            onReportClick = {}
-        )
-    }
+private fun CallChatBottomSheetPreview() {
+    CallChatBottomSheet(
+        messages = listOf(
+            RoomMessageResponse(
+                messageId = "preview-1",
+                roomId = "room",
+                senderUserId = "other-user",
+                senderDisplayName = "Anshu",
+                senderAvatarUrl = "women_avatar1",
+                body = "How that is spelled, can you type here ?",
+                createdAt = "2026-07-09T06:27:40Z"
+            ),
+            RoomMessageResponse(
+                messageId = "preview-2",
+                roomId = "room",
+                senderUserId = "me",
+                senderDisplayName = "Badal",
+                senderAvatarUrl = "man_avatar1",
+                body = "It spelled \"Isabella\"",
+                createdAt = "2026-07-09T06:28:40Z"
+            )
+        ),
+        isLoading = false,
+        isSending = false,
+        errorMessage = null,
+        currentUserId = "me",
+        onLoadMessages = {},
+        onSendMessage = {}
+    )
+}

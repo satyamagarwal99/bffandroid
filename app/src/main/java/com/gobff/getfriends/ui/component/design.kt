@@ -599,9 +599,11 @@ fun BffHeartChip(
             modifier = Modifier
                 .matchParentSize()
                 .clip(shape)
+                .align(Alignment.Center)
                 .background(Color.White)
                 .border(1.2.dp, Color.Black, shape)
                 .padding(horizontal = 9.dp)
+                .offset(y = 1.5.dp)
         ) {
             Image(
                 painter = painterResource(id = R.drawable.single_heart),
@@ -610,13 +612,19 @@ fun BffHeartChip(
                 contentScale = ContentScale.Fit
             )
             Spacer(modifier = Modifier.width(4.dp))
-            Text(
-                text = String.format("%,d", hearts),
-                color = Color.Black,
-                fontSize = 14.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold
-            )
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.height(20.dp)
+            ) {
+                Text(
+                    text = hearts.toString(),
+                    color = Color.Black,
+                    fontSize = 13.sp,
+                    lineHeight = 12.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }

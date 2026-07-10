@@ -68,10 +68,12 @@ import com.gobff.getfriends.data.model.RechargeOption
 import com.gobff.getfriends.data.model.RechargeUiState
 import com.gobff.getfriends.R
 import com.gobff.getfriends.payment.JuspayCheckoutLauncher
+import com.gobff.getfriends.ui.component.HandDrawnCardShape
+import com.gobff.getfriends.ui.component.HeartChipShape
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.GaretFontFamily
 import com.gobff.getfriends.viewmodel.RechargeViewModel
-private val RechargePurple = Color(0xFF5515BA)
+private val RechargePurple = Color(0xFFAB179C)
 private val RechargePink = Color(0xFFFF3F78)
 private val RechargeInk = Color(0xFF101010)
 private val RechargeMuted = Color(0xFF777777)
@@ -254,13 +256,13 @@ private fun RechargeMainContent(
                         packs = rechargePacks,
                         selectedPack = selectedPack,
                         onPackSelected = onPackSelected,
-                        modifier = Modifier.padding(horizontal = 30.dp)
+                        modifier = Modifier.padding(horizontal = 24.dp)
                     )
                 }
             }
             Spacer(modifier = Modifier.height(34.dp))
             CouponOfferCard(
-                modifier = Modifier.padding(horizontal = 34.dp),
+                modifier = Modifier.padding(horizontal = 24.dp),
                 onClick = onCouponClick
             )
             Spacer(modifier = Modifier.height(28.dp))
@@ -270,20 +272,20 @@ private fun RechargeMainContent(
                 fontSize = 16.sp,
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Medium,
-                modifier = Modifier.padding(horizontal = 34.dp)
+                modifier = Modifier.padding(horizontal = 24.dp)
             )
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             PaymentMethodRow(
                 methods = paymentMethods,
                 selectedPayment = selectedPayment,
                 onPaymentSelected = onPaymentSelected,
-                modifier = Modifier.padding(horizontal = 34.dp)
+                modifier = Modifier.padding(horizontal = 14.dp)
             )
             Spacer(modifier = Modifier.height(34.dp))
             selectedPack?.let { pack ->
                 RechargePayButton(
                     pack = pack,
-                    modifier = Modifier.padding(horizontal = 34.dp),
+                    modifier = Modifier.padding(horizontal = 24.dp),
                     onClick = onPayClick
                 )
             }
@@ -399,12 +401,12 @@ private fun BalanceChip(
     balance: Int,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(22.dp)
+    val shape = HeartChipShape
     Box(modifier = modifier.size(width = 152.dp, height = 56.dp)) {
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .offset(x = 4.dp, y = 5.dp)
+                .offset(x = 2.dp, y = 2.5.dp)
                 .clip(shape)
                 .background(Color.Black)
         )
@@ -423,12 +425,13 @@ private fun BalanceChip(
                 modifier = Modifier.size(30.dp),
                 contentScale = ContentScale.Fit
             )
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(8.dp))
             Column {
                 Text(
                     text = "Your Balance",
                     color = RechargeMuted,
                     fontSize = 11.sp,
+                    lineHeight = 10.sp,
                     fontFamily = GaretFontFamily,
                     fontWeight = FontWeight.Medium
                 )
@@ -436,6 +439,7 @@ private fun BalanceChip(
                     text = balance.toString(),
                     color = RechargeInk,
                     fontSize = 14.sp,
+                    lineHeight = 13.sp,
                     fontFamily = GaretFontFamily,
                     fontWeight = FontWeight.Bold
                 )
@@ -457,7 +461,7 @@ private fun RechargePackGrid(
     ) {
         packs.chunked(3).forEach { rowItems ->
             Row(
-                horizontalArrangement = Arrangement.spacedBy(22.dp),
+                horizontalArrangement = Arrangement.spacedBy(13.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 rowItems.forEach { pack ->
@@ -519,7 +523,7 @@ private fun RechargePackCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = HeartChipShape
     Box(
         modifier = modifier
             .height(132.dp)
@@ -528,7 +532,7 @@ private fun RechargePackCard(
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .offset(x = if (isSelected) 4.dp else 0.dp, y = if (isSelected) 5.dp else 0.dp)
+                .offset(x = if (isSelected) 1.5.dp else 0.dp, y = if (isSelected) 2.dp else 0.dp)
                 .clip(shape)
                 .background(if (isSelected) Color.Black else Color.Transparent)
         )
@@ -558,13 +562,14 @@ private fun RechargePackCard(
                     contentScale = ContentScale.Fit
                 )
                 if (isSelected) {
-                    SelectedCheck(modifier = Modifier.align(Alignment.TopEnd).padding(end = 4.dp))
+                    SelectedCheck(modifier = Modifier.align(Alignment.TopEnd).padding(end = 10.dp))
                 }
             }
             Text(
                 text = pack.hearts.toString(),
                 color = Color.Black,
                 fontSize = 16.sp,
+                lineHeight = 11.sp,
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Medium
             )
@@ -572,10 +577,11 @@ private fun RechargePackCard(
                 text = "Hearts",
                 color = RechargeMuted,
                 fontSize = 10.sp,
+                lineHeight = 11.sp,
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Medium
             )
-            Spacer(modifier = Modifier.height(1.dp))
+            Spacer(modifier = Modifier.height(7.dp))
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
@@ -651,7 +657,7 @@ private fun CouponOfferCard(
             .height(78.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(Color(0xFFF1F0FF))
-            .padding(start = 16.dp)
+            .padding(start = 12.dp)
             .clickable(onClick = onClick)
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -662,6 +668,7 @@ private fun CouponOfferCard(
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Bold
             )
+            Spacer(modifier= Modifier.height(3.dp))
             Text(
                 text = buildAnnotatedString {
                     append("Grab the ")
@@ -686,10 +693,10 @@ private fun CouponOfferCard(
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
-                .padding(end = 14.dp)
+                .padding(end = 12.dp)
                 .size(28.dp)
                 .clip(CircleShape)
-                .background(Color(0xFF6017DD))
+                .background(Color(0xFFAB179C))
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
@@ -710,13 +717,14 @@ private fun PaymentMethodRow(
 ) {
     Row(
         horizontalArrangement = Arrangement.SpaceBetween,
-        modifier = modifier.fillMaxWidth()
+        modifier = modifier.width(314.dp)
     ) {
         methods.forEach { method ->
             PaymentMethodItem(
                 method = method,
                 isSelected = selectedPayment == method,
-                onClick = { onPaymentSelected(method) }
+                onClick = { onPaymentSelected(method) },
+                modifier = Modifier.weight(1f)
             )
         }
     }
@@ -726,20 +734,25 @@ private fun PaymentMethodRow(
 private fun PaymentMethodItem(
     method: PaymentMethod,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+    ) {
         Box(
-            modifier = Modifier.size(40.dp)
+            modifier = Modifier.size(44.dp)
         ) {
+            val shape = HeartChipShape
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .size(32.dp)
-                    .clip(RoundedCornerShape(7.dp))
+                    .size(39.dp)
+                    .clip(shape)
                     .background(Color.White)
-                    .border(1.dp, Color.Black, RoundedCornerShape(7.dp))
+                    .border(1.dp, Color.Black, shape)
                     .clickable(onClick = onClick)
             ) {
                 Image(
@@ -754,7 +767,7 @@ private fun PaymentMethodItem(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .size(18.dp)
+                        .size(14.4.dp)
                         .clip(CircleShape)
                         .background(Color(0xFF2FBF64))
                 ) {
@@ -762,16 +775,15 @@ private fun PaymentMethodItem(
                         imageVector = Icons.Default.Check,
                         contentDescription = null,
                         tint = Color.White,
-                        modifier = Modifier.size(12.dp)
+                        modifier = Modifier.size(10.8.dp)
                     )
                 }
             }
         }
-        Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = method.label,
             color = Color.Black,
-            fontSize = 13.sp,
+            fontSize = 11.sp,
             fontFamily = GaretFontFamily,
             fontWeight = FontWeight.Normal
         )
@@ -794,30 +806,34 @@ private fun RechargePayButton(
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .offset(x = 4.dp, y = 5.dp)
+                .offset(x = 2.dp, y = 2.dp)
                 .clip(shape)
                 .background(Color.Black)
         )
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
+        Box(
             modifier = Modifier
                 .matchParentSize()
                 .clip(shape)
-                .background(Color(0xFF5616C8))
+                .background(Color(0xFFAB179C))
         ) {
+
             Text(
                 text = "Add ₹${pack.price} • ${pack.hearts} Hearts",
                 color = Color.White,
-                fontSize = 17.sp,
+                fontSize = 14.sp,
                 fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.Center)
             )
+
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                 contentDescription = null,
                 tint = Color.White,
-                modifier = Modifier.size(30.dp)
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 12.dp)
+                    .size(24.dp)
             )
         }
     }
@@ -847,7 +863,7 @@ private fun CouponOverlay(
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .offset(x = 6.dp, y = 8.dp)
+                    .offset(x = 4.dp, y = 5.dp)
                     .clip(sheetShape)
                     .background(Color.Black)
             )
@@ -861,9 +877,11 @@ private fun CouponOverlay(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(138.dp)
+                        .height(128.dp)
                         .background(RechargePurple)
                 ) {
+                    val couponInputHeight = 48.dp
+                    val waveHeight = 34.dp
                     Image(
                         painter = painterResource(id = R.drawable.recharge_screen_background),
                         contentDescription = null,
@@ -874,7 +892,7 @@ private fun CouponOverlay(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
-                            .height(34.dp)
+                            .height(waveHeight)
                     ) {
                         val path = Path().apply {
                             moveTo(0f, size.height * 0.25f)
@@ -889,9 +907,9 @@ private fun CouponOverlay(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .align(Alignment.TopCenter)
-                            .padding(top = 18.dp, start = 16.dp, end = 16.dp)
-                            .fillMaxWidth()
-                            .height(48.dp)
+                            .offset(y = (138.dp - waveHeight - couponInputHeight) / 2)
+                            .width(300.dp)
+                            .height(couponInputHeight)
                             .clip(RoundedCornerShape(18.dp))
                             .background(Color.White)
                             .padding(horizontal = 18.dp)
@@ -939,6 +957,7 @@ private fun CouponItemCard(
     isApplied: Boolean,
     onApply: () -> Unit
 ) {
+    val shape = HandDrawnCardShape
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -980,7 +999,7 @@ private fun CouponItemCard(
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(start = 12.dp, top = 12.dp, bottom = 12.dp)
+                .padding(start = 12.dp, top = 10.dp, bottom = 10.dp)
         ) {
             Text(
                 text = coupon.title,
@@ -1014,7 +1033,7 @@ private fun CouponItemCard(
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(7.dp))
             Text(
                 text = coupon.validity,
                 color = Color(0xFF8E8E8E),
@@ -1032,15 +1051,15 @@ private fun CouponItemCard(
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .offset(x = 3.dp, y = 4.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .offset(x = 1.5.dp, y = 2.dp)
+                    .clip(shape)
                     .background(Color.Black)
             )
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .matchParentSize()
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(shape)
                     .background(coupon.accent)
                     .clickable(onClick = onApply)
             ) {
@@ -1428,37 +1447,33 @@ private fun couponItems() = listOf(
 @Preview(showBackground = true, widthDp = 393, heightDp = 852)
 @Composable
 private fun RechargeScreenPreview() {
-    val previewPacks = listOf(
-        RechargeOption("preview_100", "HEARTS_100", 100, 99),
-        RechargeOption("preview_250", "HEARTS_250", 250, 199),
-        RechargeOption("preview_600", "HEARTS_600", 600, 499, isPopular = true),
-        RechargeOption("preview_1200", "HEARTS_1200", 1200, 999),
-        RechargeOption("preview_2500", "HEARTS_2500", 2500, 1499),
-        RechargeOption("preview_4000", "HEARTS_4000", 4000, 199)
-    ).mapIndexed { index, option -> option.toRechargePack(index) }
-    val payments = paymentMethods()
+    val previewOptions = listOf(
+        RechargeOption(id = "pack_1", packCode = "HEARTS_90", hearts = 90, price = 29),
+        RechargeOption(id = "pack_2", packCode = "HEARTS_180", hearts = 180, price = 49, isPopular = true),
+        RechargeOption(id = "pack_3", packCode = "HEARTS_360", hearts = 360, price = 99),
+        RechargeOption(id = "pack_4", packCode = "HEARTS_720", hearts = 720, price = 199),
+        RechargeOption(id = "pack_5", packCode = "HEARTS_1500", hearts = 1500, price = 399),
+        RechargeOption(id = "pack_6", packCode = "HEARTS_3000", hearts = 3000, price = 799)
+    )
+    val rechargePacks = previewOptions.mapIndexed { index, option -> option.toRechargePack(index) }
+    val paymentMethods = paymentMethods()
+    var selectedPack by remember { mutableStateOf(rechargePacks[1]) }
+    var selectedPayment by remember { mutableStateOf(paymentMethods.first()) }
 
     BffAndroidTheme {
         RechargeMainContent(
-            selectedPack = previewPacks.first(),
-            selectedPayment = payments.first(),
-            walletHearts = 120,
-            rechargePacks = previewPacks,
+            selectedPack = selectedPack,
+            selectedPayment = selectedPayment,
+            walletHearts = 10940,
+            rechargePacks = rechargePacks,
             rechargeUiState = RechargeUiState(
                 isLoading = false,
-                options = listOf(
-                    RechargeOption("preview_100", "HEARTS_100", 100, 99),
-                    RechargeOption("preview_250", "HEARTS_250", 250, 199),
-                    RechargeOption("preview_600", "HEARTS_600", 600, 499, isPopular = true),
-                    RechargeOption("preview_1200", "HEARTS_1200", 1200, 999),
-                    RechargeOption("preview_2500", "HEARTS_2500", 2500, 1499),
-                    RechargeOption("preview_4000", "HEARTS_4000", 4000, 199)
-                ),
-                selectedOptionId = "preview_100"
+                options = previewOptions,
+                selectedOptionId = selectedPack.id
             ),
-            paymentMethods = payments,
-            onPackSelected = {},
-            onPaymentSelected = {},
+            paymentMethods = paymentMethods,
+            onPackSelected = { selectedPack = it },
+            onPaymentSelected = { selectedPayment = it },
             onRetry = {},
             onBack = {},
             onCouponClick = {},
@@ -1466,3 +1481,28 @@ private fun RechargeScreenPreview() {
         )
     }
 }
+
+//@Preview(showBackground = true, widthDp = 393, heightDp = 852)
+//@Composable
+//private fun CouponOverlayPreview() {
+//    BffAndroidTheme {
+//        Box(
+//            modifier = Modifier
+//                .fillMaxSize()
+//                .background(RechargePurple)
+//        ) {
+//            Image(
+//                painter = painterResource(id = R.drawable.recharge_screen_background),
+//                contentDescription = null,
+//                modifier = Modifier.fillMaxSize(),
+//                contentScale = ContentScale.Crop
+//            )
+//            CouponOverlay(
+//                coupons = couponItems(),
+//                selectedCouponId = null,
+//                onDismiss = {},
+//                onCouponApply = {}
+//            )
+//        }
+//    }
+//}

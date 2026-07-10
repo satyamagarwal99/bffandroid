@@ -11,6 +11,7 @@ import com.gobff.getfriends.data.model.CallRoomUiState
 import com.gobff.getfriends.data.model.CreateRoomBody
 import com.gobff.getfriends.data.model.JoinRoomBody
 import com.gobff.getfriends.data.model.RoomFeedbackBody
+import com.gobff.getfriends.data.model.RoomMessageBody
 import com.gobff.getfriends.data.model.RoomRole
 import com.gobff.getfriends.data.model.RoomType
 import com.gobff.getfriends.data.model.RtcTokenBody
@@ -309,6 +310,95 @@ class CallViewModel(
                 if (response.isSuccessful) {
                     uiState = uiState.copy(feedbackStatus = response.body())
                 }
+            }
+        }
+    }
+
+    fun loadRoomMessages(
+        roomId: String? = uiState.room?.id,
+        forceRefresh: Boolean = false
+    ) {
+        val token = TokenUtils.getToken()
+        if (token.isBlank() || roomId.isNullOrBlank()) {
+            uiState = uiState.copy(roomMessageErrorMessage = "Unable to load messages")
+            return
+        }
+        if (uiState.roomMessages.isNotEmpty() && !forceRefresh) return
+
+        viewModelScope.launch {
+            uiState = uiState.copy(
+                isLoadingRoomMessages = true,
+                roomMessageErrorMessage = null
+            )
+
+            runCatching { mainRepository.getRoomMessages(token, roomId) }
+                .onSuccess { response ->
+                    uiState = if (response.isSuccessful) {
+                        uiState.copy(
+                            isLoadingRoomMessages = false,
+                            roomMessages = response.body().orEmpty(),
+                            roomMessageErrorMessage = null
+                        )
+                    } else {
+                        uiState.copy(
+                            isLoadingRoomMessages = false,
+                            roomMessageErrorMessage = "Unable to load messages"
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    uiState = uiState.copy(
+                        isLoadingRoomMessages = false,
+                        roomMessageErrorMessage = error.message ?: "Unable to load messages"
+                    )
+                }
+        }
+    }
+
+    fun sendRoomMessage(
+        message: String,
+        roomId: String? = uiState.room?.id
+    ) {
+        val trimmedMessage = message.trim()
+        if (trimmedMessage.isBlank() || uiState.isSendingRoomMessage) return
+
+        val token = TokenUtils.getToken()
+        if (token.isBlank() || roomId.isNullOrBlank()) {
+            uiState = uiState.copy(roomMessageErrorMessage = "Unable to send message")
+            return
+        }
+
+        viewModelScope.launch {
+            uiState = uiState.copy(
+                isSendingRoomMessage = true,
+                roomMessageErrorMessage = null
+            )
+
+            runCatching {
+                mainRepository.sendRoomMessage(
+                    bearerToken = token,
+                    roomId = roomId,
+                    body = RoomMessageBody(body = trimmedMessage)
+                )
+            }.onSuccess { response ->
+                val sentMessage = response.body()
+                uiState = if (response.isSuccessful && sentMessage != null) {
+                    uiState.copy(
+                        isSendingRoomMessage = false,
+                        roomMessages = uiState.roomMessages + sentMessage,
+                        roomMessageErrorMessage = null
+                    )
+                } else {
+                    uiState.copy(
+                        isSendingRoomMessage = false,
+                        roomMessageErrorMessage = "Unable to send message"
+                    )
+                }
+            }.onFailure { error ->
+                uiState = uiState.copy(
+                    isSendingRoomMessage = false,
+                    roomMessageErrorMessage = error.message ?: "Unable to send message"
+                )
             }
         }
     }

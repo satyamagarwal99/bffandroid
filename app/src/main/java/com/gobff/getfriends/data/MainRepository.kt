@@ -31,6 +31,8 @@ import com.gobff.getfriends.data.model.RoomResponse
 import com.gobff.getfriends.data.model.RoomFeedbackBody
 import com.gobff.getfriends.data.model.RoomFeedbackResponse
 import com.gobff.getfriends.data.model.RoomFeedbackStatusResponse
+import com.gobff.getfriends.data.model.RoomMessageBody
+import com.gobff.getfriends.data.model.RoomMessageResponse
 import com.gobff.getfriends.data.model.RtcTokenBody
 import com.gobff.getfriends.data.model.RtcTokenResponse
 import com.gobff.getfriends.data.model.UpdateProfileBody
@@ -143,6 +145,17 @@ class MainRepository(
         bearerToken: String,
         roomId: String
     ): Response<RoomFeedbackStatusResponse> = apiService.getRoomFeedbackStatus(bearerToken, roomId)
+
+    suspend fun getRoomMessages(
+        bearerToken: String,
+        roomId: String
+    ): Response<List<RoomMessageResponse>> = apiService.getRoomMessages(bearerToken, roomId)
+
+    suspend fun sendRoomMessage(
+        bearerToken: String,
+        roomId: String,
+        body: RoomMessageBody
+    ): Response<RoomMessageResponse> = apiService.sendRoomMessage(bearerToken, roomId, body)
 
     suspend fun getRtcToken(
         bearerToken: String,

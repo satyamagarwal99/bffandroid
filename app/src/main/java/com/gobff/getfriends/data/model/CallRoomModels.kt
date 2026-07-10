@@ -50,6 +50,20 @@ data class RoomFeedbackStatusResponse(
     @SerializedName("message") val message: String?
 )
 
+data class RoomMessageBody(
+    @SerializedName("body") val body: String
+)
+
+data class RoomMessageResponse(
+    @SerializedName("messageId") val messageId: String?,
+    @SerializedName("roomId") val roomId: String?,
+    @SerializedName("senderUserId") val senderUserId: String?,
+    @SerializedName("senderDisplayName") val senderDisplayName: String?,
+    @SerializedName("senderAvatarUrl") val senderAvatarUrl: String?,
+    @SerializedName("body") val body: String?,
+    @SerializedName("createdAt") val createdAt: String?
+)
+
 data class CallHistoryItemResponse(
     @SerializedName("roomId") val roomId: String?,
     @SerializedName("roomType") val roomType: String?,
@@ -115,6 +129,10 @@ data class CallRoomUiState(
     val feedbackSubmitted: Boolean = false,
     val feedbackStatus: RoomFeedbackStatusResponse? = null,
     val feedbackErrorMessage: String? = null,
+    val isLoadingRoomMessages: Boolean = false,
+    val isSendingRoomMessage: Boolean = false,
+    val roomMessages: List<RoomMessageResponse> = emptyList(),
+    val roomMessageErrorMessage: String? = null,
     val errorMessage: String? = null
 )
 
