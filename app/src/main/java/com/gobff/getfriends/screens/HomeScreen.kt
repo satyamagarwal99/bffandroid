@@ -78,6 +78,7 @@ import com.gobff.getfriends.data.model.defaultVibeOptions
 import com.gobff.getfriends.ui.component.BffHeartChip
 import com.gobff.getfriends.ui.component.CachedAvatarImage
 import com.gobff.getfriends.ui.component.HandDrawnCardShape
+import com.gobff.getfriends.ui.component.screenEnterMotion
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.GaretFontFamily
 import com.gobff.getfriends.utils.AppSession
@@ -162,6 +163,7 @@ fun HomeScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp)
                     .padding(top = 48.dp)
+                    .screenEnterMotion(index = 0)
                     .graphicsLayer {
                         alpha = (1f - (callDragProgress * 1.35f)).coerceIn(0f, 1f)
                     }
@@ -193,6 +195,7 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
+                    .screenEnterMotion(index = 1, initialOffsetY = 24.dp)
             ) {
                 if (hasConnectUsers) {
                     HomeCardStack(

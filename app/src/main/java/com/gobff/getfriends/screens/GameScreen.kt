@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gobff.getfriends.R
 import com.gobff.getfriends.ui.component.BffHeartChip
+import com.gobff.getfriends.ui.component.screenEnterMotion
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.FreedokaFontFamily
 import com.gobff.getfriends.ui.theme.GaretFontFamily
@@ -98,6 +99,7 @@ fun GameScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(236.dp)
+                    .screenEnterMotion(index = 0)
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.man_avatar1),
@@ -145,6 +147,7 @@ fun GameScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+                    .screenEnterMotion(index = 1, initialOffsetY = 26.dp)
                     .background(
                         Brush.linearGradient(
                             colors = listOf(Color(0xFFECE1FB), Color(0xFFE9E0FA))
@@ -175,7 +178,8 @@ fun GameScreen(
                         gradient = Brush.linearGradient(
                             colors = listOf(Color(0xFFFC9071), Color(0xFFFD8461))
                         ),
-                        onClick = onTruthDareSelected
+                        onClick = onTruthDareSelected,
+                        modifier = Modifier.screenEnterMotion(index = 2)
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 
@@ -190,7 +194,8 @@ fun GameScreen(
                         imageOffsetY = (-8).dp,
                         gradient = Brush.linearGradient(
                             colors = listOf(Color(0xFFF97AB9), Color(0xFFF15AA3))
-                        )
+                        ),
+                        modifier = Modifier.screenEnterMotion(index = 3)
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 
@@ -204,7 +209,8 @@ fun GameScreen(
                         imageOffsetY = (-16).dp,
                         gradient = Brush.linearGradient(
                             colors = listOf(Color(0xFFB892EE), Color(0xFF9678F4))
-                        )
+                        ),
+                        modifier = Modifier.screenEnterMotion(index = 4)
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 
@@ -218,7 +224,8 @@ fun GameScreen(
                         imageOffsetY = (-4).dp,
                         gradient = Brush.linearGradient(
                             colors = listOf(Color(0xFF82B5F2), Color(0xFF6398EF))
-                        )
+                        ),
+                        modifier = Modifier.screenEnterMotion(index = 5)
                     )
                 }
             }

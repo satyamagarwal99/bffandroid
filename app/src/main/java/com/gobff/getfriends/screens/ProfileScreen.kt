@@ -83,6 +83,7 @@ import com.gobff.getfriends.ui.component.BffHeartChip
 import com.gobff.getfriends.ui.component.CachedAvatarImage
 import com.gobff.getfriends.ui.component.HandDrawnCardShape
 import com.gobff.getfriends.ui.component.HeartChipShape
+import com.gobff.getfriends.ui.component.screenEnterMotion
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.GaretFontFamily
 import com.gobff.getfriends.utils.AvatarCache
@@ -361,6 +362,7 @@ private fun ProfileScreenContent(
                 modifier = Modifier
                     .padding(horizontal = 20.dp)
                     .padding(top = 48.dp)
+                    .screenEnterMotion(index = 0)
             )
             Spacer(modifier = Modifier.height(46.dp))
             ProfileIdentity(
@@ -378,7 +380,8 @@ private fun ProfileScreenContent(
                 onNameEditClick = {
                     editingName = userProfileState.displayName.orEmpty()
                     openSheet = ProfileSheet.Name
-                }
+                },
+                modifier = Modifier.screenEnterMotion(index = 1, initialOffsetY = 20.dp)
             )
             Spacer(modifier = Modifier.height(18.dp))
             ProfileContentCard(
@@ -387,7 +390,8 @@ private fun ProfileScreenContent(
                 onInterestClick = { openSheet = ProfileSheet.Interests },
                 onVibeClick = { openSheet = ProfileSheet.Vibe },
                 onGameStatsClick = { openSheet = ProfileSheet.GameStats },
-                onGiftVibeRequested = onGiftVibeRequested
+                onGiftVibeRequested = onGiftVibeRequested,
+                modifier = Modifier.screenEnterMotion(index = 2, initialOffsetY = 24.dp)
             )
         }
 
@@ -614,9 +618,13 @@ private fun ProfileIdentity(
     notificationPermissionMessage: String?,
     onToggleAvailability: () -> Unit,
     onAvatarEditClick: () -> Unit,
-    onNameEditClick: () -> Unit
+    onNameEditClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+    ) {
         Box(modifier = Modifier.size(112.dp)) {
             CachedAvatarImage(
                 avatarUrl = avatarUrl,
@@ -814,10 +822,11 @@ private fun ProfileContentCard(
     onInterestClick: () -> Unit,
     onVibeClick: () -> Unit,
     onGameStatsClick: () -> Unit,
-    onGiftVibeRequested: () -> Unit
+    onGiftVibeRequested: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .background(ProfileCoral)

@@ -59,6 +59,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gobff.getfriends.R
 import com.gobff.getfriends.data.model.CallHistoryItemResponse
 import com.gobff.getfriends.ui.component.BffHeartChip
+import com.gobff.getfriends.ui.component.screenEnterMotion
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.FreedokaFontFamily
 import com.gobff.getfriends.ui.theme.GaretFontFamily
@@ -104,18 +105,20 @@ fun HistoryScreen(
                 walletHearts = walletHearts,
                 onProfileRequested = onProfileRequested,
                 onRechargeRequested = onRechargeRequested,
-                modifier = Modifier.padding(horizontal = 20.dp)
+                modifier = Modifier
+                    .padding(horizontal = 20.dp)
+                    .screenEnterMotion(index = 0)
             )
             Spacer(modifier = Modifier.height(40.dp))
-            HistoryTopArea()
+            HistoryTopArea(modifier = Modifier.screenEnterMotion(index = 1))
             Spacer(modifier = Modifier.height(24.dp))
-            HistoryTabs()
+            HistoryTabs(modifier = Modifier.screenEnterMotion(index = 2))
             when {
                 callHistoryUiState.isLoading -> {
-                    HistoryContentCard()
+                    HistoryContentCard(modifier = Modifier.screenEnterMotion(index = 3, initialOffsetY = 26.dp))
                 }
                 callHistoryUiState.errorMessage != null -> {
-                    HistoryContentCard {
+                    HistoryContentCard(modifier = Modifier.screenEnterMotion(index = 3, initialOffsetY = 26.dp)) {
                         HistoryStatusText(
                             text = callHistoryUiState.errorMessage,
                             modifier = Modifier
@@ -125,12 +128,12 @@ fun HistoryScreen(
                     }
                 }
                 callHistoryUiState.calls.isEmpty() -> {
-                    HistoryContentCard {
+                    HistoryContentCard(modifier = Modifier.screenEnterMotion(index = 3, initialOffsetY = 26.dp)) {
                         HistoryEmptyState(onCallNow = onConnectSelected)
                     }
                 }
                 else -> {
-                    HistoryContentCard {
+                    HistoryContentCard(modifier = Modifier.screenEnterMotion(index = 3, initialOffsetY = 26.dp)) {
                         HistoryCallList(
                             calls = callHistoryUiState.calls.map { it.toHistoryCall() },
                             modifier = Modifier.padding(start = 24.dp, top = 30.dp, end = 24.dp, bottom = 48.dp)
@@ -295,10 +298,10 @@ private fun HistoryTopBar(
 }
 
 @Composable
-private fun HistoryTopArea() {
+private fun HistoryTopArea(modifier: Modifier = Modifier) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(86.dp)
     ) {
@@ -353,9 +356,9 @@ private fun HistoryTopArea() {
 }
 
 @Composable
-private fun HistoryTabs() {
+private fun HistoryTabs(modifier: Modifier = Modifier) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(32.dp)
             .padding(horizontal = 37.dp),
@@ -406,8 +409,11 @@ private fun HistoryCallList(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         modifier = modifier.fillMaxWidth()
     ) {
-        calls.forEach { call ->
-            HistoryCallRow(call = call)
+        calls.forEachIndexed { index, call ->
+            HistoryCallRow(
+                call = call,
+                modifier = Modifier.screenEnterMotion(index = index.coerceAtMost(6), initialOffsetY = 12.dp)
+            )
         }
     }
 }
@@ -429,10 +435,13 @@ private fun HistoryStatusText(
 }
 
 @Composable
-private fun HistoryCallRow(call: HistoryCall) {
+private fun HistoryCallRow(
+    call: HistoryCall,
+    modifier: Modifier = Modifier
+) {
     val shape = RoundedCornerShape(18.dp)
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(64.dp)
     ) {
