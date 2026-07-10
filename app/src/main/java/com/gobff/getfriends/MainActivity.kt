@@ -28,6 +28,7 @@ class MainActivity : ComponentActivity() {
 
     private val mainViewModel: MainViewModel by viewModels()
     private var incomingCallPush by mutableStateOf<IncomingCallPush?>(null)
+    private var callEndedPush by mutableStateOf<CallEndedPush?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         AppSession.initialize(this)
@@ -43,7 +44,9 @@ class MainActivity : ComponentActivity() {
             BffAndroidTheme {
                 AppNavGraph(
                     incomingCallPush = incomingCallPush,
-                    onIncomingCallPushHandled = { incomingCallPush = null }
+                    onIncomingCallPushHandled = { incomingCallPush = null },
+                    callEndedPush = callEndedPush,
+                    onCallEndedPushHandled = { callEndedPush = null }
                 )
             }
         }
@@ -133,6 +136,11 @@ class MainActivity : ComponentActivity() {
             IncomingCallEvents.events.collect { push ->
                 incomingCallPush = push
                 cancelIncomingCallNotification(push)
+            }
+        }
+        lifecycleScope.launch {
+            CallEndedEvents.events.collect { push ->
+                callEndedPush = push
             }
         }
     }
