@@ -171,15 +171,36 @@ private fun HistoryContentCard(
             modifier = Modifier.matchParentSize(),
             contentScale = ContentScale.FillBounds
         )
-        Box(
+        HistorySelectedTabStrip(
             modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(start = 58.dp)
-                .size(width = 122.dp, height = 4.dp)
-                .clip(RoundedCornerShape(bottomStart = 10.dp, bottomEnd = 10.dp))
-                .background(Color(0xFFB44E35))
+                .align(Alignment.TopCenter)
+                .padding(horizontal = 37.dp)
         )
         content()
+    }
+}
+
+@Composable
+private fun HistorySelectedTabStrip(modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(4.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(width = 122.dp, height = 4.dp)
+                    .clip(RoundedCornerShape(bottomStart = 10.dp, bottomEnd = 10.dp))
+                    .background(Color(0xFFB44E35))
+            )
+        }
+        Spacer(modifier = Modifier.weight(1f))
     }
 }
 

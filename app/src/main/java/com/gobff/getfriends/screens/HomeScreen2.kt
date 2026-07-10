@@ -54,17 +54,23 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gobff.getfriends.R
+import com.gobff.getfriends.data.model.ConnectUserResponse
+import com.gobff.getfriends.data.model.FriendListUserResponse
 import com.gobff.getfriends.ui.component.BffHeartChip
 import com.gobff.getfriends.ui.component.HandDrawnCardShape
 import com.gobff.getfriends.ui.component.HeartChipShape
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.FreedokaFontFamily
 import com.gobff.getfriends.ui.theme.GaretFontFamily
+import com.gobff.getfriends.viewmodel.FriendsListViewModel
+import com.gobff.getfriends.viewmodel.HomeScreenViewModel
 import kotlinx.coroutines.delay
 
 private val HomeScreen2Pink = Color(0xFFFF639C)
@@ -131,8 +137,66 @@ fun HomeScreen2(
     onRechargeRequested: () -> Unit = {},
     onHomeSelected: () -> Unit = {},
     onProfileRequested: () -> Unit = {},
-    onTruthDareSelected: () -> Unit = {}
+    onFriendsListSelected: () -> Unit = {},
+    onTruthDareSelected: () -> Unit = {},
+    friendsListViewModel: FriendsListViewModel = viewModel(),
+    homeScreenViewModel: HomeScreenViewModel = viewModel()
 
+) {
+    LaunchedEffect(Unit) {
+        friendsListViewModel.loadFriends()
+        homeScreenViewModel.loadConnectUsers(size = 10)
+    }
+
+    val friendsUiState = friendsListViewModel.uiState
+    val connectUsersUiState = homeScreenViewModel.connectUsersUiState
+    val starFriends = remember(friendsUiState.friends) {
+        friendsUiState.friends
+            .filter { it.isStarFriendForHome() }
+            .ifEmpty { friendsUiState.friends }
+            .take(6)
+    }
+    val onlineFriends = remember(connectUsersUiState.users) {
+        connectUsersUiState.users.take(10)
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color.White)
+    ) {
+        HomeScreen2Content(
+            walletHearts = walletHearts,
+            displayName = displayName,
+            starFriends = starFriends,
+            onlineFriends = onlineFriends,
+            onChatSelected = onChatSelected,
+            onProfileRequested = onProfileRequested,
+            onRechargeRequested = onRechargeRequested,
+            onGamesSelected = onGamesSelected,
+            onExploreFriendsSelected = onConnectSelected,
+            onFriendsListSelected = onFriendsListSelected,
+            onLiveSelected = onLiveSelected,
+            onTruthDareSelected = onTruthDareSelected
+        )
+    }
+}
+
+@Composable
+private fun HomeScreen2Content(
+    modifier: Modifier = Modifier,
+    walletHearts: Int = 0,
+    displayName: String? = null,
+    starFriends: List<FriendListUserResponse> = emptyList(),
+    onlineFriends: List<ConnectUserResponse> = emptyList(),
+    onChatSelected: () -> Unit = {},
+    onGamesSelected: () -> Unit = {},
+    onRechargeRequested: () -> Unit = {},
+    onProfileRequested: () -> Unit = {},
+    onExploreFriendsSelected: () -> Unit = {},
+    onFriendsListSelected: () -> Unit = {},
+    onLiveSelected: () -> Unit = {},
+    onTruthDareSelected: () -> Unit = {}
 ) {
     Box(
         modifier = modifier
@@ -171,18 +235,31 @@ fun HomeScreen2(
                 ) {
                     HomeScreen2SectionHeader(
                         title = "Star Friends",
-                        showStarIcon = true
+                        showStarIcon = true,
+                        onViewAllClick = onFriendsListSelected
                     )
                     Spacer(modifier = Modifier.height(18.dp))
-                    HomeScreen2StarFriendRow()
+                    HomeScreen2StarFriendRow(
+                        friends = starFriends,
+                        onExploreFriendsSelected = onExploreFriendsSelected
+                    )
 
                     Spacer(modifier = Modifier.height(30.dp))
-                    HomeScreen2SectionHeader(title = "Friends Online")
+                    HomeScreen2SectionHeader(
+                        title = "Friends Online",
+                        onViewAllClick = onExploreFriendsSelected
+                    )
                     Spacer(modifier = Modifier.height(18.dp))
-                    HomeScreen2FriendRow()
+                    HomeScreen2FriendRow(
+                        friends = onlineFriends,
+                        onMakeFriendSelected = onExploreFriendsSelected
+                    )
 
                     Spacer(modifier = Modifier.height(30.dp))
-                    HomeScreen2SectionHeader(title = "Streaming live now")
+                    HomeScreen2SectionHeader(
+                        title = "Streaming live now",
+                        onViewAllClick = onLiveSelected
+                    )
                     Spacer(modifier = Modifier.height(18.dp))
                     HomeScreen2LiveRow()
 
@@ -404,16 +481,35 @@ private fun HomeScreen2SectionHeader(
 }
 
 @Composable
-private fun HomeScreen2StarFriendRow() {
+private fun HomeScreen2StarFriendRow(
+    friends: List<FriendListUserResponse>,
+    onExploreFriendsSelected: () -> Unit
+) {
+    if (friends.isEmpty()) {
+        HomeScreen2EmptyCard(
+            imageRes = R.drawable.home_screen_star_friends,
+            title = "No Star Friends Available",
+            buttonText = "Explore Friends",
+            onButtonClick = onExploreFriendsSelected,
+            delayMillis = 170
+        )
+        return
+    }
+
     Row(
         horizontalArrangement = Arrangement.spacedBy(20.dp),
         modifier = Modifier
             .horizontalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
     ) {
-        HomeScreen2StarFriendCard(name = "Anshu", avatarRes = R.drawable.women_avatar1, delayMillis = 170)
-        HomeScreen2StarFriendCard(name = "Dev", avatarRes = R.drawable.women_avatar1, delayMillis = 230)
-        HomeScreen2StarFriendCard(name = "Priya", avatarRes = R.drawable.women_avatar1, delayMillis = 290)
+        friends.forEachIndexed { index, friend ->
+            HomeScreen2StarFriendCard(
+                name = friend.displayNameForHome(),
+                avatarRes = friend.avatarUrl.toHomeFriendAvatarRes(friend.identitySeedForHome()),
+                showOnline = friend.isOnlineForHome(),
+                delayMillis = 170 + index * 60
+            )
+        }
     }
 }
 
@@ -421,6 +517,7 @@ private fun HomeScreen2StarFriendRow() {
 private fun HomeScreen2StarFriendCard(
     name: String,
     avatarRes: Int,
+    showOnline: Boolean,
     delayMillis: Int = 0
 ) {
     val shape = HandDrawnCardShape
@@ -470,19 +567,21 @@ private fun HomeScreen2StarFriendCard(
                     contentScale = ContentScale.Crop
                 )
 
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .offset(x = -2.dp, y = 0.dp)
-                        .size(14.dp)
-                        .clip(CircleShape)
-                        .breathingOnlineDot()
-                        .border(
-                            width = 2.dp,
-                            color = Color.White,
-                            shape = CircleShape
-                        )
-                )
+                if (showOnline) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .offset(x = -2.dp, y = 0.dp)
+                            .size(14.dp)
+                            .clip(CircleShape)
+                            .breathingOnlineDot()
+                            .border(
+                                width = 2.dp,
+                                color = Color.White,
+                                shape = CircleShape
+                            )
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(7.dp))
@@ -585,16 +684,35 @@ private fun HomeScreen2StarFriendCard(
 //}
 
 @Composable
-private fun HomeScreen2FriendRow() {
+private fun HomeScreen2FriendRow(
+    friends: List<ConnectUserResponse>,
+    onMakeFriendSelected: () -> Unit
+) {
+    if (friends.isEmpty()) {
+        HomeScreen2EmptyCard(
+            imageRes = R.drawable.home_screen_friends_online,
+            title = "No Friends Are Online Right Now",
+            buttonText = "Make a New Friend",
+            onButtonClick = onMakeFriendSelected,
+            delayMillis = 260
+        )
+        return
+    }
+
     Row(
         horizontalArrangement = Arrangement.spacedBy(20.dp),
         modifier = Modifier
             .horizontalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
     ) {
-        HomeScreen2FriendCard(name = "Anshu", avatarRes = R.drawable.women_avatar1, delayMillis = 260)
-        HomeScreen2FriendCard(name = "Dev", avatarRes = R.drawable.women_avatar1, delayMillis = 320)
-        HomeScreen2FriendCard(name = "Priya", avatarRes = R.drawable.women_avatar1, delayMillis = 380)
+        friends.forEachIndexed { index, friend ->
+            HomeScreen2FriendCard(
+                name = friend.displayNameForHome(),
+                avatarRes = friend.avatarUrl.toHomeFriendAvatarRes(friend.identitySeedForHome()),
+                showOnline = friend.online != false,
+                delayMillis = 260 + index * 60
+            )
+        }
     }
 }
 
@@ -602,6 +720,7 @@ private fun HomeScreen2FriendRow() {
 private fun HomeScreen2FriendCard(
     name: String,
     avatarRes: Int,
+    showOnline: Boolean,
     delayMillis: Int = 0
 ) {
     val shape = HandDrawnCardShape
@@ -635,15 +754,17 @@ private fun HomeScreen2FriendCard(
                         .clip(CircleShape),
                     contentScale = ContentScale.Crop
                 )
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .offset(x = -2.dp, y = 0.dp)
-                        .size(14.dp)
-                        .clip(CircleShape)
-                        .breathingOnlineDot()
-                        .border(2.dp, Color.White, CircleShape)
-                )
+                if (showOnline) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .offset(x = -2.dp, y = 0.dp)
+                            .size(14.dp)
+                            .clip(CircleShape)
+                            .breathingOnlineDot()
+                            .border(2.dp, Color.White, CircleShape)
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(7.dp))
             Text(
@@ -722,52 +843,31 @@ private fun HomeScreen2PillButton(
 
 @Composable
 private fun HomeScreen2LiveRow() {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(20.dp),
-        modifier = Modifier
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp)
-    ) {
-        HomeScreen2LiveCard(
-            name = "Alia",
-            subtitle = "Let's chill & talk",
-            viewers = "35",
-            imageRes = R.drawable.home_screen_demo1,
-            delayMillis = 350
-        )
-        HomeScreen2LiveCard(
-            name = "Benji",
-            subtitle = "Coding session",
-            viewers = "42",
-            imageRes = R.drawable.home_screen_demo2,
-            delayMillis = 410
-        )
-        HomeScreen2LiveCard(
-            name = "Cara",
-            subtitle = "Let's play game",
-            viewers = "38",
-            imageRes = R.drawable.home_screen_demo1,
-            delayMillis = 470
-        )
-    }
+    HomeScreen2EmptyCard(
+        imageRes = R.drawable.home_screen_live_stream,
+        title = "No Live Streams Right Now",
+        subtitle = "No live or upcoming sessions at the moment.",
+        delayMillis = 350
+    )
 }
 
 @Composable
-private fun HomeScreen2LiveCard(
-    name: String,
-    subtitle: String,
-    viewers: String,
+private fun HomeScreen2EmptyCard(
     imageRes: Int,
+    title: String,
+    subtitle: String? = null,
+    buttonText: String? = null,
+    onButtonClick: () -> Unit = {},
     delayMillis: Int = 0
 ) {
     val shape = HandDrawnCardShape
-
     Box(
-        modifier = Modifier.size(width = 130.dp, height = 138.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(140.dp)
+            .padding(horizontal = 20.dp)
             .enterMotion(delayMillis = delayMillis, slideY = 30f)
     ) {
-
-        // Shadow
         Box(
             modifier = Modifier
                 .matchParentSize()
@@ -776,108 +876,98 @@ private fun HomeScreen2LiveCard(
                 .background(Color.Black)
         )
 
-        // Card
-        Box(
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .matchParentSize()
                 .clip(shape)
                 .background(Color.White)
                 .border(1.dp, Color.White, shape)
+                .padding(start = 22.dp, end = 24.dp)
         ) {
-
             Image(
                 painter = painterResource(id = imageRes),
                 contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
+                modifier = Modifier.size(width = 107.dp, height = 93.dp),
+                contentScale = ContentScale.Fit
             )
 
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(Color.Black.copy(alpha = 0.18f))
-            )
+            Spacer(modifier = Modifier.width(22.dp))
 
-            // LIVE badge
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
+            Column(
+                verticalArrangement = Arrangement.Center,
                 modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(8.dp)
+                    .weight(1f)
             ) {
-
                 Text(
-                    text = "Live",
-                    color = Color.White,
-                    fontSize = 9.sp,
+                    text = title,
+                    color = Color.Black,
+                    fontSize = 13.sp,
                     fontFamily = GaretFontFamily,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(15.dp))
-                        .background(Color(0xFFFF3333))
-                        .padding(horizontal = 5.dp, vertical = 3.dp)
+                    lineHeight = 20.sp,
+                    textAlign = TextAlign.Start
                 )
 
-                Spacer(modifier = Modifier.weight(1f))
-            }
-
-            // Viewers
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 10.dp, end = 10.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color.Black.copy(alpha = 0.35f))
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) {
-
-                Icon(
-                    imageVector = Icons.Default.Visibility,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(12.dp)
-                )
-
-                Spacer(modifier = Modifier.width(3.dp))
-
-                Text(
-                    text = viewers,
-                    color = Color.White,
-                    fontSize = 10.sp,
-                    fontFamily = GaretFontFamily,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            // Bottom text
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(
-                        start = 10.dp,
-                        end = 10.dp,
-                        bottom = 12.dp
+                if (subtitle != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = subtitle,
+                        color = Color.Black,
+                        fontSize = 11.sp,
+                        fontFamily = GaretFontFamily,
+                        fontWeight = FontWeight.Medium,
+                        lineHeight = 16.sp
                     )
-            ) {
+                }
 
-                Text(
-                    text = name,
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    fontFamily = GaretFontFamily,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Text(
-                    text = subtitle,
-                    color = Color.White,
-                    fontSize = 10.sp,
-                    fontFamily = GaretFontFamily,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1
-                )
+                if (buttonText != null) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    HomeScreen2EmptyActionButton(
+                        text = buttonText,
+                        modifier = Modifier.width(140.dp),
+                        onClick = onButtonClick
+                    )
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun HomeScreen2EmptyActionButton(
+    text: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {}
+) {
+    val shape = HandDrawnCardShape
+    Box(
+        modifier = modifier
+            .height(34.dp)
+            .clickable(onClick = onClick)
+    ) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(x = 1.5.dp, y = 2.dp)
+                .clip(shape)
+                .background(Color.Black)
+        )
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(HomeScreen2Yellow)
+        ) {
+            Text(
+                text = text,
+                color = Color.Black,
+                fontSize = 12.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Medium,
+                lineHeight = 12.sp
+            )
         }
     }
 }
@@ -951,10 +1041,74 @@ private fun HomeScreen2GameCard(
     }
 }
 
+private fun FriendListUserResponse.displayNameForHome(): String =
+    displayName?.takeIf { it.isNotBlank() }
+        ?: name?.takeIf { it.isNotBlank() }
+        ?: "Someone"
+
+private fun FriendListUserResponse.isOnlineForHome(): Boolean =
+    online == true || isOnline == true
+
+private fun FriendListUserResponse.isStarFriendForHome(): Boolean =
+    favorite == true || isFavorite == true
+
+private fun FriendListUserResponse.identitySeedForHome(): String =
+    userId ?: id ?: displayName ?: name ?: avatarUrl.orEmpty()
+
+private fun ConnectUserResponse.displayNameForHome(): String =
+    displayName?.takeIf { it.isNotBlank() } ?: "Someone"
+
+private fun ConnectUserResponse.identitySeedForHome(): String =
+    userId ?: displayName ?: avatarUrl.orEmpty()
+
+private fun String?.toHomeFriendAvatarRes(seed: String): Int {
+    return when (this?.substringAfterLast("/")?.substringBeforeLast(".")?.trim()?.lowercase()) {
+        "home_screen_avatar" -> R.drawable.home_screen_avatar
+        "women_avatar1" -> R.drawable.women_avatar1
+        "women_avatar2" -> R.drawable.women_avatar1
+        "women_avatar3" -> R.drawable.women_avatar1
+        "women_avatar4" -> R.drawable.women_avatar1
+        "women_avatar5" -> R.drawable.women_avatar1
+        "women_avatar6" -> R.drawable.women_avatar1
+        "women_avatar7" -> R.drawable.women_avatar1
+        "women_avatar8" -> R.drawable.women_avatar1
+        "women_avatar9" -> R.drawable.women_avatar1
+        "women_avatar10" -> R.drawable.women_avatar1
+        "women_avatar11" -> R.drawable.women_avatar1
+        "women_avatar12" -> R.drawable.women_avatar1
+        "man_avatar1" -> R.drawable.man_avatar1
+        "man_avatar2" -> R.drawable.man_avatar1
+        "man_avatar3" -> R.drawable.man_avatar1
+        "man_avatar4" -> R.drawable.man_avatar1
+        "man_avatar5" -> R.drawable.man_avatar1
+        "man_avatar6" -> R.drawable.man_avatar1
+        "man_avatar7" -> R.drawable.man_avatar1
+        "man_avatar8" -> R.drawable.man_avatar1
+        "man_avatar9" -> R.drawable.man_avatar1
+        "man_avatar10" -> R.drawable.man_avatar1
+        "man_avatar11" -> R.drawable.man_avatar1
+        "man_avatar12" -> R.drawable.man_avatar1
+        else -> {
+            val avatars = listOf(
+                R.drawable.home_screen_avatar,
+                R.drawable.women_avatar1,
+                R.drawable.women_avatar1,
+                R.drawable.women_avatar1,
+                R.drawable.man_avatar1
+            )
+            val index = (seed.hashCode() and Int.MAX_VALUE) % avatars.size
+            avatars[index]
+        }
+    }
+}
+
 @Preview(showBackground = true, widthDp = 393, heightDp = 852)
 @Composable
 private fun HomeScreen2Preview() {
     BffAndroidTheme {
-        HomeScreen2()
+        HomeScreen2Content(
+            walletHearts = 30,
+            displayName = "Akash"
+        )
     }
 }

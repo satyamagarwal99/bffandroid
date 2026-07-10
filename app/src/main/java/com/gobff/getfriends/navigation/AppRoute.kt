@@ -15,6 +15,7 @@ sealed class AppRoute(val route: String) {
     data object Chat : AppRoute("chat")
     data object History : AppRoute("history")
     data object Games : AppRoute("games")
+    data object Live : AppRoute("live")
     data object TruthDare : AppRoute("truth_dare")
     data object PersonalChat : AppRoute("personal_chat")
     data object Friends : AppRoute("friends")

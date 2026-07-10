@@ -1,6 +1,14 @@
 package com.gobff.getfriends.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -8,6 +16,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -43,6 +52,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
@@ -59,6 +69,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gobff.getfriends.R
 import com.gobff.getfriends.utils.PresenceHeartbeat
+import com.gobff.getfriends.ui.component.HandDrawnCardShape
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.FreedokaFontFamily
 import com.gobff.getfriends.ui.theme.GaretFontFamily
@@ -469,7 +480,7 @@ private fun SuggestFeatureContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(218.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(HandDrawnCardShape)
                         .background(Color(0xFFF4F4F4))
                         .padding(16.dp)
                 ) {
@@ -681,7 +692,7 @@ private fun AccountManagementContent(
                             }
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(16.dp))
+                                    .clip(HandDrawnCardShape)
                                     .background(SettingsAccent)
                                     .clickable(
                                         interactionSource = remember { MutableInteractionSource() },
@@ -777,29 +788,35 @@ private fun SettingsDetailScaffold(
     content: @Composable ColumnScope.() -> Unit
 ) {
     SettingsBackground(modifier = modifier) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
         ) {
-            SettingsWhiteHeader(
-                title = title,
-                subtitle = settingsSubtitleFor(title),
-                onBack = onBack
-            )
-            SettingsPurpleCard(
+            val detailCardMinHeight = (maxHeight - 198.dp).coerceAtLeast(570.dp)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 570.dp)
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                SettingsWhiteHeader(
+                    title = title,
+                    subtitle = settingsSubtitleFor(title),
+                    onBack = onBack
+                )
+                SettingsPurpleCard(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 28.dp, vertical = 34.dp),
-                    content = content
-                )
+                        .heightIn(min = detailCardMinHeight)
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 28.dp, vertical = 34.dp),
+                        content = content
+                    )
+                }
             }
         }
     }
@@ -955,7 +972,7 @@ private fun SettingsGroupCard(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val shape = RoundedCornerShape(26.dp)
+    val shape = HandDrawnCardShape
     Box(modifier = modifier.fillMaxWidth()) {
         Box(
             modifier = Modifier
@@ -1167,7 +1184,7 @@ private fun HelpActionCard(
     iconBackground: Color,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(12.dp)
+    val shape = HandDrawnCardShape
     Box(modifier = modifier.height(78.dp)) {
         Box(
             modifier = Modifier
@@ -1204,6 +1221,8 @@ private fun HelpActionCard(
 
 @Composable
 private fun FaqCard() {
+    var expandedIndex by remember { mutableStateOf<Int?>(null) }
+
     SettingsGroupCard {
         Text(
             text = "Frequently Asked Questions",
@@ -1213,30 +1232,46 @@ private fun FaqCard() {
             fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.height(18.dp))
-        FaqItem(
-            question = "I bought Hearts but didn't get them.",
-            expandedText = "Don't worry! Sometimes network delays happen. Try restarting your app. If your Hearts still don't appear after 5 minutes, tap the Contact us button above with your receipt!",
-            expanded = true
-        )
-        FaqItem("How do I earn free Hearts?")
-        FaqItem("How do I skip a dare I don't want to do?")
-        FaqItem("Can I suggest my own dares?")
-        FaqItem("How do I change my vibe or interests?")
-        FaqItem("How do I delete my account permanently?")
+        settingsFaqItems.forEachIndexed { index, faq ->
+            FaqItem(
+                question = faq.question,
+                answer = faq.answer,
+                expanded = expandedIndex == index,
+                onClick = {
+                    expandedIndex = if (expandedIndex == index) null else index
+                }
+            )
+        }
     }
 }
 
 @Composable
 private fun FaqItem(
     question: String,
-    expandedText: String? = null,
-    expanded: Boolean = false
+    answer: String,
+    expanded: Boolean,
+    onClick: () -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    val arrowRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = tween(durationMillis = 220),
+        label = "faqArrowRotation"
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize(animationSpec = tween(durationMillis = 240))
+    ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onClick
+                )
                 .padding(vertical = 10.dp)
         ) {
             Text(
@@ -1249,22 +1284,30 @@ private fun FaqItem(
                 modifier = Modifier.weight(1f)
             )
             Icon(
-                imageVector = if (expanded) Icons.Default.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                imageVector = Icons.Default.KeyboardArrowDown,
                 contentDescription = null,
                 tint = Color.Black,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier
+                    .size(20.dp)
+                    .rotate(arrowRotation)
             )
         }
-        if (expanded && expandedText != null) {
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically(animationSpec = tween(durationMillis = 240)) +
+                fadeIn(animationSpec = tween(durationMillis = 180)),
+            exit = shrinkVertically(animationSpec = tween(durationMillis = 220)) +
+                fadeOut(animationSpec = tween(durationMillis = 140))
+        ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(HandDrawnCardShape)
                     .background(Color(0xFFF4F4F4))
                     .padding(14.dp)
             ) {
                 Text(
-                    text = expandedText,
+                    text = answer,
                     color = Color(0xFF333333),
                     fontSize = 12.sp,
                     fontFamily = GaretFontFamily,
@@ -1281,6 +1324,46 @@ private fun FaqItem(
         )
     }
 }
+
+private data class SettingsFaq(
+    val question: String,
+    val answer: String
+)
+
+private val settingsFaqItems = listOf(
+    SettingsFaq(
+        question = "I purchased Hearts, but they haven't been added.",
+        answer = "Hearts are usually added instantly. If they don't appear within a few minutes, please restart the app. If the issue persists, contact Support with your payment receipt."
+    ),
+    SettingsFaq(
+        question = "How do I start a voice or video call?",
+        answer = "Drag down the user's profile to begin a voice or video conversation."
+    ),
+    SettingsFaq(
+        question = "Can I send messages during a call?",
+        answer = "Yes. You can exchange messages while you're on a call."
+    ),
+    SettingsFaq(
+        question = "What does \"Stay Online\" do?",
+        answer = "Enabling Stay Online lets other users know you're available to receive calls."
+    ),
+    SettingsFaq(
+        question = "What is Live Hangout?",
+        answer = "Live Hangout allows you to join live sessions, interact with others, and participate in community conversations."
+    ),
+    SettingsFaq(
+        question = "How do I block or report a user?",
+        answer = "You can block or report a user from their profile or by using the safety options available during a call."
+    ),
+    SettingsFaq(
+        question = "How do I update my profile?",
+        answer = "Go to Profile > Edit Profile to update your photo and personal information."
+    ),
+    SettingsFaq(
+        question = "How do I recharge Hearts?",
+        answer = "Open the recharge section to purchase Hearts using one of the available payment methods."
+    )
+)
 
 @Composable
 private fun UpdatePhoneSheet(
@@ -1504,7 +1587,7 @@ private fun SettingsInputField(
     keyboardType: KeyboardType = KeyboardType.Text,
     trailingIcon: @Composable (() -> Unit)? = null
 ) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = HandDrawnCardShape
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -1553,7 +1636,7 @@ private fun OtpBoxes(
     onOtpChange: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val boxShape = RoundedCornerShape(14.dp)
+    val boxShape = HandDrawnCardShape
     Row(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
         modifier = modifier
@@ -1613,7 +1696,7 @@ private fun PurpleActionButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = HandDrawnCardShape
     Box(
         modifier = modifier
             .height(54.dp)
@@ -1656,7 +1739,7 @@ private fun ShadowButton(
     height: androidx.compose.ui.unit.Dp,
     onClick: () -> Unit
 ) {
-    val shape = RoundedCornerShape(18.dp)
+    val shape = HandDrawnCardShape
     Box(
         modifier = Modifier
             .size(width = width, height = height)

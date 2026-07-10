@@ -84,6 +84,7 @@ import com.gobff.getfriends.screens.HistoryScreen
 import com.gobff.getfriends.screens.HomeScreen
 import com.gobff.getfriends.screens.HomeScreen2
 import com.gobff.getfriends.screens.IncomingCallScreen
+import com.gobff.getfriends.screens.LiveScreen
 import com.gobff.getfriends.screens.LoginScreen
 import com.gobff.getfriends.screens.PersonalChatScreen
 import com.gobff.getfriends.screens.ProfileScreen
@@ -471,7 +472,8 @@ fun AppNavGraph(
                 onHistorySelected = { navController.navigateBottomTab(AppRoute.History) },
                 onProfileRequested = { navController.navigateSingleTop(AppRoute.Profile) },
                 onRechargeRequested = { navController.navigateSingleTop(AppRoute.Recharge) },
-                onLiveSelected = { },
+                onLiveSelected = { navController.navigateBottomTab(AppRoute.Live) },
+                onFriendsListSelected = { navController.navigateSingleTop(AppRoute.Friends) },
                 onTruthDareSelected = { navController.navigateSingleTop(AppRoute.TruthDare) }
             )
         }
@@ -575,6 +577,17 @@ fun AppNavGraph(
             )
         }
 
+        composable(AppRoute.Live.route) {
+            LiveScreen(
+                walletHearts = walletHearts,
+                hasNotificationAccess = NotificationPermissionState.hasNotificationAccess(context),
+                onNotificationAccessRequested = { onAccessReady ->
+                    requestNotificationAccess(onAccessReady)
+                },
+                onRechargeRequested = { navController.navigateSingleTop(AppRoute.Recharge) }
+            )
+        }
+
         composable(AppRoute.TruthDare.route) {
             TruthDareScreen(
                 walletHearts = walletHearts,
@@ -668,7 +681,7 @@ fun AppNavGraph(
                             MainBottomTab.Connect -> navController.navigateBottomTab(AppRoute.Home)
                             MainBottomTab.Games -> navController.navigateBottomTab(AppRoute.Games)
                             MainBottomTab.History -> navController.navigateBottomTab(AppRoute.History)
-                            MainBottomTab.Live -> Unit
+                            MainBottomTab.Live -> navController.navigateBottomTab(AppRoute.Live)
                         }
                     }
                 },
@@ -848,22 +861,23 @@ private fun String?.navigationOrderIndex(): Int? =
         AppRoute.Home.route -> 1
         AppRoute.Games.route -> 2
         AppRoute.History.route -> 3
-        AppRoute.Chat.route -> 4
-        AppRoute.Profile.route -> 5
-        AppRoute.Settings.route -> 6
-        AppRoute.GiftVibe.route -> 7
-        AppRoute.Wallet.route -> 8
-        AppRoute.Recharge.route -> 9
-        AppRoute.Friends.route -> 10
-        AppRoute.PersonalChat.route -> 11
-        AppRoute.TruthDare.route -> 12
-        AppRoute.IncomingCall.route -> 13
-        AppRoute.Call.route -> 14
-        AppRoute.Gender.route -> 15
-        AppRoute.Audio.route -> 16
-        AppRoute.Login.route -> 17
-        AppRoute.UpdateApp.route -> 18
-        AppRoute.Splash.route -> 19
+        AppRoute.Live.route -> 4
+        AppRoute.Chat.route -> 5
+        AppRoute.Profile.route -> 6
+        AppRoute.Settings.route -> 7
+        AppRoute.GiftVibe.route -> 8
+        AppRoute.Wallet.route -> 9
+        AppRoute.Recharge.route -> 10
+        AppRoute.Friends.route -> 11
+        AppRoute.PersonalChat.route -> 12
+        AppRoute.TruthDare.route -> 13
+        AppRoute.IncomingCall.route -> 14
+        AppRoute.Call.route -> 15
+        AppRoute.Gender.route -> 16
+        AppRoute.Audio.route -> 17
+        AppRoute.Login.route -> 18
+        AppRoute.UpdateApp.route -> 19
+        AppRoute.Splash.route -> 20
         else -> null
     }
 
@@ -873,13 +887,15 @@ private fun String?.toMainBottomTab(): MainBottomTab? =
         AppRoute.Home.route -> MainBottomTab.Connect
         AppRoute.Games.route -> MainBottomTab.Games
         AppRoute.History.route -> MainBottomTab.History
+        AppRoute.Live.route -> MainBottomTab.Live
         else -> null
     }
 
 private fun String?.isSecondaryBottomTabRoute(): Boolean =
     this == AppRoute.Home.route ||
         this == AppRoute.Games.route ||
-        this == AppRoute.History.route
+        this == AppRoute.History.route ||
+        this == AppRoute.Live.route
 
 private fun resolvePostAuthRoute(
     hasProfile: Boolean,

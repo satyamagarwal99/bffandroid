@@ -35,6 +35,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -45,11 +46,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
@@ -93,10 +93,8 @@ fun RechargeScreen(
         }
     }
     val paymentMethods = remember { paymentMethods() }
-    val coupons = remember { couponItems() }
     var selectedPayment by remember { mutableStateOf(paymentMethods.first()) }
     var stage by remember { mutableStateOf(RechargeStage.Main) }
-    var selectedCouponId by remember { mutableStateOf<String?>(null) }
     var pendingCouponCode by remember { mutableStateOf("") }
     val context = LocalContext.current
     val selectedPack = rechargePacks.firstOrNull { it.id == rechargeUiState.selectedOptionId }
@@ -154,6 +152,7 @@ fun RechargeScreen(
     Box(modifier = modifier.fillMaxSize()) {
         when (stage) {
             RechargeStage.Main, RechargeStage.Coupon -> RechargeMainContent(
+                modifier = if (stage == RechargeStage.Coupon) Modifier.blur(8.6.dp) else Modifier,
                 selectedPack = selectedPack,
                 selectedPayment = selectedPayment,
                 walletHearts = walletHearts,
@@ -168,7 +167,7 @@ fun RechargeScreen(
                 onPayClick = {
                     if (selectedPack != null) {
                         rechargeViewModel.clearQuoteState()
-                        pendingCouponCode = coupons.firstOrNull { it.id == selectedCouponId }?.code.orEmpty()
+                        pendingCouponCode = ""
                         stage = RechargeStage.Processing
                     }
                 }
@@ -191,13 +190,7 @@ fun RechargeScreen(
 
         if (stage == RechargeStage.Coupon) {
             CouponOverlay(
-                coupons = coupons,
-                selectedCouponId = selectedCouponId,
-                onDismiss = { stage = RechargeStage.Main },
-                onCouponApply = {
-                    selectedCouponId = it
-                    stage = RechargeStage.Main
-                }
+                onDismiss = { stage = RechargeStage.Main }
             )
         }
     }
@@ -205,6 +198,7 @@ fun RechargeScreen(
 
 @Composable
 private fun RechargeMainContent(
+    modifier: Modifier = Modifier,
     selectedPack: RechargePack?,
     selectedPayment: PaymentMethod,
     walletHearts: Int,
@@ -219,7 +213,7 @@ private fun RechargeMainContent(
     onPayClick: () -> Unit
 ) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .background(Color.White)
     ) {
@@ -265,23 +259,7 @@ private fun RechargeMainContent(
                 modifier = Modifier.padding(horizontal = 24.dp),
                 onClick = onCouponClick
             )
-            Spacer(modifier = Modifier.height(28.dp))
-            Text(
-                text = "Choose a payment method",
-                color = Color.Black,
-                fontSize = 16.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.padding(horizontal = 24.dp)
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            PaymentMethodRow(
-                methods = paymentMethods,
-                selectedPayment = selectedPayment,
-                onPaymentSelected = onPaymentSelected,
-                modifier = Modifier.padding(horizontal = 14.dp)
-            )
-            Spacer(modifier = Modifier.height(34.dp))
+            Spacer(modifier = Modifier.height(154.dp))
             selectedPack?.let { pack ->
                 RechargePayButton(
                     pack = pack,
@@ -796,12 +774,11 @@ private fun RechargePayButton(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    val shape = RoundedCornerShape(14.dp)
+    val shape = HandDrawnCardShape
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(54.dp)
-            .clickable(onClick = onClick)
     ) {
         Box(
             modifier = Modifier
@@ -814,42 +791,40 @@ private fun RechargePayButton(
             modifier = Modifier
                 .matchParentSize()
                 .clip(shape)
-                .background(Color(0xFFAB179C))
+                .background(Color(0xFFD184C8))
         ) {
-
-            Text(
-                text = "Add ₹${pack.price} • ${pack.hearts} Hearts",
-                color = Color.White,
-                fontSize = 14.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
                 modifier = Modifier.align(Alignment.Center)
-            )
-
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 12.dp)
-                    .size(24.dp)
-            )
+            ) {
+                Text(
+                    text = "Payments Coming Soon",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun CouponOverlay(
-    coupons: List<CouponItem>,
-    selectedCouponId: String?,
-    onDismiss: () -> Unit,
-    onCouponApply: (String) -> Unit
+    onDismiss: () -> Unit
 ) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.42f))
+            .background(Color.Black.copy(alpha = 0.50f))
             .clickable(onClick = onDismiss)
     ) {
         Box(
@@ -857,7 +832,7 @@ private fun CouponOverlay(
                 .align(Alignment.Center)
                 .padding(horizontal = 24.dp)
                 .fillMaxWidth()
-                .height(560.dp)
+                .height(510.dp)
         ) {
             val sheetShape = RoundedCornerShape(26.dp)
             Box(
@@ -933,143 +908,28 @@ private fun CouponOverlay(
                 }
 
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 18.dp, vertical = 18.dp)
+                        .weight(1f)
+                        .padding(horizontal = 18.dp)
                 ) {
-                    coupons.forEach { coupon ->
-                        CouponItemCard(
-                            coupon = coupon,
-                            isApplied = selectedCouponId == coupon.id,
-                            onApply = { onCouponApply(coupon.id) }
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CouponItemCard(
-    coupon: CouponItem,
-    isApplied: Boolean,
-    onApply: () -> Unit
-) {
-    val shape = HandDrawnCardShape
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(94.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(coupon.background)
-    ) {
-        Box(
-            modifier = Modifier
-                .width(60.dp)
-                .fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.coupan_design),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.FillBounds,
-                colorFilter = ColorFilter.tint(coupon.accent)
-            )
-            Box(
-                modifier = Modifier
-                    .width(90.dp)   // text ki length
-                    .rotate(-90f),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = coupon.discountLabel,
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    fontFamily = GaretFontFamily,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    softWrap = false
-                )
-            }
-        }
-
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(start = 12.dp, top = 10.dp, bottom = 10.dp)
-        ) {
-            Text(
-                text = coupon.title,
-                color = Color.Black,
-                fontSize = 14.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = coupon.subtitle,
-                    color = coupon.accent,
-                    fontSize = 10.sp,
-                    fontFamily = GaretFontFamily,
-                    fontWeight = FontWeight.Medium
-                )
-                if (coupon.heartText != null) {
-                    Spacer(modifier = Modifier.width(8.dp))
                     Image(
-                        painter = painterResource(id = R.drawable.single_heart),
+                        painter = painterResource(id = R.drawable.no_coupon_available),
                         contentDescription = null,
-                        modifier = Modifier.size(14.dp)
+                        modifier = Modifier.size(width = 230.dp, height = 210.dp),
+                        contentScale = ContentScale.Fit
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
                     Text(
-                        text = coupon.heartText,
-                        color = Color.Black,
-                        fontSize = 12.sp,
+                        text = "No coupons available",
+                        color = Color(0xFF7E7E7E),
+                        fontSize = 14.sp,
                         fontFamily = GaretFontFamily,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Bold
                     )
                 }
-            }
-            Spacer(modifier = Modifier.height(7.dp))
-            Text(
-                text = coupon.validity,
-                color = Color(0xFF8E8E8E),
-                fontSize = 11.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Normal
-            )
-        }
-
-        Box(
-            modifier = Modifier
-                .padding(end = 12.dp, top = 31.dp)
-                .size(width = 62.dp, height = 32.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .offset(x = 1.5.dp, y = 2.dp)
-                    .clip(shape)
-                    .background(Color.Black)
-            )
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .matchParentSize()
-                    .clip(shape)
-                    .background(coupon.accent)
-                    .clickable(onClick = onApply)
-            ) {
-                Text(
-                    text = if (isApplied) "Added" else "Apply",
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    fontFamily = GaretFontFamily,
-                    fontWeight = FontWeight.Medium
-                )
             }
         }
     }
@@ -1365,18 +1225,6 @@ private data class PaymentMethod(
     val iconHeight: androidx.compose.ui.unit.Dp
 )
 
-private data class CouponItem(
-    val id: String,
-    val code: String,
-    val title: String,
-    val subtitle: String,
-    val heartText: String? = null,
-    val validity: String,
-    val discountLabel: String,
-    val accent: Color,
-    val background: Color
-)
-
 private enum class RechargeStage {
     Main,
     Coupon,
@@ -1408,40 +1256,6 @@ private fun paymentMethods() = listOf(
     PaymentMethod("Phonepe", R.drawable.recharge_phonepe, 19.2.dp, 19.2.dp),
     PaymentMethod("Other apps", R.drawable.recharge_upi, 22.4.dp, 8.36.dp),
     PaymentMethod("Card", R.drawable.recharge_debit_card, 19.2.dp, 12.22.dp)
-)
-
-private fun couponItems() = listOf(
-    CouponItem(
-        id = "welcome90",
-        code = "WELCOME90",
-        title = "Welcome #90",
-        subtitle = "Save upto ₹ 60",
-        heartText = "90",
-        validity = "Valid till 26 May 2026",
-        discountLabel = "90% OFF",
-        accent = Color(0xFF7D3CF0),
-        background = Color(0xFFF5F0FF)
-    ),
-    CouponItem(
-        id = "summer20",
-        code = "SUMMER_SPLASH",
-        title = "Summer Splash",
-        subtitle = "Save 20% on any heart pack",
-        validity = "Expires 15 Aug 2025",
-        discountLabel = "20% OFF",
-        accent = Color(0xFFFD5698),
-        background = Color(0xFFFFF1F7)
-    ),
-    CouponItem(
-        id = "festive30",
-        code = "FESTIVE_TREAT",
-        title = "Festive Treat",
-        subtitle = "Save upto ₹ 30",
-        validity = "Until 10 Dec 2025",
-        discountLabel = "30% OFF",
-        accent = Color(0xFF00ADB8),
-        background = Color(0xFFF0FCFD)
-    )
 )
 
 @Preview(showBackground = true, widthDp = 393, heightDp = 852)
@@ -1497,12 +1311,7 @@ private fun RechargeScreenPreview() {
 //                modifier = Modifier.fillMaxSize(),
 //                contentScale = ContentScale.Crop
 //            )
-//            CouponOverlay(
-//                coupons = couponItems(),
-//                selectedCouponId = null,
-//                onDismiss = {},
-//                onCouponApply = {}
-//            )
+//            CouponOverlay(onDismiss = {})
 //        }
 //    }
 //}
