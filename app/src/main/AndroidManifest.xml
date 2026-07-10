@@ -47,6 +47,9 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
         <service
+            android:name=".service.AvatarDownloadService"
+            android:exported="false" />
+        <service
             android:name=".service.BffFirebaseMessagingService"
             android:exported="false">
             <intent-filter>

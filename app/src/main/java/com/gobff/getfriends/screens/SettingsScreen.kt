@@ -74,7 +74,10 @@ private enum class SettingsPage {
     SafetyCenter,
     HelpSupport,
     SuggestFeature,
-    AccountManagement
+    AccountManagement,
+    TermsAndConditions,
+    RefundCancellations,
+    PrivacyPolicy
 }
 
 private enum class AccountManagementSheet {
@@ -111,6 +114,9 @@ fun SettingsScreen(
             onHelpSupport = { page = SettingsPage.HelpSupport },
             onSuggestFeature = { page = SettingsPage.SuggestFeature },
             onAccountManagement = { page = SettingsPage.AccountManagement },
+            onTermsAndConditions = { page = SettingsPage.TermsAndConditions },
+            onRefundCancellations = { page = SettingsPage.RefundCancellations },
+            onPrivacyPolicy = { page = SettingsPage.PrivacyPolicy },
             hasNotificationAccess = hasNotificationAccess,
             onAlwaysOnlineChanged = onAlwaysOnlineChanged,
             onNotificationAccessRequested = onNotificationAccessRequested,
@@ -142,6 +148,21 @@ fun SettingsScreen(
             onBack = { page = SettingsPage.Main },
             modifier = modifier
         )
+
+        SettingsPage.TermsAndConditions -> TermsAndConditionsContent(
+            onBack = { page = SettingsPage.Main },
+            modifier = modifier
+        )
+
+        SettingsPage.RefundCancellations -> RefundCancellationsContent(
+            onBack = { page = SettingsPage.Main },
+            modifier = modifier
+        )
+
+        SettingsPage.PrivacyPolicy -> PrivacyPolicyContent(
+            onBack = { page = SettingsPage.Main },
+            modifier = modifier
+        )
     }
 }
 
@@ -153,6 +174,9 @@ private fun SettingsHomeContent(
     onHelpSupport: () -> Unit,
     onSuggestFeature: () -> Unit,
     onAccountManagement: () -> Unit,
+    onTermsAndConditions: () -> Unit,
+    onRefundCancellations: () -> Unit,
+    onPrivacyPolicy: () -> Unit,
     hasNotificationAccess: Boolean,
     onAlwaysOnlineChanged: (Boolean) -> Unit,
     onNotificationAccessRequested: (onAccessReady: () -> Unit) -> Unit,
@@ -273,17 +297,24 @@ private fun SettingsHomeContent(
 
                     SettingsGroupCard {
                         SettingsRow(
-                            title = "Terms of Service",
+                            title = "Terms & Conditions",
                             iconRes = R.drawable.setting_terms,
                             iconBackground = Color(0xFFF3F2F7),
-                            showArrow = false
+                            onClick = onTermsAndConditions
+                        )
+                        SettingsDivider()
+                        SettingsRow(
+                            title = "Refund & Cancellations",
+                            iconRes = R.drawable.setting_terms,
+                            iconBackground = Color(0xFFF3F2F7),
+                            onClick = onRefundCancellations
                         )
                         SettingsDivider()
                         SettingsRow(
                             title = "Privacy Policy",
                             iconRes = R.drawable.setting_privacy,
                             iconBackground = Color(0xFFF3F2F7),
-                            showArrow = false
+                            onClick = onPrivacyPolicy
                         )
                         SettingsDivider()
                         SettingsRow(
@@ -353,6 +384,17 @@ private fun SafetyCenterContent(
                 "Keep it fun & friendly: Treat everyone with respect. No hate speech or bullying allowed.",
                 "Consent is key: Don't force anyone into a dare they don't want to do.",
                 "Keep it clean: No nudity or sexually explicit behavior on camera."
+            )
+        )
+        Spacer(modifier = Modifier.height(26.dp))
+        SafetyInfoCard(
+            iconRes = R.drawable.setting_help_support,
+            title = "Child Safety",
+            dotColor = Color(0xFFFF6B6B),
+            bullets = listOf(
+                "BFF does not allow child sexual abuse or exploitation, grooming, sextortion, trafficking, or sexual content involving minors.",
+                "Use Report in the app for safety concerns, abusive behavior, or suspicious users.",
+                "For child safety or CSAM concerns, contact team@gocouplemeet.com."
             )
         )
         Spacer(modifier = Modifier.height(26.dp))
@@ -449,6 +491,122 @@ private fun SuggestFeatureContent(
             width = 130.dp,
             height = 48.dp,
             onClick = {}
+        )
+    }
+}
+
+@Composable
+private fun TermsAndConditionsContent(
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    SettingsDetailScaffold(
+        title = "Terms & Conditions",
+        onBack = onBack,
+        modifier = modifier
+    ) {
+        LegalInfoCard(
+            title = "Using BFF",
+            body = "BFF is a social entertainment app for friendly audio chats, games, gifts, and casual conversations. By using the app, you agree to keep your interactions respectful, lawful, and safe for other users."
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+        LegalInfoCard(
+            title = "Account responsibility",
+            body = "You are responsible for the activity on your account and for keeping your phone number, login access, and profile information secure. Do not share your account with another person or use someone else's account."
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+        LegalInfoCard(
+            title = "Community conduct",
+            body = "Do not harass, abuse, threaten, impersonate, scam, or share illegal, explicit, hateful, or unsafe content. BFF may restrict features, suspend access, or remove accounts that break our safety rules."
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+        LegalInfoCard(
+            title = "Paid features",
+            body = "Hearts, gifts, recharges, and other paid features are provided for use inside the app. Prices, availability, and benefits may change from time to time. Misuse, fraud, or payment disputes may lead to account restrictions."
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+        LegalInfoCard(
+            title = "Service changes",
+            body = "We may update, pause, or remove app features to improve safety, performance, or user experience. Continued use of BFF after changes means you accept the updated terms."
+        )
+    }
+}
+
+@Composable
+private fun RefundCancellationsContent(
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    SettingsDetailScaffold(
+        title = "Refund & Cancellations",
+        onBack = onBack,
+        modifier = modifier
+    ) {
+        LegalInfoCard(
+            title = "Digital purchases",
+            body = "BFF purchases such as Hearts, gifts, recharges, or in-app credits are digital items. Once delivered to your account or used in a chat, game, call, or gift, they are generally non-refundable."
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+        LegalInfoCard(
+            title = "Failed or duplicate payment",
+            body = "If money is deducted but Hearts or credits are not added, please wait a few minutes and restart the app. For failed, pending, or duplicate payments, contact support with your payment receipt and registered phone number."
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+        LegalInfoCard(
+            title = "Cancellation policy",
+            body = "Instant purchases cannot be cancelled after successful delivery. If a payment is still pending or has not been delivered, our team will verify the transaction and either add the credits or help process a refund where applicable."
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+        LegalInfoCard(
+            title = "Refund review",
+            body = "Refund requests are reviewed case by case for technical errors, accidental duplicate charges, or payment gateway issues. Refunds are sent back through the original payment method and may take time based on the bank or payment provider."
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+        LegalInfoCard(
+            title = "Abuse prevention",
+            body = "Refunds may be declined for used credits, completed gifts, completed calls, promotional rewards, policy violations, or suspicious activity. BFF may limit accounts that misuse refunds or payment systems."
+        )
+    }
+}
+
+@Composable
+private fun PrivacyPolicyContent(
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    SettingsDetailScaffold(
+        title = "Privacy Policy",
+        onBack = onBack,
+        modifier = modifier
+    ) {
+        LegalInfoCard(
+            title = "Information we collect",
+            body = "BFF may collect details you provide, such as your phone number, profile information, gender selection, interests, app preferences, support messages, and payment transaction status needed to run the service."
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+        LegalInfoCard(
+            title = "App activity",
+            body = "We use app activity such as calls, chats, games, gifts, reports, wallet activity, and feature usage to operate BFF, improve matching, prevent abuse, resolve issues, and keep the community safe."
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+        LegalInfoCard(
+            title = "Device and notification data",
+            body = "We may use device identifiers, app version, network information, crash logs, notification tokens, and permission status to support login, notifications, security, troubleshooting, and app performance."
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+        LegalInfoCard(
+            title = "Payments and wallet",
+            body = "Payment processing may be handled by payment partners. BFF uses payment status, order IDs, recharge details, and wallet balance information to deliver Hearts, gifts, refunds, and transaction support."
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+        LegalInfoCard(
+            title = "Safety and moderation",
+            body = "Reports, blocked users, suspicious activity, and safety signals may be reviewed to enforce community rules, prevent fraud, and protect users. We do not ask users to share private banking details inside chats or calls."
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+        LegalInfoCard(
+            title = "Your choices",
+            body = "You can update account details, control notification access from your device settings, contact support for privacy questions, and request account deletion from Account Management where available."
         )
     }
 }
@@ -647,6 +805,32 @@ private fun SettingsDetailScaffold(
     }
 }
 
+@Composable
+private fun LegalInfoCard(
+    title: String,
+    body: String
+) {
+    SettingsGroupCard {
+        Text(
+            text = title,
+            color = Color.Black,
+            fontSize = 15.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold,
+            lineHeight = 20.sp
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(
+            text = body,
+            color = Color(0xFF333333),
+            fontSize = 13.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Medium,
+            lineHeight = 19.sp
+        )
+    }
+}
+
 private fun settingsSubtitleFor(title: String): String =
     when (title) {
         "Notifications" -> "Control your alerts and updates"
@@ -654,6 +838,9 @@ private fun settingsSubtitleFor(title: String): String =
         "Suggest A Feature" -> "We'd love to hear your suggestions"
         "Account Management" -> "Keep your account up to date"
         "Safety Center" -> "Stay safe while having fun"
+        "Terms & Conditions" -> "Rules for using BFF"
+        "Refund & Cancellations" -> "Payments, refunds, and cancellations"
+        "Privacy Policy" -> "How BFF handles your information"
         else -> ""
     }
 
@@ -702,7 +889,8 @@ private fun SettingsWhiteHeader(
                     lineHeight = 32.sp,
                     fontFamily = FreedokaFontFamily,
                     fontWeight = FontWeight.SemiBold,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Image(

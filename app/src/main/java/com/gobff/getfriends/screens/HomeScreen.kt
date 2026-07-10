@@ -76,14 +76,17 @@ import com.gobff.getfriends.data.model.VibeOption
 import com.gobff.getfriends.data.model.defaultLanguageOptions
 import com.gobff.getfriends.data.model.defaultVibeOptions
 import com.gobff.getfriends.ui.component.BffHeartChip
+import com.gobff.getfriends.ui.component.CachedAvatarImage
 import com.gobff.getfriends.ui.component.HandDrawnCardShape
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.GaretFontFamily
 import com.gobff.getfriends.utils.AppSession
+import com.gobff.getfriends.utils.AvatarGender
 import com.gobff.getfriends.utils.Constant
 import com.gobff.getfriends.viewmodel.HomeScreenViewModel
 import com.gobff.getfriends.viewmodel.HomeOptionsViewModel
 import com.gobff.getfriends.viewmodel.UserProfileViewModel
+import com.gobff.getfriends.utils.toAvatarGender
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -166,6 +169,7 @@ fun HomeScreen(
                 HomeHeader(
                     walletHearts = walletHearts,
                     avatarUrl = userProfileState.avatarUrl,
+                    gender = userProfileState.gender,
                     onFriendsClick = onFriendsRequested,
                     onRechargeClick = onRechargeRequested,
                     onProfileClick = onProfileRequested
@@ -280,6 +284,7 @@ fun HomeScreen(
 private fun HomeHeader(
     walletHearts: Int,
     avatarUrl: String?,
+    gender: String?,
     onFriendsClick: () -> Unit,
     onRechargeClick: () -> Unit,
     onProfileClick: () -> Unit
@@ -288,8 +293,10 @@ private fun HomeHeader(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Image(
-            painter = painterResource(id = avatarUrl.toAvatarRes()),
+        CachedAvatarImage(
+            avatarUrl = avatarUrl,
+            gender = gender,
+            fallbackRes = gender.toHomeFallbackAvatarRes(),
             contentDescription = null,
             modifier = Modifier
                 .size(44.dp)
@@ -318,30 +325,38 @@ private fun String?.toAvatarRes(): Int {
     val normalized = this?.trim().orEmpty()
     return when {
         normalized == "women_avatar1" -> R.drawable.women_avatar1
-        normalized == "women_avatar2" -> R.drawable.women_avatar2
-        normalized == "women_avatar3" -> R.drawable.women_avatar3
-        normalized == "women_avatar4" -> R.drawable.women_avatar4
-        normalized == "women_avatar5" -> R.drawable.women_avatar5
-        normalized == "women_avatar6" -> R.drawable.women_avatar6
-        normalized == "women_avatar7" -> R.drawable.women_avatar7
-        normalized == "women_avatar8" -> R.drawable.women_avatar8
-        normalized == "women_avatar9" -> R.drawable.women_avatar9
-        normalized == "women_avatar10" -> R.drawable.women_avatar10
-        normalized == "women_avatar11" -> R.drawable.women_avatar11
-        normalized == "women_avatar12" -> R.drawable.women_avatar12
+        normalized == "women_avatar2" -> R.drawable.women_avatar1
+        normalized == "women_avatar3" -> R.drawable.women_avatar1
+        normalized == "women_avatar4" -> R.drawable.women_avatar1
+        normalized == "women_avatar5" -> R.drawable.women_avatar1
+        normalized == "women_avatar6" -> R.drawable.women_avatar1
+        normalized == "women_avatar7" -> R.drawable.women_avatar1
+        normalized == "women_avatar8" -> R.drawable.women_avatar1
+        normalized == "women_avatar9" -> R.drawable.women_avatar1
+        normalized == "women_avatar10" -> R.drawable.women_avatar1
+        normalized == "women_avatar11" -> R.drawable.women_avatar1
+        normalized == "women_avatar12" -> R.drawable.women_avatar1
         normalized == "man_avatar1" -> R.drawable.man_avatar1
-        normalized == "man_avatar2" -> R.drawable.man_avatar2
-        normalized == "man_avatar3" -> R.drawable.man_avatar3
-        normalized == "man_avatar4" -> R.drawable.man_avatar4
-        normalized == "man_avatar5" -> R.drawable.man_avatar5
-        normalized == "man_avatar6" -> R.drawable.man_avatar6
-        normalized == "man_avatar7" -> R.drawable.man_avatar7
-        normalized == "man_avatar8" -> R.drawable.man_avatar8
-        normalized == "man_avatar9" -> R.drawable.man_avatar9
-        normalized == "man_avatar10" -> R.drawable.man_avatar10
-        normalized == "man_avatar11" -> R.drawable.man_avatar11
-        normalized == "man_avatar12" -> R.drawable.man_avatar12
+        normalized == "man_avatar2" -> R.drawable.man_avatar1
+        normalized == "man_avatar3" -> R.drawable.man_avatar1
+        normalized == "man_avatar4" -> R.drawable.man_avatar1
+        normalized == "man_avatar5" -> R.drawable.man_avatar1
+        normalized == "man_avatar6" -> R.drawable.man_avatar1
+        normalized == "man_avatar7" -> R.drawable.man_avatar1
+        normalized == "man_avatar8" -> R.drawable.man_avatar1
+        normalized == "man_avatar9" -> R.drawable.man_avatar1
+        normalized == "man_avatar10" -> R.drawable.man_avatar1
+        normalized == "man_avatar11" -> R.drawable.man_avatar1
+        normalized == "man_avatar12" -> R.drawable.man_avatar1
         else -> R.drawable.man_avatar1
+    }
+}
+
+private fun String?.toHomeFallbackAvatarRes(): Int {
+    return when (this.toAvatarGender()) {
+        AvatarGender.Female -> R.drawable.women_avatar1
+        AvatarGender.Male -> R.drawable.man_avatar1
+        null -> R.drawable.man_avatar1
     }
 }
 
@@ -1680,7 +1695,7 @@ private val HomeProfiles = listOf(
     ),
     HomeProfile(
         name = "Mira",
-        avatarRes = R.drawable.women_avatar3,
+        avatarRes = R.drawable.women_avatar1,
         headerColor = Color(0xFF79B6FF),
         languages = listOf(
             HomeProfileLanguage("English", Color(0xFF38AFA4)),
@@ -1695,7 +1710,7 @@ private val HomeProfiles = listOf(
     ),
     HomeProfile(
         name = "Kabir",
-        avatarRes = R.drawable.man_avatar4,
+        avatarRes = R.drawable.man_avatar1,
         headerColor = Color(0xFFCEFB42),
         languages = listOf(
             HomeProfileLanguage("English", Color(0xFF38AFA4)),
@@ -1710,7 +1725,7 @@ private val HomeProfiles = listOf(
     ),
     HomeProfile(
         name = "Tara",
-        avatarRes = R.drawable.women_avatar7,
+        avatarRes = R.drawable.women_avatar1,
         headerColor = Color(0xFFFF9BD1),
         languages = listOf(
             HomeProfileLanguage("ಕ Kannada", Color(0xFF38AFA4)),

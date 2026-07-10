@@ -972,7 +972,7 @@ private fun chatMessages() = listOf(
         preview = "Thank you for the sharing the l...",
         time = "10:42 AM",
         unreadCount = 2,
-        avatarRes = R.drawable.women_avatar3,
+        avatarRes = R.drawable.women_avatar1,
         isOnline = true
     ),
     ChatMessage(
@@ -980,7 +980,7 @@ private fun chatMessages() = listOf(
         preview = "Could you please clarify the ...",
         time = "11:03 AM",
         unreadCount = 1,
-        avatarRes = R.drawable.women_avatar3,
+        avatarRes = R.drawable.women_avatar1,
         isOnline = false
     ),
     ChatMessage(
@@ -988,7 +988,7 @@ private fun chatMessages() = listOf(
         preview = "I've updated the document acc...",
         time = "11:15 AM",
         unreadCount = 3,
-        avatarRes = R.drawable.women_avatar3,
+        avatarRes = R.drawable.women_avatar1,
         isOnline = true
     ),
     ChatMessage(
@@ -996,7 +996,7 @@ private fun chatMessages() = listOf(
         preview = "Hi, Good afternoon",
         time = "1:05 PM",
         unreadCount = 0,
-        avatarRes = R.drawable.women_avatar3,
+        avatarRes = R.drawable.women_avatar1,
         isOnline = false
     )
 )
@@ -1012,7 +1012,7 @@ private fun ChatScreenPreview() {
 //fun PersonalChatScreenPreview() {
 //        PersonalChatScreen(
 //            personName = "Sophia",
-//            avatarRes = R.drawable.man_avatar3, // Replace with your drawable
+//            avatarRes = R.drawable.man_avatar1, // Replace with your drawable
 //            onBack = {}
 //        )
 //}

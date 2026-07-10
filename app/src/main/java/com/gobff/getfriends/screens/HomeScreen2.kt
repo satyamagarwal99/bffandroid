@@ -1,11 +1,20 @@
 package com.gobff.getfriends.screens
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -30,11 +39,17 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -50,6 +65,7 @@ import com.gobff.getfriends.ui.component.HeartChipShape
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.FreedokaFontFamily
 import com.gobff.getfriends.ui.theme.GaretFontFamily
+import kotlinx.coroutines.delay
 
 private val HomeScreen2Pink = Color(0xFFFF639C)
 private val HomeScreen2Yellow = Color(0xFFF9BF25)
@@ -58,6 +74,47 @@ private val HomeScreen2Purple = Color(0xFF8C2FF1)
 private val HomeScreen2Orange = Color(0xFFFF8C0F)
 private val HomeScreen2Teal = Color(0xFF06AFC9)
 private val HomeScreen2Ink = Color(0xFF141414)
+
+@Composable
+private fun Modifier.enterMotion(
+    delayMillis: Int = 0,
+    slideY: Float = 28f
+): Modifier {
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(delayMillis.toLong())
+        visible = true
+    }
+    val progress by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = tween(durationMillis = 520, easing = FastOutSlowInEasing),
+        label = "homeEnterProgress"
+    )
+    return graphicsLayer {
+        alpha = progress
+        translationY = (1f - progress) * slideY
+        scaleX = 0.96f + progress * 0.04f
+        scaleY = 0.96f + progress * 0.04f
+    }
+}
+
+@Composable
+private fun Modifier.breathingOnlineDot(): Modifier {
+    val pulse = rememberInfiniteTransition(label = "onlineDotPulse")
+    val scale by pulse.animateFloat(
+        initialValue = 0.92f,
+        targetValue = 1.08f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 950, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "onlineDotScale"
+    )
+    return graphicsLayer {
+        scaleX = scale
+        scaleY = scale
+    }.background(Color(0xFF24B64F))
+}
 
 @Composable
 fun HomeScreen2(
@@ -110,6 +167,7 @@ fun HomeScreen2(
                 Column(
                     modifier = Modifier
                         .padding(top = 26.dp, bottom = 116.dp)
+                        .enterMotion(delayMillis = 120, slideY = 36f)
                 ) {
                     HomeScreen2SectionHeader(
                         title = "Star Friends",
@@ -155,6 +213,7 @@ private fun HomeScreen2TopSection(
             .fillMaxWidth()
             .height(226.dp)
             .background(Color.White)
+            .enterMotion(slideY = 22f)
     ) {
         Image(
             painter = painterResource(id = R.drawable.man_avatar1),
@@ -230,8 +289,17 @@ private fun HomeScreen2IconButton(
     iconColor: Color = Color(0xFF444444),
     onClick: () -> Unit = {}
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.92f else 1f,
+        animationSpec = spring(dampingRatio = 0.62f, stiffness = 520f),
+        label = "homeIconButtonPress"
+    )
     Box(
-        modifier = modifier.size(size)
+        modifier = modifier
+            .size(size)
+            .scale(pressScale)
     ) {
 
         val shape = HeartChipShape
@@ -257,7 +325,7 @@ private fun HomeScreen2IconButton(
                     shape = shape
                 )
                 .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
+                    interactionSource = interactionSource,
                     indication = null,
                     onClick = onClick
                 )
@@ -343,22 +411,24 @@ private fun HomeScreen2StarFriendRow() {
             .horizontalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
     ) {
-        HomeScreen2StarFriendCard(name = "Anshu", avatarRes = R.drawable.women_avatar1)
-        HomeScreen2StarFriendCard(name = "Dev", avatarRes = R.drawable.women_avatar3)
-        HomeScreen2StarFriendCard(name = "Priya", avatarRes = R.drawable.women_avatar1)
+        HomeScreen2StarFriendCard(name = "Anshu", avatarRes = R.drawable.women_avatar1, delayMillis = 170)
+        HomeScreen2StarFriendCard(name = "Dev", avatarRes = R.drawable.women_avatar1, delayMillis = 230)
+        HomeScreen2StarFriendCard(name = "Priya", avatarRes = R.drawable.women_avatar1, delayMillis = 290)
     }
 }
 
 @Composable
 private fun HomeScreen2StarFriendCard(
     name: String,
-    avatarRes: Int
+    avatarRes: Int,
+    delayMillis: Int = 0
 ) {
     val shape = HandDrawnCardShape
 
     Box(
         modifier = Modifier
             .size(width = 130.dp, height = 140.dp)
+            .enterMotion(delayMillis = delayMillis, slideY = 30f)
     ) {
 
         // Shadow
@@ -406,7 +476,7 @@ private fun HomeScreen2StarFriendCard(
                         .offset(x = -2.dp, y = 0.dp)
                         .size(14.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF24B64F))
+                        .breathingOnlineDot()
                         .border(
                             width = 2.dp,
                             color = Color.White,
@@ -522,17 +592,23 @@ private fun HomeScreen2FriendRow() {
             .horizontalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
     ) {
-        HomeScreen2FriendCard(name = "Anshu", avatarRes = R.drawable.women_avatar1)
-        HomeScreen2FriendCard(name = "Dev", avatarRes = R.drawable.women_avatar3)
-        HomeScreen2FriendCard(name = "Priya", avatarRes = R.drawable.women_avatar1)
+        HomeScreen2FriendCard(name = "Anshu", avatarRes = R.drawable.women_avatar1, delayMillis = 260)
+        HomeScreen2FriendCard(name = "Dev", avatarRes = R.drawable.women_avatar1, delayMillis = 320)
+        HomeScreen2FriendCard(name = "Priya", avatarRes = R.drawable.women_avatar1, delayMillis = 380)
     }
 }
 
 @Composable
-private fun HomeScreen2FriendCard(name: String, avatarRes: Int) {
+private fun HomeScreen2FriendCard(
+    name: String,
+    avatarRes: Int,
+    delayMillis: Int = 0
+) {
     val shape = HandDrawnCardShape
     Box(
-        modifier = Modifier.size(width = 130.dp, height = 148.dp)
+        modifier = Modifier
+            .size(width = 130.dp, height = 148.dp)
+            .enterMotion(delayMillis = delayMillis, slideY = 30f)
     ) {
         Box(
             modifier = Modifier
@@ -565,7 +641,7 @@ private fun HomeScreen2FriendCard(name: String, avatarRes: Int) {
                         .offset(x = -2.dp, y = 0.dp)
                         .size(14.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFF24B64F))
+                        .breathingOnlineDot()
                         .border(2.dp, Color.White, CircleShape)
                 )
             }
@@ -597,14 +673,22 @@ private fun HomeScreen2PillButton(
     textColor: Color = Color.Black,
     onClick: () -> Unit = {}
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.94f else 1f,
+        animationSpec = spring(dampingRatio = 0.65f, stiffness = 540f),
+        label = "homePillPress"
+    )
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
             .height(32.dp)
+            .scale(pressScale)
             .clip(RoundedCornerShape(80.dp))
             .background(background)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick
             ),
@@ -648,19 +732,22 @@ private fun HomeScreen2LiveRow() {
             name = "Alia",
             subtitle = "Let's chill & talk",
             viewers = "35",
-            imageRes = R.drawable.home_screen_demo1
+            imageRes = R.drawable.home_screen_demo1,
+            delayMillis = 350
         )
         HomeScreen2LiveCard(
             name = "Benji",
             subtitle = "Coding session",
             viewers = "42",
-            imageRes = R.drawable.home_screen_demo2
+            imageRes = R.drawable.home_screen_demo2,
+            delayMillis = 410
         )
         HomeScreen2LiveCard(
             name = "Cara",
             subtitle = "Let's play game",
             viewers = "38",
-            imageRes = R.drawable.home_screen_demo1
+            imageRes = R.drawable.home_screen_demo1,
+            delayMillis = 470
         )
     }
 }
@@ -670,12 +757,14 @@ private fun HomeScreen2LiveCard(
     name: String,
     subtitle: String,
     viewers: String,
-    imageRes: Int
+    imageRes: Int,
+    delayMillis: Int = 0
 ) {
     val shape = HandDrawnCardShape
 
     Box(
         modifier = Modifier.size(width = 130.dp, height = 138.dp)
+            .enterMotion(delayMillis = delayMillis, slideY = 30f)
     ) {
 
         // Shadow
@@ -806,11 +895,13 @@ private fun HomeScreen2GameRow(
         HomeScreen2GameCard(
             imageRes = R.drawable.game_screen_truth_dare,
             background = Color(0xFFEBDDFF),
-            onPlayClick = onTruthDareSelected
+            onPlayClick = onTruthDareSelected,
+            delayMillis = 440
         )
         HomeScreen2GameCard(
             imageRes = R.drawable.game_screen_tictactoe,
-            background = Color(0xFFFFEEF4)
+            background = Color(0xFFFFEEF4),
+            delayMillis = 500
         )
     }
 }
@@ -819,11 +910,14 @@ private fun HomeScreen2GameRow(
 private fun HomeScreen2GameCard(
     imageRes: Int,
     background: Color,
-    onPlayClick: () -> Unit = {}
+    onPlayClick: () -> Unit = {},
+    delayMillis: Int = 0
 ) {
     val shape = HandDrawnCardShape
     Box(
-        modifier = Modifier.size(width = 130.dp, height = 138.dp)
+        modifier = Modifier
+            .size(width = 130.dp, height = 138.dp)
+            .enterMotion(delayMillis = delayMillis, slideY = 30f)
     ) {
         Box(
             modifier = Modifier

@@ -47,11 +47,10 @@ fun GenderScreen(
     val updateProfileState = profileViewModel.uiState
 
     fun submitProfile(gender: String, selectedAvatar: Int, nickname: String) {
-        val avatarPrefix = if (gender == GENDER_FEMALE) "women_avatar" else "man_avatar"
         profileViewModel.updateProfile(
             displayName = nickname,
             gender = gender,
-            avatarUrl = "$avatarPrefix$selectedAvatar",
+            avatarUrl = com.gobff.getfriends.utils.AvatarCache.avatarValue(selectedAvatar),
             onSuccess = {
                 if (gender == GENDER_FEMALE) {
                     onAudioStepRequested()

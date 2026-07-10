@@ -976,7 +976,7 @@ private fun ActiveCallContent(
             ) {
                 CallParticipantCard(
                     name = personName,
-                    avatarRes = R.drawable.women_avatar11,
+                    avatarRes = R.drawable.women_avatar1,
                     background = Color(0xFFFFF17A)
                 )
             }

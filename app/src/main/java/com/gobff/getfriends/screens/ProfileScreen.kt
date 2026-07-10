@@ -80,10 +80,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gobff.getfriends.R
 import com.gobff.getfriends.data.model.UserProfileUiState
 import com.gobff.getfriends.ui.component.BffHeartChip
+import com.gobff.getfriends.ui.component.CachedAvatarImage
 import com.gobff.getfriends.ui.component.HandDrawnCardShape
 import com.gobff.getfriends.ui.component.HeartChipShape
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.GaretFontFamily
+import com.gobff.getfriends.utils.AvatarCache
+import com.gobff.getfriends.utils.AvatarGender
+import com.gobff.getfriends.utils.toAvatarGender
 import com.gobff.getfriends.viewmodel.HomeOptionsUiState
 import com.gobff.getfriends.viewmodel.HomeOptionsViewModel
 import com.gobff.getfriends.viewmodel.UserProfileViewModel
@@ -361,13 +365,14 @@ private fun ProfileScreenContent(
             Spacer(modifier = Modifier.height(46.dp))
             ProfileIdentity(
                 displayName = userProfileState.displayName,
+                gender = userProfileState.gender,
                 avatarUrl = userProfileState.avatarUrl,
                 isOnline = isOnline,
                 notificationPermissionMessage = notificationPermissionMessage,
                 onToggleAvailability = ::toggleAvailability,
                 onAvatarEditClick = {
-                    editingAvatarUrl = userProfileState.avatarUrl?.takeIf { it.isNotBlank() }
-                        ?: "women_avatar1"
+                    editingAvatarUrl = AvatarCache.normalizeAvatarValue(userProfileState.avatarUrl)
+                        ?: AvatarCache.avatarValue(1)
                     openSheet = ProfileSheet.Avatar
                 },
                 onNameEditClick = {
@@ -443,6 +448,7 @@ private fun ProfileScreenContent(
 
             ProfileSheet.Avatar -> AvatarEditSheet(
                 selectedAvatarUrl = editingAvatarUrl,
+                gender = userProfileState.gender,
                 onAvatarSelected = { editingAvatarUrl = it },
                 onSave = {
                     onSaveAvatar(editingAvatarUrl) {
@@ -602,6 +608,7 @@ private fun ProfileSettingsChip(onClick: () -> Unit) {
 @Composable
 private fun ProfileIdentity(
     displayName: String?,
+    gender: String?,
     avatarUrl: String?,
     isOnline: Boolean,
     notificationPermissionMessage: String?,
@@ -611,8 +618,10 @@ private fun ProfileIdentity(
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(modifier = Modifier.size(112.dp)) {
-            Image(
-                painter = painterResource(id = avatarUrl.toProfileAvatarRes()),
+            CachedAvatarImage(
+                avatarUrl = avatarUrl,
+                gender = gender,
+                fallbackRes = gender.toProfileFallbackAvatarRes(),
                 contentDescription = null,
                 modifier = Modifier
                     .align(Alignment.Center)
@@ -714,30 +723,38 @@ private fun String?.toProfileAvatarRes(): Int {
     val normalized = this?.trim().orEmpty()
     return when {
         normalized == "women_avatar1" -> R.drawable.women_avatar1
-        normalized == "women_avatar2" -> R.drawable.women_avatar2
-        normalized == "women_avatar3" -> R.drawable.women_avatar3
-        normalized == "women_avatar4" -> R.drawable.women_avatar4
-        normalized == "women_avatar5" -> R.drawable.women_avatar5
-        normalized == "women_avatar6" -> R.drawable.women_avatar6
-        normalized == "women_avatar7" -> R.drawable.women_avatar7
-        normalized == "women_avatar8" -> R.drawable.women_avatar8
-        normalized == "women_avatar9" -> R.drawable.women_avatar9
-        normalized == "women_avatar10" -> R.drawable.women_avatar10
-        normalized == "women_avatar11" -> R.drawable.women_avatar11
-        normalized == "women_avatar12" -> R.drawable.women_avatar12
+        normalized == "women_avatar2" -> R.drawable.women_avatar1
+        normalized == "women_avatar3" -> R.drawable.women_avatar1
+        normalized == "women_avatar4" -> R.drawable.women_avatar1
+        normalized == "women_avatar5" -> R.drawable.women_avatar1
+        normalized == "women_avatar6" -> R.drawable.women_avatar1
+        normalized == "women_avatar7" -> R.drawable.women_avatar1
+        normalized == "women_avatar8" -> R.drawable.women_avatar1
+        normalized == "women_avatar9" -> R.drawable.women_avatar1
+        normalized == "women_avatar10" -> R.drawable.women_avatar1
+        normalized == "women_avatar11" -> R.drawable.women_avatar1
+        normalized == "women_avatar12" -> R.drawable.women_avatar1
         normalized == "man_avatar1" -> R.drawable.man_avatar1
-        normalized == "man_avatar2" -> R.drawable.man_avatar2
-        normalized == "man_avatar3" -> R.drawable.man_avatar3
-        normalized == "man_avatar4" -> R.drawable.man_avatar4
-        normalized == "man_avatar5" -> R.drawable.man_avatar5
-        normalized == "man_avatar6" -> R.drawable.man_avatar6
-        normalized == "man_avatar7" -> R.drawable.man_avatar7
-        normalized == "man_avatar8" -> R.drawable.man_avatar8
-        normalized == "man_avatar9" -> R.drawable.man_avatar9
-        normalized == "man_avatar10" -> R.drawable.man_avatar10
-        normalized == "man_avatar11" -> R.drawable.man_avatar11
-        normalized == "man_avatar12" -> R.drawable.man_avatar12
+        normalized == "man_avatar2" -> R.drawable.man_avatar1
+        normalized == "man_avatar3" -> R.drawable.man_avatar1
+        normalized == "man_avatar4" -> R.drawable.man_avatar1
+        normalized == "man_avatar5" -> R.drawable.man_avatar1
+        normalized == "man_avatar6" -> R.drawable.man_avatar1
+        normalized == "man_avatar7" -> R.drawable.man_avatar1
+        normalized == "man_avatar8" -> R.drawable.man_avatar1
+        normalized == "man_avatar9" -> R.drawable.man_avatar1
+        normalized == "man_avatar10" -> R.drawable.man_avatar1
+        normalized == "man_avatar11" -> R.drawable.man_avatar1
+        normalized == "man_avatar12" -> R.drawable.man_avatar1
         else -> R.drawable.women_avatar1
+    }
+}
+
+private fun String?.toProfileFallbackAvatarRes(): Int {
+    return when (this.toAvatarGender()) {
+        AvatarGender.Female -> R.drawable.women_avatar1
+        AvatarGender.Male -> R.drawable.man_avatar1
+        null -> R.drawable.women_avatar1
     }
 }
 
@@ -2551,10 +2568,12 @@ private fun GameStatsSheet(modifier: Modifier = Modifier) {
 @Composable
 private fun AvatarEditSheet(
     selectedAvatarUrl: String,
+    gender: String?,
     onAvatarSelected: (String) -> Unit,
     onSave: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val avatarOptions = remember(gender) { profileAvatarOptions(gender) }
     ProfileEditSheetContainer(
         title = "Choose your avatar",
         onSave = onSave,
@@ -2567,7 +2586,7 @@ private fun AvatarEditSheet(
                 .padding(horizontal = 24.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            ProfileAvatarOptions.chunked(4).forEach { rowOptions ->
+            avatarOptions.chunked(4).forEach { rowOptions ->
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -2575,6 +2594,7 @@ private fun AvatarEditSheet(
                     rowOptions.forEach { option ->
                         ProfileAvatarOptionCard(
                             avatarUrl = option,
+                            gender = gender,
                             selected = selectedAvatarUrl == option,
                             onClick = { onAvatarSelected(option) },
                             modifier = Modifier.weight(1f)
@@ -2589,6 +2609,7 @@ private fun AvatarEditSheet(
 @Composable
 private fun ProfileAvatarOptionCard(
     avatarUrl: String,
+    gender: String?,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -2608,8 +2629,10 @@ private fun ProfileAvatarOptionCard(
             )
             .padding(7.dp)
     ) {
-        Image(
-            painter = painterResource(id = avatarUrl.toProfileAvatarRes()),
+        CachedAvatarImage(
+            avatarUrl = avatarUrl,
+            gender = gender,
+            fallbackRes = gender.toProfileFallbackAvatarRes(),
             contentDescription = null,
             modifier = Modifier
                 .fillMaxSize()
@@ -2953,32 +2976,10 @@ private enum class StarHostScreen {
     Queue
 }
 
-private val ProfileAvatarOptions = listOf(
-    "women_avatar1",
-    "women_avatar2",
-    "women_avatar3",
-    "women_avatar4",
-    "women_avatar5",
-    "women_avatar6",
-    "women_avatar7",
-    "women_avatar8",
-    "women_avatar9",
-    "women_avatar10",
-    "women_avatar11",
-    "women_avatar12",
-    "man_avatar1",
-    "man_avatar2",
-    "man_avatar3",
-    "man_avatar4",
-    "man_avatar5",
-    "man_avatar6",
-    "man_avatar7",
-    "man_avatar8",
-    "man_avatar9",
-    "man_avatar10",
-    "man_avatar11",
-    "man_avatar12"
-)
+private fun profileAvatarOptions(gender: String?): List<String> {
+    val avatarGender = gender.toAvatarGender() ?: AvatarGender.Female
+    return (1..avatarGender.count).map { AvatarCache.avatarValue(it) }
+}
 
 private fun Set<String>.toggleValue(value: String): Set<String> {
     return if (contains(value)) this - value else this + value

@@ -14,6 +14,7 @@ import androidx.compose.runtime.setValue
 import com.gobff.getfriends.data.MainRepository
 import com.gobff.getfriends.data.model.UpdateFcmTokenBody
 import com.gobff.getfriends.navigation.AppNavGraph
+import com.gobff.getfriends.service.AvatarDownloadService
 import com.gobff.getfriends.service.BffFirebaseMessagingService
 import com.gobff.getfriends.service.PresenceForegroundService
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
@@ -33,6 +34,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         AppSession.initialize(this)
         BffFirebaseMessagingService.createDefaultChannel(this)
+        AvatarDownloadService.startIfNeeded(this)
         syncCurrentFcmToken()
         AppSession.logSnapshot("MainActivity.onCreate")
         super.onCreate(savedInstanceState)

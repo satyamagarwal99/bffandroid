@@ -1,5 +1,6 @@
 package com.gobff.getfriends.screens
 
+import android.graphics.BitmapFactory
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -32,6 +33,7 @@ import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -44,10 +46,13 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -60,6 +65,9 @@ import androidx.compose.ui.unit.sp
 import com.gobff.getfriends.R
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.GaretFontFamily
+import com.gobff.getfriends.utils.AvatarCache
+import com.gobff.getfriends.utils.AvatarGender
+import kotlinx.coroutines.delay
 
 @Composable
 fun ManAvatarScreen(
@@ -245,7 +253,7 @@ private fun ManAvatarGrid(
     selectedAvatar: Int,
     onAvatarSelected: (Int) -> Unit
 ) {
-    val rows = (1..12).chunked(4)
+    val rows = (1..AvatarGender.Male.count).chunked(4)
 
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val itemSpacing = 12.dp
@@ -331,16 +339,6 @@ private fun ManAvatarGridItem(
                 )
             }
         }
-
-        if (index == 12) {
-            Text(
-                text = "+39",
-                color = Color.White,
-                fontSize = 19.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold
-            )
-        }
     }
 }
 
@@ -352,18 +350,30 @@ private fun ManAvatarImage(
     contentDescription: String?,
     imageScale: Float = 1f
 ) {
+    val cachedAvatar = rememberCachedAvatarBitmap(AvatarGender.Male, index)
     val avatarResId = manAvatarResourceId(index)
 
-    Image(
-        painter = painterResource(id = avatarResId),
-        contentDescription = contentDescription,
-        modifier = Modifier
+    val imageModifier = Modifier
             .size(size)
             .scale(imageScale)
             .clip(CircleShape)
-            .border(borderWidth.dp, Color.White, CircleShape),
-        contentScale = ContentScale.Crop
-    )
+            .border(borderWidth.dp, Color.White, CircleShape)
+
+    if (cachedAvatar != null) {
+        Image(
+            bitmap = cachedAvatar,
+            contentDescription = contentDescription,
+            modifier = imageModifier,
+            contentScale = ContentScale.Crop
+        )
+    } else {
+        Image(
+            painter = painterResource(id = avatarResId),
+            contentDescription = contentDescription,
+            modifier = imageModifier,
+            contentScale = ContentScale.Crop
+        )
+    }
 }
 
 private fun manAvatarGridScale(index: Int): Float {
@@ -376,18 +386,43 @@ private fun manAvatarGridScale(index: Int): Float {
 private fun manAvatarResourceId(index: Int): Int {
     return when (index) {
         1 -> R.drawable.man_avatar1
-        2 -> R.drawable.man_avatar2
-        3 -> R.drawable.man_avatar3
-        4 -> R.drawable.man_avatar4
-        5 -> R.drawable.man_avatar5
-        6 -> R.drawable.man_avatar6
-        7 -> R.drawable.man_avatar7
-        8 -> R.drawable.man_avatar8
-        9 -> R.drawable.man_avatar9
-        10 -> R.drawable.man_avatar10
-        11 -> R.drawable.man_avatar11
-        12 -> R.drawable.man_avatar12
+        2 -> R.drawable.man_avatar1
+        3 -> R.drawable.man_avatar1
+        4 -> R.drawable.man_avatar1
+        5 -> R.drawable.man_avatar1
+        6 -> R.drawable.man_avatar1
+        7 -> R.drawable.man_avatar1
+        8 -> R.drawable.man_avatar1
+        9 -> R.drawable.man_avatar1
+        10 -> R.drawable.man_avatar1
+        11 -> R.drawable.man_avatar1
+        12 -> R.drawable.man_avatar1
         else -> R.drawable.gender_man
+    }
+}
+
+@Composable
+private fun rememberCachedAvatarBitmap(gender: AvatarGender, index: Int): ImageBitmap? {
+    val context = LocalContext.current
+    val avatarFile = remember(context, gender, index) {
+        AvatarCache.avatarFile(context, gender, index)
+    }
+    var refreshKey by remember(avatarFile.absolutePath) { mutableStateOf(avatarFile.lastModified()) }
+
+    LaunchedEffect(avatarFile.absolutePath) {
+        while (!avatarFile.exists() || avatarFile.length() <= 0L) {
+            delay(1_000)
+            refreshKey = avatarFile.lastModified()
+        }
+        refreshKey = avatarFile.lastModified()
+    }
+
+    return remember(avatarFile.absolutePath, refreshKey) {
+        if (avatarFile.exists() && avatarFile.length() > 0L) {
+            BitmapFactory.decodeFile(avatarFile.absolutePath)?.asImageBitmap()
+        } else {
+            null
+        }
     }
 }
 

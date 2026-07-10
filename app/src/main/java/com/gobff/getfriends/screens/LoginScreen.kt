@@ -1,11 +1,18 @@
 package com.gobff.getfriends.screens
 
 import android.annotation.SuppressLint
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -32,6 +39,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,6 +49,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
@@ -100,6 +110,16 @@ private fun LoginScreenContent(
     modifier: Modifier = Modifier
 ) {
     val loginMethod = uiState.loginCountry.loginMethod
+    val formProgress by animateFloatAsState(
+        targetValue = if (uiState.showOtp) 0f else 1f,
+        animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing),
+        label = "loginFormProgress"
+    )
+    val otpProgress by animateFloatAsState(
+        targetValue = if (uiState.showOtp) 1f else 0f,
+        animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing),
+        label = "loginOtpProgress"
+    )
 
     BoxWithConstraints(
         modifier = modifier
@@ -122,7 +142,9 @@ private fun LoginScreenContent(
                 otpDebugText = uiState.otpDebugText,
                 authStatusText = uiState.authStatusText,
                 onOtpCodeChange = onOtpCodeChange,
-                modifier = Modifier.matchParentSize()
+                modifier = Modifier
+                    .matchParentSize()
+                    .loginCrossfadeMotion(otpProgress, slideY = 22f)
             )
 
             RaisedLoginButton(
@@ -147,6 +169,7 @@ private fun LoginScreenContent(
                     .align(Alignment.TopCenter)
                     .offset(y = 94.dp)
                     .width(screenWidth * 0.68f)
+                    .loginCrossfadeMotion(formProgress, slideY = 18f)
             ) {
                 Text(
                     text = "Let's start talking",
@@ -177,6 +200,7 @@ private fun LoginScreenContent(
                         .align(Alignment.TopCenter)
                         .offset(y = screenHeight * 0.22f)
                         .width(screenWidth * 0.77f)
+                        .loginCrossfadeMotion(formProgress, slideY = 22f)
                 )
 
                 PrivacyLine(
@@ -184,6 +208,7 @@ private fun LoginScreenContent(
                         .align(Alignment.TopCenter)
                         .offset(y = screenHeight * 0.33f)
                         .width(screenWidth * 0.72f)
+                        .loginCrossfadeMotion(formProgress, slideY = 18f)
                 )
 
                 LoginStatusText(
@@ -192,6 +217,7 @@ private fun LoginScreenContent(
                         .align(Alignment.TopCenter)
                         .offset(y = screenHeight * 0.37f)
                         .width(screenWidth * 0.72f)
+                        .loginCrossfadeMotion(formProgress, slideY = 14f)
                 )
 
                 RaisedLoginButton(
@@ -200,6 +226,7 @@ private fun LoginScreenContent(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .offset(x = -(screenWidth * 0.16f), y = screenHeight * 0.41f)
+                        .loginCrossfadeMotion(formProgress, slideY = 18f)
                 )
 
                 DashedCurve(
@@ -216,6 +243,7 @@ private fun LoginScreenContent(
                         .align(Alignment.TopCenter)
                         .offset(y = screenHeight * 0.22f)
                         .width(screenWidth * 0.77f)
+                        .loginCrossfadeMotion(formProgress, slideY = 22f)
                 )
 
                 LoginStatusText(
@@ -224,6 +252,7 @@ private fun LoginScreenContent(
                         .align(Alignment.TopCenter)
                         .offset(y = screenHeight * 0.31f)
                         .width(screenWidth * 0.72f)
+                        .loginCrossfadeMotion(formProgress, slideY = 14f)
                 )
             }
         }
@@ -236,6 +265,14 @@ private fun LoginScreenContent(
         )
     }
 }
+
+private fun Modifier.loginCrossfadeMotion(progress: Float, slideY: Float): Modifier =
+    graphicsLayer {
+        alpha = progress
+        translationY = (1f - progress) * slideY
+        scaleX = 0.98f + progress * 0.02f
+        scaleY = 0.98f + progress * 0.02f
+    }
 
 @Composable
 private fun LoginStatusText(
@@ -345,8 +382,15 @@ private fun GoogleSignInButton(
 ) {
     val shape = RoundedCornerShape(80.dp)
     val borderColor = Color(0xFF1B1A1A)
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.97f else 1f,
+        animationSpec = spring(dampingRatio = 0.65f, stiffness = 520f),
+        label = "googleButtonPress"
+    )
 
-    Box(modifier = modifier.wrapContentSize()) {
+    Box(modifier = modifier.wrapContentSize().scale(pressScale)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -363,7 +407,11 @@ private fun GoogleSignInButton(
                 .clip(shape)
                 .background(Color.White)
                 .border(width = 1.5.dp, color = borderColor, shape = shape)
-                .clickable(onClick = onClick),
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    onClick = onClick
+                ),
             contentAlignment = Alignment.CenterStart
         ) {
             Row(
@@ -403,12 +451,24 @@ private fun TopArrowButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.92f else 1f,
+        animationSpec = spring(dampingRatio = 0.62f, stiffness = 540f),
+        label = "topArrowPress"
+    )
     Box(
         modifier = modifier
             .size(width = 52.dp, height = 27.dp)
+            .scale(pressScale)
             .clip(RoundedCornerShape(50))
             .background(Color.Black)
-            .clickable(onClick = onClick),
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            ),
         contentAlignment = Alignment.Center
     ) {
         Icon(
@@ -600,8 +660,15 @@ private fun RaisedLoginButton(
     onClick: () -> Unit = {}
 ) {
     val shape = RoundedCornerShape(12.dp)
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.95f else 1f,
+        animationSpec = spring(dampingRatio = 0.64f, stiffness = 540f),
+        label = "raisedLoginPress"
+    )
 
-    Box(modifier = modifier.wrapContentSize()) {
+    Box(modifier = modifier.wrapContentSize().scale(pressScale)) {
         Box(
             modifier = Modifier
                 .size(width = width, height = height)
@@ -615,7 +682,11 @@ private fun RaisedLoginButton(
                 .clip(shape)
                 .background(Color.White)
                 .border(1.5.dp, Color.Black, shape)
-                .clickable(onClick = onClick),
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    onClick = onClick
+                ),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -818,9 +889,14 @@ private fun PageIndicator(
     ) {
         repeat(3) { page ->
             val isSelected = page == currentPage
+            val dotWidth by animateDpAsState(
+                targetValue = if (isSelected) 28.dp else 8.dp,
+                animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+                label = "loginPagerDotWidth"
+            )
             Box(
                 modifier = Modifier
-                    .size(width = if (isSelected) 28.dp else 8.dp, height = 8.dp)
+                    .size(width = dotWidth, height = 8.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(if (isSelected) LoginPurpleDark else Color(0xFFD3D3D3))
             )

@@ -138,7 +138,7 @@ fun AppNavGraph(
     var incomingCallRequestedRole by remember { mutableStateOf("SPEAKER") }
     var incomingCallAvatarUrl by remember { mutableStateOf<String?>(null) }
     var activeChatName by remember { mutableStateOf("Anshu") }
-    var activeChatAvatar by remember { mutableStateOf(R.drawable.women_avatar3) }
+    var activeChatAvatar by remember { mutableStateOf(R.drawable.women_avatar1) }
     var initialAppOpenDispatched by remember { mutableStateOf(false) }
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
     val selectedBottomTab = currentRoute.toMainBottomTab()

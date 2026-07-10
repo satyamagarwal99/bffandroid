@@ -757,7 +757,7 @@ private fun TruthDareLoadingScreen(
         )
         LoadingProfile(
             name = "Anshu",
-            avatarRes = R.drawable.women_avatar8,
+            avatarRes = R.drawable.women_avatar1,
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = 132.dp)
@@ -1569,7 +1569,7 @@ private fun GameScoreBoard(modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.Center,
         modifier = modifier
     ) {
-        ScoreAvatar(R.drawable.women_avatar11)
+        ScoreAvatar(R.drawable.women_avatar1)
         Text(
             text = "0",
             color = Color.Black,
@@ -1947,29 +1947,29 @@ private fun String.truthDareLanguageLabel(): String? {
 private fun String?.toTruthDareAvatarRes(): Int {
     return when (this?.trim().orEmpty()) {
         "women_avatar1" -> R.drawable.women_avatar1
-        "women_avatar2" -> R.drawable.women_avatar2
-        "women_avatar3" -> R.drawable.women_avatar3
-        "women_avatar4" -> R.drawable.women_avatar4
-        "women_avatar5" -> R.drawable.women_avatar5
-        "women_avatar6" -> R.drawable.women_avatar6
-        "women_avatar7" -> R.drawable.women_avatar7
-        "women_avatar8" -> R.drawable.women_avatar8
-        "women_avatar9" -> R.drawable.women_avatar9
-        "women_avatar10" -> R.drawable.women_avatar10
-        "women_avatar11" -> R.drawable.women_avatar11
-        "women_avatar12" -> R.drawable.women_avatar12
+        "women_avatar2" -> R.drawable.women_avatar1
+        "women_avatar3" -> R.drawable.women_avatar1
+        "women_avatar4" -> R.drawable.women_avatar1
+        "women_avatar5" -> R.drawable.women_avatar1
+        "women_avatar6" -> R.drawable.women_avatar1
+        "women_avatar7" -> R.drawable.women_avatar1
+        "women_avatar8" -> R.drawable.women_avatar1
+        "women_avatar9" -> R.drawable.women_avatar1
+        "women_avatar10" -> R.drawable.women_avatar1
+        "women_avatar11" -> R.drawable.women_avatar1
+        "women_avatar12" -> R.drawable.women_avatar1
         "man_avatar1" -> R.drawable.man_avatar1
-        "man_avatar2" -> R.drawable.man_avatar2
-        "man_avatar3" -> R.drawable.man_avatar3
-        "man_avatar4" -> R.drawable.man_avatar4
-        "man_avatar5" -> R.drawable.man_avatar5
-        "man_avatar6" -> R.drawable.man_avatar6
-        "man_avatar7" -> R.drawable.man_avatar7
-        "man_avatar8" -> R.drawable.man_avatar8
-        "man_avatar9" -> R.drawable.man_avatar9
-        "man_avatar10" -> R.drawable.man_avatar10
-        "man_avatar11" -> R.drawable.man_avatar11
-        "man_avatar12" -> R.drawable.man_avatar12
+        "man_avatar2" -> R.drawable.man_avatar1
+        "man_avatar3" -> R.drawable.man_avatar1
+        "man_avatar4" -> R.drawable.man_avatar1
+        "man_avatar5" -> R.drawable.man_avatar1
+        "man_avatar6" -> R.drawable.man_avatar1
+        "man_avatar7" -> R.drawable.man_avatar1
+        "man_avatar8" -> R.drawable.man_avatar1
+        "man_avatar9" -> R.drawable.man_avatar1
+        "man_avatar10" -> R.drawable.man_avatar1
+        "man_avatar11" -> R.drawable.man_avatar1
+        "man_avatar12" -> R.drawable.man_avatar1
         else -> R.drawable.man_avatar1
     }
 }

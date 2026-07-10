@@ -1,5 +1,6 @@
 package com.gobff.getfriends.screens
 
+import android.graphics.BitmapFactory
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -32,6 +33,7 @@ import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -44,8 +46,10 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -61,6 +65,9 @@ import androidx.compose.ui.unit.sp
 import com.gobff.getfriends.R
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.GaretFontFamily
+import com.gobff.getfriends.utils.AvatarCache
+import com.gobff.getfriends.utils.AvatarGender
+import kotlinx.coroutines.delay
 
 @Composable
 fun WomenAvatarScreen(
@@ -246,7 +253,7 @@ private fun WomenAvatarGrid(
     selectedAvatar: Int,
     onAvatarSelected: (Int) -> Unit
 ) {
-    val rows = (1..12).chunked(4)
+    val rows = (1..AvatarGender.Female.count).chunked(4)
 
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val itemSpacing = 12.dp
@@ -329,16 +336,6 @@ private fun AvatarGridItem(
                 )
             }
         }
-
-        if (index == 12) {
-            Text(
-                text = "+39",
-                color = Color.White,
-                fontSize = 19.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold
-            )
-        }
     }
 }
 
@@ -349,17 +346,29 @@ private fun AvatarImage(
     borderWidth: Int,
     contentDescription: String?
 ) {
+    val cachedAvatar = rememberCachedAvatarBitmap(AvatarGender.Female, index)
     val avatarResId = womenAvatarResourceId(index)
 
-    Image(
-        painter = painterResource(id = avatarResId),
-        contentDescription = contentDescription,
-        modifier = Modifier
+    val imageModifier = Modifier
             .size(size)
             .clip(CircleShape)
-            .border(borderWidth.dp, Color.White, CircleShape),
-        contentScale = ContentScale.Crop
-    )
+            .border(borderWidth.dp, Color.White, CircleShape)
+
+    if (cachedAvatar != null) {
+        Image(
+            bitmap = cachedAvatar,
+            contentDescription = contentDescription,
+            modifier = imageModifier,
+            contentScale = ContentScale.Crop
+        )
+    } else {
+        Image(
+            painter = painterResource(id = avatarResId),
+            contentDescription = contentDescription,
+            modifier = imageModifier,
+            contentScale = ContentScale.Crop
+        )
+    }
 }
 
 @Composable
@@ -374,6 +383,31 @@ private fun womenAvatarResourceId(index: Int): Int {
     }
 
     return if (resourceId != 0) resourceId else R.drawable.gender_women
+}
+
+@Composable
+private fun rememberCachedAvatarBitmap(gender: AvatarGender, index: Int): ImageBitmap? {
+    val context = LocalContext.current
+    val avatarFile = remember(context, gender, index) {
+        AvatarCache.avatarFile(context, gender, index)
+    }
+    var refreshKey by remember(avatarFile.absolutePath) { mutableStateOf(avatarFile.lastModified()) }
+
+    LaunchedEffect(avatarFile.absolutePath) {
+        while (!avatarFile.exists() || avatarFile.length() <= 0L) {
+            delay(1_000)
+            refreshKey = avatarFile.lastModified()
+        }
+        refreshKey = avatarFile.lastModified()
+    }
+
+    return remember(avatarFile.absolutePath, refreshKey) {
+        if (avatarFile.exists() && avatarFile.length() > 0L) {
+            BitmapFactory.decodeFile(avatarFile.absolutePath)?.asImageBitmap()
+        } else {
+            null
+        }
+    }
 }
 
 @Composable
