@@ -60,7 +60,6 @@ fun LiveScreen(
     onNotificationAccessRequested: (onAccessReady: () -> Unit) -> Unit = {},
     onRechargeRequested: () -> Unit = {}
 ) {
-    var selectedMode by remember { mutableStateOf(LiveMode.Video) }
     var notifyEnabled by remember { mutableStateOf(false) }
 
     LaunchedEffect(hasNotificationAccess) {
@@ -97,13 +96,7 @@ fun LiveScreen(
         Spacer(modifier = Modifier.height(40.dp))
         LiveTitleArea()
         Spacer(modifier = Modifier.height(18.dp))
-        LiveModeSelector(
-            selectedMode = selectedMode,
-            onModeSelected = { selectedMode = it },
-            modifier = Modifier.padding(horizontal = 56.dp)
-        )
         LiveEmptyCard(
-            mode = selectedMode,
             notifyEnabled = notifyEnabled,
             onNotifyToggle = ::toggleNotification,
             modifier = Modifier.fillMaxWidth()
@@ -200,64 +193,7 @@ private fun LiveTitleArea() {
 }
 
 @Composable
-private fun LiveModeSelector(
-    selectedMode: LiveMode,
-    onModeSelected: (LiveMode) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(36.dp)
-    ) {
-        LiveModeButton(
-            text = "Video",
-            selected = selectedMode == LiveMode.Video,
-            onClick = { onModeSelected(LiveMode.Video) },
-            modifier = Modifier.weight(1f)
-        )
-        LiveModeButton(
-            text = "Audio",
-            selected = selectedMode == LiveMode.Audio,
-            onClick = { onModeSelected(LiveMode.Audio) },
-            modifier = Modifier.weight(1f)
-        )
-    }
-}
-
-@Composable
-private fun LiveModeButton(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val textColor by animateColorAsState(
-        targetValue = if (selected) Color.Black else Color(0xFF444444),
-        label = "liveModeTextColor"
-    )
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier.clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null,
-            onClick = onClick
-        )
-    ) {
-        Text(
-            text = text,
-            color = textColor,
-            fontSize = 17.sp,
-            lineHeight = 20.sp,
-            fontFamily = GaretFontFamily,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
-        )
-    }
-}
-
-@Composable
 private fun LiveEmptyCard(
-    mode: LiveMode,
     notifyEnabled: Boolean,
     onNotifyToggle: () -> Unit,
     modifier: Modifier = Modifier
@@ -275,13 +211,6 @@ private fun LiveEmptyCard(
             contentScale = ContentScale.FillBounds
         )
 
-        LiveSelectedModeStrip(
-            selectedMode = mode,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(horizontal = 56.dp)
-        )
-
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
@@ -297,11 +226,7 @@ private fun LiveEmptyCard(
             )
             Spacer(modifier = Modifier.height(18.dp))
             Text(
-                text = if (mode == LiveMode.Video) {
-                    "No friends are live right now"
-                } else {
-                    "No friends are live right now"
-                },
+                text = "No friends are live right now",
                 color = Color.Black,
                 fontSize = 18.sp,
                 lineHeight = 22.sp,
@@ -324,45 +249,6 @@ private fun LiveEmptyCard(
                 enabled = notifyEnabled,
                 onToggle = onNotifyToggle,
                 modifier = Modifier.fillMaxWidth()
-            )
-        }
-    }
-}
-
-@Composable
-private fun LiveSelectedModeStrip(
-    selectedMode: LiveMode,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(4.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(4.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(width = 108.dp, height = 4.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(if (selectedMode == LiveMode.Video) Color(0xFFE7532F) else Color.Transparent)
-            )
-        }
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(4.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(width = 108.dp, height = 4.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(if (selectedMode == LiveMode.Audio) Color(0xFFE7532F) else Color.Transparent)
             )
         }
     }
@@ -457,11 +343,6 @@ private fun LiveNotifyToggle(
                 .background(Color.White)
         )
     }
-}
-
-private enum class LiveMode {
-    Video,
-    Audio
 }
 
 @Preview(showBackground = true, widthDp = 393, heightDp = 852)

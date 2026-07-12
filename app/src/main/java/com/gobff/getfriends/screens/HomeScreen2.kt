@@ -64,11 +64,14 @@ import com.gobff.getfriends.R
 import com.gobff.getfriends.data.model.ConnectUserResponse
 import com.gobff.getfriends.data.model.FriendListUserResponse
 import com.gobff.getfriends.ui.component.BffHeartChip
+import com.gobff.getfriends.ui.component.CachedAvatarImage
 import com.gobff.getfriends.ui.component.HandDrawnCardShape
 import com.gobff.getfriends.ui.component.HeartChipShape
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.FreedokaFontFamily
 import com.gobff.getfriends.ui.theme.GaretFontFamily
+import com.gobff.getfriends.utils.AvatarGender
+import com.gobff.getfriends.utils.toAvatarGender
 import com.gobff.getfriends.viewmodel.FriendsListViewModel
 import com.gobff.getfriends.viewmodel.HomeScreenViewModel
 import kotlinx.coroutines.delay
@@ -127,6 +130,8 @@ fun HomeScreen2(
     modifier: Modifier = Modifier,
     walletHearts: Int = 0,
     displayName: String? = null,
+    avatarUrl: String? = null,
+    gender: String? = null,
     onBack: () -> Unit = {},
     onLogout: () -> Unit = {},
     onConnectSelected: () -> Unit = {},
@@ -168,6 +173,8 @@ fun HomeScreen2(
         HomeScreen2Content(
             walletHearts = walletHearts,
             displayName = displayName,
+            avatarUrl = avatarUrl,
+            gender = gender,
             starFriends = starFriends,
             onlineFriends = onlineFriends,
             onChatSelected = onChatSelected,
@@ -187,6 +194,8 @@ private fun HomeScreen2Content(
     modifier: Modifier = Modifier,
     walletHearts: Int = 0,
     displayName: String? = null,
+    avatarUrl: String? = null,
+    gender: String? = null,
     starFriends: List<FriendListUserResponse> = emptyList(),
     onlineFriends: List<ConnectUserResponse> = emptyList(),
     onChatSelected: () -> Unit = {},
@@ -211,6 +220,8 @@ private fun HomeScreen2Content(
             HomeScreen2TopSection(
                 walletHearts = walletHearts,
                 displayName = displayName,
+                avatarUrl = avatarUrl,
+                gender = gender,
                 onChatClick = onChatSelected,
                 onProfileClick = onProfileRequested,
                 onRechargeRequested = onRechargeRequested
@@ -281,6 +292,8 @@ private fun HomeScreen2Content(
 private fun HomeScreen2TopSection(
     walletHearts: Int,
     displayName: String?,
+    avatarUrl: String?,
+    gender: String?,
     onChatClick: () -> Unit,
     onProfileClick: () -> Unit,
     onRechargeRequested: () -> Unit = {}
@@ -292,8 +305,10 @@ private fun HomeScreen2TopSection(
             .background(Color.White)
             .enterMotion(slideY = 22f)
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.man_avatar1),
+        CachedAvatarImage(
+            avatarUrl = avatarUrl,
+            gender = gender,
+            fallbackRes = gender.toHomeScreen2FallbackAvatarRes(),
             contentDescription = null,
             modifier = Modifier
                 .offset(
@@ -1099,6 +1114,14 @@ private fun String?.toHomeFriendAvatarRes(seed: String): Int {
             val index = (seed.hashCode() and Int.MAX_VALUE) % avatars.size
             avatars[index]
         }
+    }
+}
+
+private fun String?.toHomeScreen2FallbackAvatarRes(): Int {
+    return when (this.toAvatarGender()) {
+        AvatarGender.Female -> R.drawable.women_avatar1
+        AvatarGender.Male -> R.drawable.man_avatar1
+        else -> R.drawable.man_avatar1
     }
 }
 

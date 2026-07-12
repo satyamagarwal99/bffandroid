@@ -95,7 +95,7 @@ import kotlin.math.abs
 fun HomeScreen(
     modifier: Modifier = Modifier,
     walletHearts: Int = 0,
-    onCallRequested: (String) -> Unit = {},
+    onCallRequested: (HomeProfile) -> Unit = {},
     onFriendsRequested: () -> Unit = {},
     onRechargeRequested: () -> Unit = {},
     onHomeRequested: () -> Unit = {},
@@ -200,7 +200,7 @@ fun HomeScreen(
                 if (hasConnectUsers) {
                     HomeCardStack(
                         profiles = carouselProfiles,
-                        onCallRequested = { profile -> onCallRequested(profile.name) },
+                        onCallRequested = onCallRequested,
                         onCallDragProgress = { callDragProgress = it }
                     )
                 } else if (showEmptyConnectState) {
@@ -1540,7 +1540,8 @@ private fun SwipeHint(
     }
 }
 
-private data class HomeProfile(
+data class HomeProfile(
+    val userId: String,
     val name: String,
     val avatarRes: Int,
     val headerColor: Color,
@@ -1549,12 +1550,12 @@ private data class HomeProfile(
     val prompt: String
 )
 
-private data class HomeProfileLanguage(
+data class HomeProfileLanguage(
     val text: String,
     val background: Color
 )
 
-private data class HomeProfileTag(
+data class HomeProfileTag(
     val text: String,
     val accent: Color
 )
@@ -1562,6 +1563,7 @@ private data class HomeProfileTag(
 private fun List<ConnectUserResponse>.toHomeProfiles(): List<HomeProfile> {
     return map { user ->
         HomeProfile(
+            userId = user.userId.orEmpty(),
             name = user.displayName?.takeIf { it.isNotBlank() } ?: "Someone",
             avatarRes = user.avatarUrl.toAvatarRes(),
             headerColor = user.headerColor(),
@@ -1682,6 +1684,7 @@ private fun Set<String>.toggleValue(value: String): Set<String> {
 
 private val HomeProfiles = listOf(
     HomeProfile(
+        userId = "user-anshu",
         name = "Anshu",
         avatarRes = R.drawable.home_screen_avatar,
         headerColor = Color(0xFFFCC02E),
@@ -1697,6 +1700,7 @@ private val HomeProfiles = listOf(
         prompt = "\"Tell me the best thing that\nhappened today.\""
     ),
     HomeProfile(
+        userId = "user-mira",
         name = "Mira",
         avatarRes = R.drawable.women_avatar1,
         headerColor = Color(0xFF79B6FF),
@@ -1712,6 +1716,7 @@ private val HomeProfiles = listOf(
         prompt = "\"What song has been stuck\nin your head lately?\""
     ),
     HomeProfile(
+        userId = "user-kabir",
         name = "Kabir",
         avatarRes = R.drawable.man_avatar1,
         headerColor = Color(0xFFCEFB42),
@@ -1727,6 +1732,7 @@ private val HomeProfiles = listOf(
         prompt = "\"What is one tiny win from\nyour week?\""
     ),
     HomeProfile(
+        userId = "user-tara",
         name = "Tara",
         avatarRes = R.drawable.women_avatar1,
         headerColor = Color(0xFFFF9BD1),

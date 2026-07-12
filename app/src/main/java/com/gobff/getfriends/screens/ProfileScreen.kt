@@ -139,10 +139,10 @@ fun ProfileScreen(
             userProfileViewModel.saveVibes(vibes, onComplete)
         },
         onSaveAvatar = { avatarUrl, onComplete ->
-            userProfileViewModel.saveIdentity(avatarUrl = avatarUrl, onComplete = onComplete)
+            userProfileViewModel.saveAvatar(avatarUrl, onComplete)
         },
         onSaveName = { displayName, onComplete ->
-            userProfileViewModel.saveIdentity(displayName = displayName, onComplete = onComplete)
+            userProfileViewModel.saveName(displayName, onComplete)
         }
     )
 }
@@ -1126,7 +1126,7 @@ private fun StarHostProgressScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Earn more. Be seen by thousands.",
+                text = "Get more. Be seen by thousands.",
                 color = Color(0xFF5F5F5F),
                 fontSize = 14.sp,
                 fontFamily = GaretFontFamily,
@@ -1245,9 +1245,9 @@ private fun StarHostProgressPanel(
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(horizontal = 24.dp, vertical = 40.dp)
+                .padding(horizontal = 18.dp, vertical = 40.dp)
                 .fillMaxWidth()
-                .height(278.dp)
+                .height(340.dp)
         ) {
             val cardShape = RoundedCornerShape(14.dp)
             Box(
@@ -1337,11 +1337,11 @@ private fun StarHostProgressItem(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .height(58.dp)
+            .height(64.dp)
             .clip(shape)
             .background(if (completed) Color(0xFFF0FAEC) else Color.White)
             .border(1.dp, Color(0xFFE0E0E0), shape)
-            .padding(horizontal = 12.dp)
+            .padding(horizontal = 14.dp)
     ) {
         Box(
             contentAlignment = Alignment.Center,
@@ -1366,35 +1366,35 @@ private fun StarHostProgressItem(
             Text(
                 text = title,
                 color = Color(0xFF2A2A2A),
-                fontSize = 11.5.sp,
-                lineHeight = 13.sp,
+                fontSize = 11.sp,
+                lineHeight = 12.sp,
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Bold,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
-            Spacer(modifier = Modifier.height(9.dp))
+            Spacer(modifier = Modifier.height(7.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(8.dp)
+                    .height(9.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(Color(0xFFE7E7E7))
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(progress.coerceIn(0f, 1f))
-                        .height(8.dp)
+                        .height(9.dp)
                         .clip(RoundedCornerShape(20.dp))
                         .background(Color(0xFF66C843))
                 )
             }
         }
-        Spacer(modifier = Modifier.width(10.dp))
+        Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = progressText,
             color = Color(0xFF4F8B3F),
-            fontSize = 10.sp,
+            fontSize = 10.5.sp,
             fontFamily = GaretFontFamily,
             fontWeight = FontWeight.Bold
         )

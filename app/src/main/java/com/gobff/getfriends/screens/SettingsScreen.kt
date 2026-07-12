@@ -73,6 +73,7 @@ import com.gobff.getfriends.ui.component.HandDrawnCardShape
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.FreedokaFontFamily
 import com.gobff.getfriends.ui.theme.GaretFontFamily
+import com.gobff.getfriends.viewmodel.DeleteAccountViewModel
 import com.gobff.getfriends.viewmodel.LogoutViewModel
 
 private val SettingsPurple = Color(0xFFC471FF)
@@ -100,12 +101,15 @@ private enum class AccountManagementSheet {
 @Composable
 fun SettingsScreen(
     modifier: Modifier = Modifier,
+    walletHearts: Int = 0,
     onBack: () -> Unit = {},
     hasNotificationAccess: Boolean = true,
     onAlwaysOnlineChanged: (Boolean) -> Unit = {},
     onNotificationAccessRequested: (onAccessReady: () -> Unit) -> Unit = { onAccessReady -> onAccessReady() },
     onLogout: () -> Unit = {},
-    logoutViewModel: LogoutViewModel = viewModel()
+    onDeleteAccount: () -> Unit = {},
+    logoutViewModel: LogoutViewModel = viewModel(),
+    deleteAccountViewModel: DeleteAccountViewModel = viewModel()
 ) {
     var page by remember { mutableStateOf(SettingsPage.Main) }
 
@@ -157,6 +161,9 @@ fun SettingsScreen(
 
         SettingsPage.AccountManagement -> AccountManagementContent(
             onBack = { page = SettingsPage.Main },
+            onDeleteAccount = onDeleteAccount,
+            deleteAccountViewModel = deleteAccountViewModel,
+            walletHearts = walletHearts,
             modifier = modifier
         )
 
@@ -625,11 +632,15 @@ private fun PrivacyPolicyContent(
 @Composable
 private fun AccountManagementContent(
     onBack: () -> Unit,
+    onDeleteAccount: () -> Unit,
+    deleteAccountViewModel: DeleteAccountViewModel,
+    walletHearts: Int,
     modifier: Modifier = Modifier
 ) {
     var activeSheet by remember { mutableStateOf<AccountManagementSheet?>(null) }
     var newPhone by remember { mutableStateOf("") }
     var otp by remember { mutableStateOf("1234") }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
 
     BackHandler {
         if (activeSheet != null) {
@@ -715,7 +726,13 @@ private fun AccountManagementContent(
                     SettingsGroupCard {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = { showDeleteConfirm = true }
+                                )
                         ) {
                             Box(
                                 contentAlignment = Alignment.Center,
@@ -737,7 +754,8 @@ private fun AccountManagementContent(
                                 color = Color(0xFFFF5B63),
                                 fontSize = 15.sp,
                                 fontFamily = GaretFontFamily,
-                                fontWeight = FontWeight.Medium
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.weight(1f)
                             )
                         }
                     }
@@ -751,6 +769,125 @@ private fun AccountManagementContent(
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.42f))
             )
+        }
+
+        if (showDeleteConfirm) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.42f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        enabled = !deleteAccountViewModel.isDeleting,
+                        onClick = { showDeleteConfirm = false }
+                    )
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = 28.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .offset(x = 2.dp, y = 3.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(Color.Black)
+                )
+                Column(
+                    horizontalAlignment = Alignment.Start,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(Color.White)
+                        .border(1.5.dp, Color.Black, RoundedCornerShape(24.dp))
+                        .padding(horizontal = 22.dp, vertical = 22.dp)
+                ) {
+                    Text(
+                        text = "Delete account permanently",
+                        color = Color.Black,
+                        fontSize = 22.sp,
+                        lineHeight = 24.sp,
+                        fontFamily = GaretFontFamily,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Text(
+                        text = "This action cannot be undone. Your account will be deleted permanently and cannot be retrieved.",
+                        color = Color(0xFF3C3C3C),
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
+                        fontFamily = GaretFontFamily,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Heart balance: $walletHearts",
+                        color = Color.Black,
+                        fontSize = 14.sp,
+                        fontFamily = GaretFontFamily,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(26.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFFF2F2F2))
+                                .border(1.2.dp, Color.Black, RoundedCornerShape(14.dp))
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    enabled = !deleteAccountViewModel.isDeleting,
+                                    onClick = { showDeleteConfirm = false }
+                                )
+                        ) {
+                            Text(
+                                text = "Cancel",
+                                color = Color.Black,
+                                fontSize = 14.sp,
+                                fontFamily = GaretFontFamily,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(48.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFFFF6A6F))
+                                .border(1.2.dp, Color.Black, RoundedCornerShape(14.dp))
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    enabled = !deleteAccountViewModel.isDeleting,
+                                    onClick = {
+                                        deleteAccountViewModel.deleteAccount {
+                                            showDeleteConfirm = false
+                                            onDeleteAccount()
+                                        }
+                                    }
+                                )
+                        ) {
+                            Text(
+                                text = if (deleteAccountViewModel.isDeleting) "Deleting..." else "Confirm Delete",
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontFamily = GaretFontFamily,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         when (activeSheet) {

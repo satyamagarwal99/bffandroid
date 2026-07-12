@@ -136,6 +136,30 @@ object AppSession {
         return sharedPref!!.getLong(key, 0L)
     }
 
+    fun setCurrentUserProfile(displayName: String?, avatarUrl: String?, gender: String?) {
+        ensureInitialized()
+        sharedPref!!.edit(commit = true) {
+            putString(Constant.CURRENT_USER_DISPLAY_NAME_KEY, displayName)
+            putString(Constant.CURRENT_USER_AVATAR_URL_KEY, avatarUrl)
+            putString(Constant.CURRENT_USER_GENDER_KEY, gender)
+        }
+    }
+
+    fun getCurrentUserDisplayName(): String? {
+        ensureInitialized()
+        return sharedPref!!.getString(Constant.CURRENT_USER_DISPLAY_NAME_KEY, null)
+    }
+
+    fun getCurrentUserAvatarUrl(): String? {
+        ensureInitialized()
+        return sharedPref!!.getString(Constant.CURRENT_USER_AVATAR_URL_KEY, null)
+    }
+
+    fun getCurrentUserGender(): String? {
+        ensureInitialized()
+        return sharedPref!!.getString(Constant.CURRENT_USER_GENDER_KEY, null)
+    }
+
 
     fun remove(key: String) {
         ensureInitialized()
@@ -149,9 +173,28 @@ object AppSession {
     fun clear() {
         ensureInitialized()
         Log.w(TAG, "AuthSessionStore clear requested", Throwable("clear caller trace"))
-        sharedPref!!.edit(commit = true) { clear() }
-        backupPref!!.edit(commit = true) { clear() }
-        Log.d(TAG, "AuthSessionStore cleared")
+        val context = appContext
+        runCatching {
+            sharedPref!!.edit(commit = true) { clear() }
+            backupPref!!.edit(commit = true) { clear() }
+        }.onSuccess {
+            Log.d(TAG, "AuthSessionStore cleared")
+            return
+        }.onFailure { error ->
+            Log.w(TAG, "Encrypted session clear failed; deleting preference files directly", error)
+            runCatching {
+                context?.deleteSharedPreferences(PREFS_NAME)
+                context?.deleteSharedPreferences(BACKUP_PREFS_NAME)
+            }.onFailure { deleteError ->
+                Log.e(TAG, "Preference file deletion also failed", deleteError)
+            }
+        }
+
+        sharedPref = null
+        backupPref = context?.getSharedPreferences(BACKUP_PREFS_NAME, MODE_PRIVATE)
+        isInitialized = false
+        initializationFailed = false
+        Log.d(TAG, "AuthSessionStore reset after clear")
     }
 
     fun logSnapshot(reason: String) {

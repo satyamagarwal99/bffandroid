@@ -10,10 +10,12 @@ import com.gobff.getfriends.data.MainRepository
 import com.gobff.getfriends.data.model.CallRoomUiState
 import com.gobff.getfriends.data.model.CreateRoomBody
 import com.gobff.getfriends.data.model.JoinRoomBody
+import com.gobff.getfriends.data.model.SendGiftBody
 import com.gobff.getfriends.data.model.RoomFeedbackBody
 import com.gobff.getfriends.data.model.RoomMessageBody
 import com.gobff.getfriends.data.model.RoomRole
 import com.gobff.getfriends.data.model.RoomType
+import com.gobff.getfriends.data.model.RoomResponse
 import com.gobff.getfriends.data.model.RtcTokenBody
 import com.gobff.getfriends.data.model.RtcTokenResponse
 import com.gobff.getfriends.utils.TokenUtils
@@ -24,6 +26,7 @@ import io.agora.rtc2.RtcEngine
 import io.agora.rtc2.RtcEngineConfig
 import io.agora.rtc2.video.VideoCanvas
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 class CallViewModel(
     application: Application
@@ -90,12 +93,32 @@ class CallViewModel(
     }
 
     fun createRandomOneToOneAudioCall(
-        title: String
+        title: String,
+        onSuccess: (RoomResponse) -> Unit = {},
+        onFailure: (String) -> Unit = {}
     ) {
         createRoom(
             type = RoomType.OneToOneAudioCall,
             title = title,
-            maxParticipants = null
+            maxParticipants = null,
+            onSuccess = onSuccess,
+            onFailure = onFailure
+        )
+    }
+
+    fun createOneToOneAudioCall(
+        title: String,
+        invitedUserId: String? = null,
+        onSuccess: (RoomResponse) -> Unit = {},
+        onFailure: (String) -> Unit = {}
+    ) {
+        createRoom(
+            type = RoomType.OneToOneAudioCall,
+            title = title,
+            maxParticipants = null,
+            invitedUserId = invitedUserId,
+            onSuccess = onSuccess,
+            onFailure = onFailure
         )
     }
 
@@ -112,13 +135,17 @@ class CallViewModel(
 
     fun createOneToOneVideoCall(
         title: String,
-        invitedUserId: String? = null
+        invitedUserId: String? = null,
+        onSuccess: (RoomResponse) -> Unit = {},
+        onFailure: (String) -> Unit = {}
     ) {
         createRoom(
             type = RoomType.OneToOneVideoCall,
             title = title,
             maxParticipants = null,
-            invitedUserId = invitedUserId
+            invitedUserId = invitedUserId,
+            onSuccess = onSuccess,
+            onFailure = onFailure
         )
     }
 
@@ -307,6 +334,51 @@ class CallViewModel(
         }
     }
 
+    fun sendGift(
+        roomId: String,
+        giftCode: String,
+        recipientUserId: String,
+        onSuccess: () -> Unit = {},
+        onFailure: (String) -> Unit = {}
+    ) {
+        val token = TokenUtils.getToken()
+        if (token.isBlank()) {
+            onFailure("Login token missing")
+            return
+        }
+
+        val normalizedRoomId = roomId.trim()
+        val normalizedGiftCode = giftCode.trim()
+        val normalizedRecipientId = recipientUserId.trim()
+        if (normalizedRoomId.isBlank() || normalizedGiftCode.isBlank() || normalizedRecipientId.isBlank()) {
+            onFailure("Gift details are incomplete")
+            return
+        }
+
+        viewModelScope.launch {
+            runCatching {
+                mainRepository.sendGift(
+                    bearerToken = token,
+                    idempotencyKey = "gift-${UUID.randomUUID().toString().replace("-", "")}",
+                    roomId = normalizedRoomId,
+                    body = SendGiftBody(
+                        giftCode = normalizedGiftCode,
+                        recipientUserId = normalizedRecipientId
+                    )
+                )
+            }.onSuccess { response ->
+                val body = response.body()
+                if (response.isSuccessful) {
+                    onSuccess()
+                } else {
+                    onFailure(body?.message ?: "Unable to send gift")
+                }
+            }.onFailure { error ->
+                onFailure(error.message ?: "Unable to send gift")
+            }
+        }
+    }
+
     fun refreshFeedbackStatus(roomId: String? = uiState.room?.id) {
         val token = TokenUtils.getToken()
         if (token.isBlank() || roomId.isNullOrBlank()) return
@@ -452,7 +524,9 @@ class CallViewModel(
         type: String,
         title: String,
         maxParticipants: Int?,
-        invitedUserId: String? = null
+        invitedUserId: String? = null,
+        onSuccess: (RoomResponse) -> Unit = {},
+        onFailure: (String) -> Unit = {}
     ) {
         val token = TokenUtils.getToken()
         if (token.isBlank()) {
@@ -461,6 +535,7 @@ class CallViewModel(
                 room = null,
                 errorMessage = "Login token missing"
             )
+            onFailure("Login token missing")
             return
         }
 
@@ -484,24 +559,39 @@ class CallViewModel(
                         responseBody.id?.let { roomId ->
                             getAudioRtcToken(roomId = roomId)
                         }
+                        onSuccess(responseBody)
                         uiState.copy(
                             isCreatingRoom = false,
                             room = responseBody,
                             errorMessage = null
                         )
                     } else {
+                        val errorMessage = response.errorBody()
+                            ?.string()
+                            ?.takeIf { it.isNotBlank() }
+                            ?.let { bodyText ->
+                                Regex("\"message\"\\s*:\\s*\"([^\"]+)\"")
+                                    .find(bodyText)
+                                    ?.groupValues
+                                    ?.getOrNull(1)
+                                    ?: bodyText
+                            }
+                            ?: "Unable to create room"
+                        onFailure(errorMessage)
                         uiState.copy(
                             isCreatingRoom = false,
                             room = null,
-                            errorMessage = "Unable to create room"
+                            errorMessage = errorMessage
                         )
                     }
                 }
                 .onFailure { error ->
+                    val message = error.message ?: "Unable to create room"
+                    onFailure(message)
                     uiState = uiState.copy(
                         isCreatingRoom = false,
                         room = null,
-                        errorMessage = error.message ?: "Unable to create room"
+                        errorMessage = message
                     )
             }
         }

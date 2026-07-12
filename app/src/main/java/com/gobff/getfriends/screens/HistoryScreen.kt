@@ -59,12 +59,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gobff.getfriends.R
 import com.gobff.getfriends.data.model.CallHistoryItemResponse
 import com.gobff.getfriends.ui.component.BffHeartChip
+import com.gobff.getfriends.ui.component.CachedAvatarImage
 import com.gobff.getfriends.ui.component.screenEnterMotion
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.FreedokaFontFamily
 import com.gobff.getfriends.ui.theme.GaretFontFamily
+import com.gobff.getfriends.utils.AvatarGender
+import com.gobff.getfriends.utils.toAvatarGender
 import com.gobff.getfriends.viewmodel.CallHistoryViewModel
-import com.gobff.getfriends.viewmodel.callTypeLabel
 import com.gobff.getfriends.viewmodel.displayCallerName
 import com.gobff.getfriends.viewmodel.displayDuration
 import com.gobff.getfriends.viewmodel.displayTimestamp
@@ -75,6 +77,8 @@ private val HistoryOrange = Color(0xFFFD8663)
 fun HistoryScreen(
     modifier: Modifier = Modifier,
     walletHearts: Int = 0,
+    currentUserAvatarUrl: String? = null,
+    currentUserGender: String? = null,
     onBack: () -> Unit = {},
     onProfileRequested: () -> Unit = {},
     onRechargeRequested: () -> Unit = {},
@@ -103,6 +107,8 @@ fun HistoryScreen(
             Spacer(modifier = Modifier.height(48.dp))
             HistoryTopBar(
                 walletHearts = walletHearts,
+                avatarUrl = currentUserAvatarUrl,
+                gender = currentUserGender,
                 onProfileRequested = onProfileRequested,
                 onRechargeRequested = onRechargeRequested,
                 modifier = Modifier
@@ -112,13 +118,12 @@ fun HistoryScreen(
             Spacer(modifier = Modifier.height(40.dp))
             HistoryTopArea(modifier = Modifier.screenEnterMotion(index = 1))
             Spacer(modifier = Modifier.height(24.dp))
-            HistoryTabs(modifier = Modifier.screenEnterMotion(index = 2))
             when {
                 callHistoryUiState.isLoading -> {
-                    HistoryContentCard(modifier = Modifier.screenEnterMotion(index = 3, initialOffsetY = 26.dp))
+                    HistoryContentCard(modifier = Modifier.screenEnterMotion(index = 2, initialOffsetY = 26.dp))
                 }
                 callHistoryUiState.errorMessage != null -> {
-                    HistoryContentCard(modifier = Modifier.screenEnterMotion(index = 3, initialOffsetY = 26.dp)) {
+                    HistoryContentCard(modifier = Modifier.screenEnterMotion(index = 2, initialOffsetY = 26.dp)) {
                         HistoryStatusText(
                             text = callHistoryUiState.errorMessage,
                             modifier = Modifier
@@ -128,12 +133,12 @@ fun HistoryScreen(
                     }
                 }
                 callHistoryUiState.calls.isEmpty() -> {
-                    HistoryContentCard(modifier = Modifier.screenEnterMotion(index = 3, initialOffsetY = 26.dp)) {
+                    HistoryContentCard(modifier = Modifier.screenEnterMotion(index = 2, initialOffsetY = 26.dp)) {
                         HistoryEmptyState(onCallNow = onConnectSelected)
                     }
                 }
                 else -> {
-                    HistoryContentCard(modifier = Modifier.screenEnterMotion(index = 3, initialOffsetY = 26.dp)) {
+                    HistoryContentCard(modifier = Modifier.screenEnterMotion(index = 2, initialOffsetY = 26.dp)) {
                         HistoryCallList(
                             calls = callHistoryUiState.calls.map { it.toHistoryCall() },
                             modifier = Modifier.padding(start = 24.dp, top = 30.dp, end = 24.dp, bottom = 48.dp)
@@ -171,36 +176,7 @@ private fun HistoryContentCard(
             modifier = Modifier.matchParentSize(),
             contentScale = ContentScale.FillBounds
         )
-        HistorySelectedTabStrip(
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(horizontal = 37.dp)
-        )
         content()
-    }
-}
-
-@Composable
-private fun HistorySelectedTabStrip(modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(4.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(4.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(width = 122.dp, height = 4.dp)
-                    .clip(RoundedCornerShape(bottomStart = 10.dp, bottomEnd = 10.dp))
-                    .background(Color(0xFFB44E35))
-            )
-        }
-        Spacer(modifier = Modifier.weight(1f))
     }
 }
 
@@ -279,6 +255,8 @@ private fun HistoryEmptyState(
 @Composable
 private fun HistoryTopBar(
     walletHearts: Int,
+    avatarUrl: String?,
+    gender: String?,
     onProfileRequested: () -> Unit,
     onRechargeRequested: () -> Unit,
     modifier: Modifier = Modifier
@@ -288,8 +266,10 @@ private fun HistoryTopBar(
         horizontalArrangement = Arrangement.SpaceBetween,
         modifier = modifier.fillMaxWidth()
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.man_avatar1),
+        CachedAvatarImage(
+            avatarUrl = avatarUrl,
+            gender = gender,
+            fallbackRes = gender.toHistoryFallbackAvatarRes(),
             contentDescription = "Profile",
             modifier = Modifier
                 .size(44.dp)
@@ -376,51 +356,6 @@ private fun HistoryTopArea(modifier: Modifier = Modifier) {
     }
 }
 
-@Composable
-private fun HistoryTabs(modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(32.dp)
-            .padding(horizontal = 37.dp),
-        verticalAlignment = Alignment.Top
-    ) {
-        Box(
-            modifier = Modifier.weight(1f),
-            contentAlignment = Alignment.Center
-        ) {
-            HistoryTabLabel(
-                text = "Video",
-                selected = true
-            )
-        }
-
-        Box(
-            modifier = Modifier.weight(1f),
-            contentAlignment = Alignment.Center
-        ) {
-            HistoryTabLabel(
-                text = "Audio",
-                selected = false
-            )
-        }
-    }
-}
-
-@Composable
-private fun HistoryTabLabel(text: String, selected: Boolean) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = text,
-            color = Color.Black.copy(alpha = if (selected) 1f else 0.78f),
-            fontSize = 16.sp,
-            fontFamily = GaretFontFamily,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
-        )
-    }
-}
 @Composable
 private fun HistoryCallList(
     calls: List<HistoryCall>,
@@ -559,9 +494,7 @@ private data class HistoryCall(
 private fun CallHistoryItemResponse.toHistoryCall(): HistoryCall =
     HistoryCall(
         name = displayCallerName,
-        date = listOf(callTypeLabel, displayTimestamp)
-            .filter { it.isNotBlank() }
-            .joinToString(" - "),
+        date = displayTimestamp,
         duration = displayDuration,
         avatarRes = avatarUrl.toHistoryAvatarRes()
     )
@@ -618,6 +551,8 @@ private fun HistoryScreenPreviewContent() {
             Spacer(modifier = Modifier.height(48.dp))
             HistoryTopBar(
                 walletHearts = 3230,
+                avatarUrl = null,
+                gender = null,
                 onProfileRequested = {},
                 onRechargeRequested = {},
                 modifier = Modifier.padding(horizontal = 20.dp)
@@ -625,7 +560,6 @@ private fun HistoryScreenPreviewContent() {
             Spacer(modifier = Modifier.height(40.dp))
             HistoryTopArea()
             Spacer(modifier = Modifier.height(24.dp))
-            HistoryTabs()
             HistoryContentCard {
                 HistoryCallList(
                     calls = previewHistoryCalls(),
@@ -633,6 +567,14 @@ private fun HistoryScreenPreviewContent() {
                 )
             }
         }
+    }
+}
+
+private fun String?.toHistoryFallbackAvatarRes(): Int {
+    return when (this.toAvatarGender()) {
+        AvatarGender.Female -> R.drawable.women_avatar1
+        AvatarGender.Male -> R.drawable.man_avatar1
+        else -> R.drawable.man_avatar1
     }
 }
 

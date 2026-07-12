@@ -9,6 +9,8 @@ import com.gobff.getfriends.data.model.EndRoomResponse
 import com.gobff.getfriends.data.model.FriendListUserResponse
 import com.gobff.getfriends.data.model.GameCatalogItemDto
 import com.gobff.getfriends.data.model.GiftCatalogResponse
+import com.gobff.getfriends.data.model.SendGiftBody
+import com.gobff.getfriends.data.model.SendGiftResponse
 import com.gobff.getfriends.data.model.GoogleAuthBody
 import com.gobff.getfriends.data.model.GoogleAuthResponse
 import com.gobff.getfriends.data.model.HomeOptionsResponse
@@ -46,6 +48,7 @@ import com.gobff.getfriends.data.model.WalletBalanceResponse
 import okhttp3.MultipartBody
 import retrofit2.Response
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Header
 import retrofit2.http.Multipart
@@ -86,6 +89,11 @@ interface ApiService {
         @Header("Authorization") bearerToken: String
     ): Response<LogoutResponse>
 
+    @DELETE("auth/account")
+    suspend fun deleteAccount(
+        @Header("Authorization") bearerToken: String
+    ): Response<LogoutResponse>
+
     @PUT("auth/device/fcm-token")
     suspend fun updateFcmToken(
         @Header("Authorization") bearerToken: String,
@@ -118,6 +126,14 @@ interface ApiService {
     suspend fun getGiftCatalog(
         @Header("Authorization") bearerToken: String
     ): Response<GiftCatalogResponse>
+
+    @POST("rooms/{roomId}/gifts")
+    suspend fun sendGift(
+        @Header("Authorization") bearerToken: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Path("roomId") roomId: String,
+        @Body body: SendGiftBody
+    ): Response<SendGiftResponse>
 
     @GET("games/catalog")
     suspend fun getGameCatalog(

@@ -23,3 +23,17 @@ data class GiftItemDto(
     @SerializedName("heartPrice") val heartPrice: Int?,
     @SerializedName("originalHeartPrice") val originalHeartPrice: Int?
 )
+
+data class SendGiftBody(
+    @SerializedName("giftCode") val giftCode: String,
+    @SerializedName("recipientUserId") val recipientUserId: String
+)
+
+data class SendGiftResponse(
+    @SerializedName("giftCode") val giftCode: String? = null,
+    @SerializedName("recipientUserId") val recipientUserId: String? = null,
+    @SerializedName("roomId") val roomId: String? = null,
+    @SerializedName("status") val status: String? = null,
+    @SerializedName("message") val message: String? = null,
+    @SerializedName("sentAt") val sentAt: String? = null
+)

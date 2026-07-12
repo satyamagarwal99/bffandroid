@@ -45,9 +45,10 @@ class FriendsListViewModel(
             uiState = uiState.copy(isLoading = true, errorMessage = null)
             runCatching { mainRepository.getMyFriends(token) }
                 .onSuccess { response ->
+                    val normalizedFriends = response.body().orEmpty().distinctFriends()
                     uiState = uiState.copy(
                         isLoading = false,
-                        friends = if (response.isSuccessful) response.body().orEmpty() else emptyList(),
+                        friends = if (response.isSuccessful) normalizedFriends else emptyList(),
                         hasLoaded = true,
                         errorMessage = if (response.isSuccessful) null else "Unable to load friends"
                     )
@@ -66,6 +67,18 @@ class FriendsListViewModel(
 
     private companion object {
         const val TAG = "FriendsListViewModel"
+    }
+}
+
+private fun List<FriendListUserResponse>.distinctFriends(): List<FriendListUserResponse> {
+    return distinctBy { friend ->
+        listOf(
+            friend.userId?.trim(),
+            friend.id?.trim(),
+            friend.displayName?.trim()?.lowercase(),
+            friend.name?.trim()?.lowercase(),
+            friend.avatarUrl?.trim()?.lowercase()
+        ).firstOrNull { !it.isNullOrBlank() } ?: friend.hashCode().toString()
     }
 }
 

@@ -63,15 +63,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gobff.getfriends.R
 import com.gobff.getfriends.ui.component.BffHeartChip
+import com.gobff.getfriends.ui.component.CachedAvatarImage
 import com.gobff.getfriends.ui.component.screenEnterMotion
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.FreedokaFontFamily
 import com.gobff.getfriends.ui.theme.GaretFontFamily
+import com.gobff.getfriends.utils.AvatarGender
+import com.gobff.getfriends.utils.toAvatarGender
 
 @Composable
 fun GameScreen(
     modifier: Modifier = Modifier,
     walletHearts: Int = 0,
+    currentUserAvatarUrl: String? = null,
+    currentUserGender: String? = null,
     onBack: () -> Unit = {},
     onConnectSelected: () -> Unit = {},
     onTruthDareSelected: () -> Unit = {},
@@ -101,8 +106,10 @@ fun GameScreen(
                     .height(236.dp)
                     .screenEnterMotion(index = 0)
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.man_avatar1),
+                CachedAvatarImage(
+                    avatarUrl = currentUserAvatarUrl,
+                    gender = currentUserGender,
+                    fallbackRes = currentUserGender.toGameFallbackAvatarRes(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
@@ -276,6 +283,14 @@ private fun GameHeader(modifier: Modifier = Modifier) {
             modifier = Modifier.size(24.dp),
             contentScale = ContentScale.Fit
         )
+    }
+}
+
+private fun String?.toGameFallbackAvatarRes(): Int {
+    return when (this.toAvatarGender()) {
+        AvatarGender.Female -> R.drawable.women_avatar1
+        AvatarGender.Male -> R.drawable.man_avatar1
+        else -> R.drawable.man_avatar1
     }
 }
 

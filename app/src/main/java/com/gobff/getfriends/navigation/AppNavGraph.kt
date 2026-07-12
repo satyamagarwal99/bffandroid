@@ -134,7 +134,9 @@ fun AppNavGraph(
     val userProfileViewModel: UserProfileViewModel = viewModel()
     val coroutineScope = rememberCoroutineScope()
     val walletHearts = walletViewModel.uiState.hearts
+    val currentUserProfile = userProfileViewModel.uiState
     var activeCallName by remember { mutableStateOf("Anshu") }
+    var activeCallInvitedUserId by remember { mutableStateOf<String?>(null) }
     var incomingCallRoomId by remember { mutableStateOf<String?>(null) }
     var incomingCallRequestedRole by remember { mutableStateOf("SPEAKER") }
     var incomingCallAvatarUrl by remember { mutableStateOf<String?>(null) }
@@ -215,6 +217,17 @@ fun AppNavGraph(
         }
     }
 
+    fun clearUserStateAndNavigateToLogin() {
+        PresenceHeartbeat.setAlwaysOnlineEnabled(false)
+        PresenceForegroundService.stop(context.applicationContext)
+        mainViewModel.stopForegroundHeartbeat(markOffline = true)
+        AppSession.clear()
+        navController.navigate(AppRoute.Login.route) {
+            popUpTo(0)
+            launchSingleTop = true
+        }
+    }
+
     BackHandler(enabled = currentRoute == AppRoute.Home2.route) {
         val now = System.currentTimeMillis()
         if (now - lastHomeBackPressAt <= HOME_EXIT_BACK_PRESS_WINDOW_MS) {
@@ -232,6 +245,7 @@ fun AppNavGraph(
     LaunchedEffect(incomingCallPush) {
         val push = incomingCallPush ?: return@LaunchedEffect
         activeCallName = push.callerName
+        activeCallInvitedUserId = null
         incomingCallRoomId = push.roomId
         incomingCallRequestedRole = push.requestedRole
         incomingCallAvatarUrl = push.callerAvatarUrl
@@ -419,8 +433,9 @@ fun AppNavGraph(
         composable(AppRoute.Home.route) {
             HomeScreen(
                 walletHearts = walletHearts,
-                onCallRequested = { personName ->
-                    activeCallName = personName
+                onCallRequested = { profile ->
+                    activeCallName = profile.name
+                    activeCallInvitedUserId = profile.userId.takeIf { it.isNotBlank() }
                     incomingCallRoomId = null
                     incomingCallRequestedRole = "SPEAKER"
                     incomingCallAvatarUrl = null
@@ -457,6 +472,8 @@ fun AppNavGraph(
             HomeScreen2(
                 walletHearts = walletHearts,
                 displayName = userProfileViewModel.uiState.displayName,
+                avatarUrl = userProfileViewModel.uiState.avatarUrl,
+                gender = userProfileViewModel.uiState.gender,
                 onBack =  { navController.navigateHome() },
                 onLogout = {
                     AppSession.clear()
@@ -497,6 +514,7 @@ fun AppNavGraph(
 
         composable(AppRoute.Settings.route) {
             SettingsScreen(
+                walletHearts = walletHearts,
                 onBack = navController::navigateUp,
                 hasNotificationAccess = NotificationPermissionState.hasNotificationAccess(context),
                 onAlwaysOnlineChanged = { enabled ->
@@ -511,16 +529,8 @@ fun AppNavGraph(
                 onNotificationAccessRequested = {
                     requestNotificationAccess(it)
                 },
-                onLogout = {
-                    PresenceHeartbeat.setAlwaysOnlineEnabled(false)
-                    PresenceForegroundService.stop(context.applicationContext)
-                    mainViewModel.stopForegroundHeartbeat(markOffline = true)
-                    AppSession.clear()
-                    navController.navigate(AppRoute.Login.route) {
-                        popUpTo(0)
-                        launchSingleTop = true
-                    }
-                }
+                onLogout = { clearUserStateAndNavigateToLogin() },
+                onDeleteAccount = { clearUserStateAndNavigateToLogin() }
             )
         }
 
@@ -555,6 +565,8 @@ fun AppNavGraph(
         composable(AppRoute.History.route) {
             HistoryScreen(
                 walletHearts = walletHearts,  // ← Added hearts
+                currentUserAvatarUrl = currentUserProfile.avatarUrl,
+                currentUserGender = currentUserProfile.gender,
                 onBack = navController::navigateUp,  // ← Natural back navigation
                 onProfileRequested = { navController.navigateSingleTop(AppRoute.Profile) },  // ← Added
                 onRechargeRequested = { navController.navigateSingleTop(AppRoute.Recharge) },
@@ -567,6 +579,8 @@ fun AppNavGraph(
         composable(AppRoute.Games.route) {
             GameScreen(
                 walletHearts = walletHearts,
+                currentUserAvatarUrl = currentUserProfile.avatarUrl,
+                currentUserGender = currentUserProfile.gender,
                 onBack = navController::navigateUp,
                 onConnectSelected = { navController.navigateBottomTab(AppRoute.Home) },
                 onTruthDareSelected = { navController.navigateSingleTop(AppRoute.TruthDare) },
@@ -653,6 +667,10 @@ fun AppNavGraph(
         composable(AppRoute.Call.route) {
             CallScreen(
                 personName = activeCallName,
+                currentUserDisplayName = currentUserProfile.displayName,
+                currentUserAvatarUrl = currentUserProfile.avatarUrl,
+                currentUserGender = currentUserProfile.gender,
+                outgoingInvitedUserId = activeCallInvitedUserId,
                 incomingRoomId = incomingCallRoomId,
                 incomingRequestedRole = incomingCallRequestedRole,
                 walletHearts = walletHearts,

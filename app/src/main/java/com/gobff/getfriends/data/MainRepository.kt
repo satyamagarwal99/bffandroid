@@ -9,6 +9,8 @@ import com.gobff.getfriends.data.model.EndRoomResponse
 import com.gobff.getfriends.data.model.FriendListUserResponse
 import com.gobff.getfriends.data.model.GameCatalogItemDto
 import com.gobff.getfriends.data.model.GiftCatalogResponse
+import com.gobff.getfriends.data.model.SendGiftBody
+import com.gobff.getfriends.data.model.SendGiftResponse
 import com.gobff.getfriends.data.model.GoogleAuthBody
 import com.gobff.getfriends.data.model.GoogleAuthResponse
 import com.gobff.getfriends.data.model.HomeOptionsResponse
@@ -67,6 +69,9 @@ class MainRepository(
     suspend fun logout(bearerToken: String): Response<LogoutResponse> =
         apiService.logout(bearerToken)
 
+    suspend fun deleteAccount(bearerToken: String): Response<LogoutResponse> =
+        apiService.deleteAccount(bearerToken)
+
     suspend fun updateFcmToken(
         bearerToken: String,
         body: UpdateFcmTokenBody
@@ -88,6 +93,14 @@ class MainRepository(
 
     suspend fun getGiftCatalog(bearerToken: String): Response<GiftCatalogResponse> =
         apiService.getGiftCatalog(bearerToken)
+
+    suspend fun sendGift(
+        bearerToken: String,
+        idempotencyKey: String,
+        roomId: String,
+        body: SendGiftBody
+    ): Response<SendGiftResponse> =
+        apiService.sendGift(bearerToken, idempotencyKey, roomId, body)
 
     suspend fun getGameCatalog(bearerToken: String): Response<List<GameCatalogItemDto>> =
         apiService.getGameCatalog(bearerToken)

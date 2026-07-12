@@ -10,6 +10,7 @@ import com.gobff.getfriends.data.MainRepository
 import com.gobff.getfriends.data.model.UpdateProfileBody
 import com.gobff.getfriends.data.model.UserProfileResponse
 import com.gobff.getfriends.data.model.UserProfileUiState
+import com.gobff.getfriends.utils.AppSession
 import com.gobff.getfriends.utils.Constant
 import com.gobff.getfriends.utils.TokenUtils
 import kotlinx.coroutines.launch
@@ -67,46 +68,44 @@ class UserProfileViewModel(
     }
 
     fun saveLanguages(languages: Set<String>, onComplete: () -> Unit = {}) {
-        updateProfileSelection(languages = languages, vibes = uiState.vibes, onComplete = onComplete)
-    }
-
-    fun saveVibes(vibes: Set<String>, onComplete: () -> Unit = {}) {
-        updateProfileSelection(languages = uiState.languages, vibes = vibes, onComplete = onComplete)
-    }
-
-    fun saveIdentity(
-        displayName: String = uiState.displayName.orEmpty(),
-        avatarUrl: String? = uiState.avatarUrl,
-        onComplete: () -> Unit = {}
-    ) {
         updateProfile(
-            displayName = displayName,
-            avatarUrl = avatarUrl,
-            languages = uiState.languages,
-            vibes = uiState.vibes,
+            languages = languages,
             onComplete = onComplete
         )
     }
 
-    private fun updateProfileSelection(
-        languages: Set<String>,
-        vibes: Set<String>,
-        onComplete: () -> Unit
-    ) {
+    fun saveVibes(vibes: Set<String>, onComplete: () -> Unit = {}) {
         updateProfile(
-            displayName = uiState.displayName.orEmpty(),
-            avatarUrl = uiState.avatarUrl,
-            languages = languages,
             vibes = vibes,
             onComplete = onComplete
         )
     }
 
-    private fun updateProfile(
+    fun saveName(
         displayName: String,
-        avatarUrl: String?,
-        languages: Set<String>,
-        vibes: Set<String>,
+        onComplete: () -> Unit = {}
+    ) {
+        updateProfile(
+            displayName = displayName,
+            onComplete = onComplete
+        )
+    }
+
+    fun saveAvatar(
+        avatarUrl: String,
+        onComplete: () -> Unit = {}
+    ) {
+        updateProfile(
+            avatarUrl = avatarUrl,
+            onComplete = onComplete
+        )
+    }
+
+    private fun updateProfile(
+        displayName: String? = null,
+        avatarUrl: String? = null,
+        languages: Set<String>? = null,
+        vibes: Set<String>? = null,
         onComplete: () -> Unit
     ) {
         if (uiState.isSaving) return
@@ -120,36 +119,40 @@ class UserProfileViewModel(
 
             uiState = uiState.copy(
                 isSaving = true,
-                errorMessage = null,
-                displayName = displayName.trim().ifBlank { Constant.DEFAULT_DISPLAY_NAME },
-                avatarUrl = avatarUrl,
-                languages = languages,
-                vibes = vibes
+                errorMessage = null
             )
 
             val body = UpdateProfileBody(
-                displayName = displayName.trim().ifBlank { Constant.DEFAULT_DISPLAY_NAME },
-                gender = uiState.gender,
-                avatarUrl = avatarUrl,
-                bio = uiState.bio?.trim()?.takeIf { it.isNotBlank() },
-                languages = languages.toList(),
-                vibes = vibes.toList()
+                displayName = displayName?.trim()?.takeIf { it.isNotBlank() }?.let {
+                    it
+                } ?: if (displayName != null) Constant.DEFAULT_DISPLAY_NAME else null,
+                avatarUrl = avatarUrl?.trim()?.takeIf { it.isNotBlank() },
+                languages = languages?.toList(),
+                vibes = vibes?.toList()
             )
 
             runCatching { mainRepository.updateProfile(token, body) }
                 .onSuccess { response ->
                     val responseBody = response.body()
                     if (response.isSuccessful) {
-                        responseBody?.let {
-                            uiState = uiState.copy(
-                                displayName = it.displayName ?: uiState.displayName,
-                                gender = it.gender ?: uiState.gender,
-                                avatarUrl = it.avatarUrl ?: uiState.avatarUrl,
-                                bio = it.bio ?: uiState.bio,
-                                languages = it.languages?.normalizedSet() ?: languages,
-                                vibes = it.vibes?.normalizedSet() ?: vibes
-                            )
-                        }
+                        val resolvedDisplayName =
+                            responseBody?.displayName ?: displayName?.trim()?.takeIf { it.isNotBlank() } ?: uiState.displayName
+                        val resolvedAvatarUrl =
+                            responseBody?.avatarUrl ?: avatarUrl?.trim()?.takeIf { it.isNotBlank() } ?: uiState.avatarUrl
+                        val resolvedGender = responseBody?.gender ?: uiState.gender
+                        AppSession.setCurrentUserProfile(
+                            displayName = resolvedDisplayName,
+                            avatarUrl = resolvedAvatarUrl,
+                            gender = resolvedGender
+                        )
+                        uiState = uiState.copy(
+                            displayName = resolvedDisplayName,
+                            gender = resolvedGender,
+                            avatarUrl = resolvedAvatarUrl,
+                            bio = responseBody?.bio ?: uiState.bio,
+                            languages = responseBody?.languages?.normalizedSet() ?: (languages ?: uiState.languages),
+                            vibes = responseBody?.vibes?.normalizedSet() ?: (vibes ?: uiState.vibes)
+                        )
                         uiState = uiState.copy(isSaving = false, errorMessage = null)
                         onComplete()
                     } else {
@@ -169,6 +172,11 @@ class UserProfileViewModel(
     }
 
     private fun applyProfile(profile: UserProfileResponse) {
+        AppSession.setCurrentUserProfile(
+            displayName = profile.displayName,
+            avatarUrl = profile.avatarUrl,
+            gender = profile.gender
+        )
         uiState = uiState.copy(
             displayName = profile.displayName,
             gender = profile.gender,

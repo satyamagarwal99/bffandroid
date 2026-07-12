@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -74,6 +75,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -86,10 +88,13 @@ import com.gobff.getfriends.data.model.GiftCategoryDto
 import com.gobff.getfriends.data.model.GiftItemDto
 import com.gobff.getfriends.data.model.RoomMessageResponse
 import com.gobff.getfriends.data.model.RoomType
+import com.gobff.getfriends.ui.component.CachedAvatarImage
 import com.gobff.getfriends.ui.component.ChatBubbleShape
 import com.gobff.getfriends.ui.component.HeartChipShape
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.GaretFontFamily
+import com.gobff.getfriends.utils.AvatarGender
+import com.gobff.getfriends.utils.toAvatarGender
 import com.gobff.getfriends.utils.TokenUtils
 import com.gobff.getfriends.viewmodel.CallViewModel
 import com.gobff.getfriends.viewmodel.GameCatalogUiState
@@ -112,6 +117,10 @@ fun CallScreen(
     personName: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    currentUserDisplayName: String? = null,
+    currentUserAvatarUrl: String? = null,
+    currentUserGender: String? = null,
+    outgoingInvitedUserId: String? = null,
     incomingRoomId: String? = null,
     incomingRequestedRole: String = "SPEAKER",
     walletHearts: Int = 145,
@@ -135,9 +144,11 @@ fun CallScreen(
     var showVideoUpgradeRequestSheet by remember { mutableStateOf(false) }
     var remoteCallEndMessage by remember { mutableStateOf<String?>(null) }
     var remoteCallDeclined by remember { mutableStateOf(false) }
+    var hasRetriedWithRandom by remember { mutableStateOf(false) }
     var selectedAddTimeOption by remember { mutableStateOf(AddTimeOptions.first()) }
     var sendingGift by remember { mutableStateOf<GiftItem?>(null) }
     var giftDeliveryPhase by remember { mutableStateOf<GiftDeliveryPhase?>(null) }
+    var isSendingGift by remember { mutableStateOf(false) }
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -200,6 +211,27 @@ fun CallScreen(
         onBack()
     }
 
+    fun startRandomFallback(message: String) {
+        if (hasRetriedWithRandom) return
+        hasRetriedWithRandom = true
+        remoteCallEndMessage = message
+        remoteCallDeclined = false
+        showFeedbackPopup = false
+        callViewModel.leaveCall(roomId = incomingRoomId ?: callViewModel.uiState.room?.id)
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        callViewModel.createRandomOneToOneAudioCall(
+            title = "$personName Audio Call",
+            onSuccess = {
+                remoteCallEndMessage = null
+                remoteCallDeclined = false
+            },
+            onFailure = { error ->
+                Toast.makeText(context, error, Toast.LENGTH_SHORT).show()
+                closeEndedCallScreen()
+            }
+        )
+    }
+
     val requestCameraPermission: (VideoPendingAction) -> Unit = { nextAction ->
         if (hasCameraPermission) {
             when (nextAction) {
@@ -228,12 +260,31 @@ fun CallScreen(
         }
     }
 
-    LaunchedEffect(personName, incomingRoomId, incomingRequestedRole, hasAudioPermission) {
+    LaunchedEffect(personName, incomingRoomId, incomingRequestedRole, outgoingInvitedUserId, hasAudioPermission) {
         if (hasAudioPermission) {
             if (incomingRoomId.isNullOrBlank()) {
-                callViewModel.createRandomOneToOneAudioCall(
-                    title = "$personName Audio Call"
-                )
+                if (!outgoingInvitedUserId.isNullOrBlank()) {
+                    callViewModel.createOneToOneAudioCall(
+                        title = "$personName Audio Call",
+                        invitedUserId = outgoingInvitedUserId,
+                        onFailure = { error ->
+                            if (error.contains("token", ignoreCase = true) || error.contains("permission", ignoreCase = true)) {
+                                Toast.makeText(context, error, Toast.LENGTH_SHORT).show()
+                                closeEndedCallScreen()
+                            } else {
+                                startRandomFallback("User didn't pick the call. Calling a random person...")
+                            }
+                        }
+                    )
+                } else {
+                    callViewModel.createRandomOneToOneAudioCall(
+                        title = "$personName Audio Call",
+                        onFailure = { error ->
+                            Toast.makeText(context, error, Toast.LENGTH_SHORT).show()
+                            closeEndedCallScreen()
+                        }
+                    )
+                }
             } else {
                 callViewModel.joinAudioRoom(
                     roomId = incomingRoomId,
@@ -273,6 +324,11 @@ fun CallScreen(
         showFeedbackPopup = !wasDeclined
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         onCallEndedPushHandled()
+
+        if (wasDeclined && incomingRoomId.isNullOrBlank() && !outgoingInvitedUserId.isNullOrBlank()) {
+            delay(1_200L)
+            startRandomFallback("User didn't pick the call. Calling a random person...")
+        }
     }
 
     LaunchedEffect(personName, isConnected) {
@@ -280,6 +336,18 @@ fun CallScreen(
         for (value in 3 downTo 1) {
             countdown = value
             delay(1_000L)
+        }
+    }
+
+    LaunchedEffect(outgoingInvitedUserId, uiState.room?.id, isConnected) {
+        if (!incomingRoomId.isNullOrBlank()) return@LaunchedEffect
+        if (outgoingInvitedUserId.isNullOrBlank()) return@LaunchedEffect
+        if (isConnected || hasRetriedWithRandom) return@LaunchedEffect
+        if (uiState.room?.id.isNullOrBlank()) return@LaunchedEffect
+
+        delay(25_000L)
+        if (!isConnected && !hasRetriedWithRandom) {
+            startRandomFallback("User didn't pick the call. Calling a random person...")
         }
     }
 
@@ -312,6 +380,18 @@ fun CallScreen(
     LaunchedEffect(showGameSheet) {
         if (showGameSheet) {
             gameCatalogViewModel.loadGameCatalog(forceRefresh = gameCatalogUiState.games.isEmpty())
+        }
+    }
+
+    LaunchedEffect(showChatSheet, incomingRoomId, uiState.room?.id) {
+        val roomId = incomingRoomId ?: uiState.room?.id ?: return@LaunchedEffect
+        if (!showChatSheet) return@LaunchedEffect
+
+        callViewModel.loadRoomMessages(roomId = roomId, forceRefresh = true)
+        while (showChatSheet) {
+            delay(10_000L)
+            if (!showChatSheet) break
+            callViewModel.loadRoomMessages(roomId = roomId, forceRefresh = true)
         }
     }
 
@@ -357,12 +437,16 @@ fun CallScreen(
             if (shouldShowVideoCall) {
                 VideoCallContent(
                     personName = personName,
+                    currentUserDisplayName = currentUserDisplayName,
+                    currentUserAvatarUrl = currentUserAvatarUrl,
+                    currentUserGender = currentUserGender,
                     callSecondsRemaining = callSecondsRemaining,
                     callViewModel = callViewModel,
                     remoteUserId = uiState.remoteAudioUserIds.firstOrNull(),
                     isMuted = uiState.isMuted,
                     isSpeakerEnabled = uiState.isSpeakerEnabled,
                     onChatClick = { showChatSheet = true },
+                    onGiftClick = { showGiftSheet = true },
                     onMuteToggle = { callViewModel.setMuted(!uiState.isMuted) },
                     onSpeakerToggle = { callViewModel.setSpeakerEnabled(!uiState.isSpeakerEnabled) },
                     onSafetyClick = { showSafetySheet = true },
@@ -375,6 +459,9 @@ fun CallScreen(
             } else {
                 ActiveCallContent(
                     personName = personName,
+                    currentUserDisplayName = currentUserDisplayName,
+                    currentUserAvatarUrl = currentUserAvatarUrl,
+                    currentUserGender = currentUserGender,
                     callSecondsRemaining = callSecondsRemaining,
                     onTimerClick = { showAddTimeSheet = true },
                     onChatClick = { showChatSheet = true },
@@ -472,14 +559,37 @@ fun CallScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.42f))
-                    .clickable { showGiftSheet = false }
+                    .clickable(enabled = !isSendingGift) { showGiftSheet = false }
             )
             GiftBottomSheet(
                 giftCatalogUiState = giftCatalogUiState,
+                isSendingGift = isSendingGift,
                 onDismiss = { showGiftSheet = false },
                 onSendGift = { gift ->
-                    showGiftSheet = false
-                    sendingGift = gift
+                    val roomId = incomingRoomId ?: uiState.room?.id
+                    val recipientUserId = resolveGiftRecipientUserId(
+                        room = uiState.room,
+                        currentUserId = currentUserId
+                    )
+                    if (roomId.isNullOrBlank() || recipientUserId.isNullOrBlank()) {
+                        Toast.makeText(context, "Unable to send gift right now", Toast.LENGTH_SHORT).show()
+                    } else {
+                        isSendingGift = true
+                        callViewModel.sendGift(
+                            roomId = roomId,
+                            giftCode = gift.code,
+                            recipientUserId = recipientUserId,
+                            onSuccess = {
+                                isSendingGift = false
+                                showGiftSheet = false
+                                sendingGift = gift
+                            },
+                            onFailure = { message ->
+                                isSendingGift = false
+                                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                            }
+                        )
+                    }
                 },
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
@@ -930,6 +1040,9 @@ private fun VideoUpgradeIncomingBottomSheet(
 @Composable
 private fun ActiveCallContent(
     personName: String,
+    currentUserDisplayName: String?,
+    currentUserAvatarUrl: String?,
+    currentUserGender: String?,
     callSecondsRemaining: Int,
     onTimerClick: () -> Unit,
     onChatClick: () -> Unit,
@@ -994,7 +1107,9 @@ private fun ActiveCallContent(
                 contentAlignment = Alignment.Center
             ) {
                 CallParticipantCard(
-                    name = "Nike",
+                    name = currentUserDisplayName?.takeIf { it.isNotBlank() } ?: "You",
+                    avatarUrl = currentUserAvatarUrl,
+                    gender = currentUserGender,
                     avatarRes = R.drawable.man_avatar1,
                     background = Color(0xFF6CCBEE)
                 )
@@ -1038,12 +1153,16 @@ private fun ActiveCallContent(
 @Composable
 private fun VideoCallContent(
     personName: String,
+    currentUserDisplayName: String?,
+    currentUserAvatarUrl: String?,
+    currentUserGender: String?,
     callSecondsRemaining: Int,
     callViewModel: CallViewModel,
     remoteUserId: Int?,
     isMuted: Boolean,
     isSpeakerEnabled: Boolean,
     onChatClick: () -> Unit,
+    onGiftClick: () -> Unit,
     onMuteToggle: () -> Unit,
     onSpeakerToggle: () -> Unit,
     onSafetyClick: () -> Unit,
@@ -1139,7 +1258,7 @@ private fun VideoCallContent(
 
         VideoQuickActions(
             onChatClick = onChatClick,
-            onGiftClick = { },
+            onGiftClick = onGiftClick,
             onGameClick = { },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -1820,56 +1939,64 @@ private fun GameOptionCard(
 @Composable
 private fun GiftBottomSheet(
     giftCatalogUiState: GiftCatalogUiState,
+    isSendingGift: Boolean,
     onDismiss: () -> Unit,
     onSendGift: (GiftItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val catalogContent = giftCatalogUiState.catalog.toGiftCatalogUiContent()
-    val giftQuantities = remember { mutableStateMapOf<String, Int>() }
     var sheetDragOffset by remember { mutableStateOf(0f) }
-    val allGiftItems = catalogContent.allItems
-    val spentHearts = allGiftItems.sumOf { item ->
-        item.price * (giftQuantities[item.code] ?: 0)
-    }
-    val heartsRemaining = (catalogContent.heartBalance - spentHearts).coerceAtLeast(0)
-    val selectedGifts = allGiftItems
-        .mapNotNull { item ->
-            val quantity = giftQuantities[item.code] ?: 0
-            if (quantity > 0) SelectedGiftItem(item, quantity) else null
-        }
-
-    fun incrementGift(item: GiftItem) {
-        if (heartsRemaining >= item.price) {
-            giftQuantities[item.code] = (giftQuantities[item.code] ?: 0) + 1
-        }
-    }
-
-    fun decrementGift(item: GiftItem) {
-        val currentQuantity = giftQuantities[item.code] ?: 0
-        when {
-            currentQuantity > 1 -> giftQuantities[item.code] = currentQuantity - 1
-            currentQuantity == 1 -> giftQuantities.remove(item.code)
-        }
-    }
-
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .graphicsLayer { translationY = sheetDragOffset }
             .fillMaxWidth()
-            .fillMaxHeight(0.78f)
-            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-            .background(Color.White)
     ) {
-        Column(
+        val sheetWidth = maxWidth
+        val isTablet = sheetWidth >= 600.dp
+        val catalogContent = giftCatalogUiState.catalog.toGiftCatalogUiContent()
+        val giftQuantities = remember { mutableStateMapOf<String, Int>() }
+        val allGiftItems = catalogContent.allItems
+        val spentHearts = allGiftItems.sumOf { item ->
+            item.price * (giftQuantities[item.code] ?: 0)
+        }
+        val heartsRemaining = (catalogContent.heartBalance - spentHearts).coerceAtLeast(0)
+        val selectedGifts = allGiftItems
+            .mapNotNull { item ->
+                val quantity = giftQuantities[item.code] ?: 0
+                if (quantity > 0) SelectedGiftItem(item, quantity) else null
+            }
+
+        fun incrementGift(item: GiftItem) {
+            if (heartsRemaining >= item.price) {
+                giftQuantities[item.code] = (giftQuantities[item.code] ?: 0) + 1
+            }
+        }
+
+        fun decrementGift(item: GiftItem) {
+            val currentQuantity = giftQuantities[item.code] ?: 0
+            when {
+                currentQuantity > 1 -> giftQuantities[item.code] = currentQuantity - 1
+                currentQuantity == 1 -> giftQuantities.remove(item.code)
+            }
+        }
+
+        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .fillMaxWidth()
+                .fillMaxHeight(if (isTablet) 0.88f else 0.80f)
+                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                .background(Color.White)
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+            ) {
             GiftTopPanel(
                 featuredItems = catalogContent.featuredItems,
                 quantities = giftQuantities,
                 onIncrement = ::incrementGift,
                 onDecrement = ::decrementGift,
+                isTablet = isTablet,
                 dragModifier = Modifier.pointerInput(Unit) {
                     detectDragGestures(
                         onDrag = { change, dragAmount ->
@@ -1889,37 +2016,53 @@ private fun GiftBottomSheet(
                     )
                 }
             )
-            GiftHeartsDivider(hearts = heartsRemaining)
-            catalogContent.sections.forEachIndexed { index, section ->
-                GiftSectionTitle(icon = section.icon, text = section.title)
-                Spacer(modifier = Modifier.height(12.dp))
-                if (section.layout == GiftSectionLayout.LoveRow) {
-                    GiftLoveRow(
-                        items = section.items,
-                        quantities = giftQuantities,
-                        onIncrement = ::incrementGift,
-                        onDecrement = ::decrementGift
-                    )
-                } else {
-                    GiftSmallGrid(
-                        items = section.items,
-                        quantities = giftQuantities,
-                        onIncrement = ::incrementGift,
-                        onDecrement = ::decrementGift
-                    )
-                }
-                Spacer(modifier = Modifier.height(if (index == catalogContent.sections.lastIndex) 24.dp else 22.dp))
-            }
-            Spacer(modifier = Modifier.height(if (selectedGifts.isEmpty()) 30.dp else 116.dp))
-        }
-
-        if (selectedGifts.isNotEmpty()) {
-            GiftSelectionSendBar(
-                selectedGifts = selectedGifts,
-                totalHearts = spentHearts,
-                onSend = { onSendGift(selectedGifts.first().gift) },
-                modifier = Modifier.align(Alignment.BottomCenter)
+            GiftHeartsDivider(
+                hearts = heartsRemaining,
+                horizontalPadding = if (isTablet) 36.dp else 28.dp,
+                topPadding = if (isTablet) 28.dp else 24.dp,
+                bottomPadding = if (isTablet) 28.dp else 24.dp
             )
+            catalogContent.sections.forEachIndexed { index, section ->
+                GiftSectionTitle(
+                    icon = section.icon,
+                    text = section.title,
+                    horizontalPadding = if (isTablet) 24.dp else 18.dp
+                )
+                Spacer(modifier = Modifier.height(if (isTablet) 14.dp else 12.dp))
+                    if (section.layout == GiftSectionLayout.LoveRow) {
+                        GiftLoveRow(
+                            items = section.items,
+                            quantities = giftQuantities,
+                            onIncrement = ::incrementGift,
+                            onDecrement = ::decrementGift,
+                            containerWidth = sheetWidth,
+                            isTablet = isTablet
+                        )
+                    } else {
+                        GiftSmallGrid(
+                            items = section.items,
+                            quantities = giftQuantities,
+                            onIncrement = ::incrementGift,
+                            onDecrement = ::decrementGift,
+                            containerWidth = sheetWidth,
+                            isTablet = isTablet
+                        )
+                    }
+                Spacer(modifier = Modifier.height(if (index == catalogContent.sections.lastIndex) 24.dp else if (isTablet) 24.dp else 22.dp))
+            }
+            Spacer(modifier = Modifier.height(if (selectedGifts.isEmpty()) 30.dp else if (isTablet) 126.dp else 116.dp))
+            }
+
+            if (selectedGifts.isNotEmpty()) {
+                GiftSelectionSendBar(
+                    selectedGifts = selectedGifts,
+                    totalHearts = spentHearts,
+                    enabled = !isSendingGift,
+                    isTablet = isTablet,
+                    onSend = { onSendGift(selectedGifts.first().gift) },
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                )
+            }
         }
     }
 }
@@ -1928,6 +2071,8 @@ private fun GiftBottomSheet(
 private fun GiftSelectionSendBar(
     selectedGifts: List<SelectedGiftItem>,
     totalHearts: Int,
+    enabled: Boolean,
+    isTablet: Boolean,
     onSend: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1935,10 +2080,10 @@ private fun GiftSelectionSendBar(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .fillMaxWidth()
-            .height(78.dp)
+            .height(if (isTablet) 86.dp else 78.dp)
             .shadow(12.dp, RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp), clip = false)
             .background(Color.White)
-            .padding(horizontal = 30.dp)
+            .padding(horizontal = if (isTablet) 24.dp else 30.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -1990,9 +2135,9 @@ private fun GiftSelectionSendBar(
             modifier = Modifier
                 .size(54.dp)
                 .clip(CircleShape)
-                .background(Color(0xFFFFB51F))
+                .background(if (enabled) Color(0xFFFFB51F) else Color(0xFFE8CFA0))
                 .border(1.4.dp, Color.Black, CircleShape)
-                .clickable(onClick = onSend)
+                .clickable(enabled = enabled, onClick = onSend)
         ) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
@@ -2002,6 +2147,20 @@ private fun GiftSelectionSendBar(
             )
         }
     }
+}
+
+private fun resolveGiftRecipientUserId(
+    room: com.gobff.getfriends.data.model.RoomResponse?,
+    currentUserId: String
+): String? {
+    val normalizedCurrentUserId = currentUserId.trim()
+    val roomRecipient = room?.participants.orEmpty()
+        .mapNotNull { it.userId?.trim() }
+        .firstOrNull { it.isNotBlank() && it != normalizedCurrentUserId }
+
+    return roomRecipient
+        ?: room?.invitedUserId?.trim()?.takeIf { it.isNotBlank() && it != normalizedCurrentUserId }
+        ?: room?.createdByUserId?.trim()?.takeIf { it.isNotBlank() && it != normalizedCurrentUserId }
 }
 
 @Composable
@@ -2103,14 +2262,20 @@ private fun GiftTopPanel(
     quantities: Map<String, Int>,
     onIncrement: (GiftItem) -> Unit,
     onDecrement: (GiftItem) -> Unit,
+    isTablet: Boolean,
     dragModifier: Modifier = Modifier
 ) {
     val firstGift = featuredItems.getOrNull(0) ?: KissGiftItem
     val secondGift = featuredItems.getOrNull(1) ?: HugGiftItem
+    val heroRowHorizontalPadding = if (isTablet) 24.dp else 16.dp
+    val heroRowSpacing = if (isTablet) 12.dp else 8.dp
+    val heroCardWidth = (((if (isTablet) 640.dp else 361.dp) - (heroRowHorizontalPadding * 2) - heroRowSpacing) / 2)
+        .coerceAtMost(if (isTablet) 240.dp else 172.dp)
+    val heroCardHeight = if (isTablet) 148.dp else 117.dp
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(272.dp)
+            .height(if (isTablet) 306.dp else 272.dp)
             .then(dragModifier)
             .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
             .background(
@@ -2138,17 +2303,18 @@ private fun GiftTopPanel(
             contentDescription = null,
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 42.dp)
+                .padding(top = if (isTablet) 48.dp else 42.dp)
                 .fillMaxWidth()
-                .height(66.dp),
+                .height(if (isTablet) 76.dp else 66.dp),
             contentScale = ContentScale.FillWidth
         )
         Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(heroRowSpacing),
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 128.dp, start = 16.dp, end = 16.dp)
-                .size(width = 361.dp, height = 117.dp)
+                .padding(top = if (isTablet) 142.dp else 128.dp, start = heroRowHorizontalPadding, end = heroRowHorizontalPadding)
+                .width(heroCardWidth * 2 + heroRowSpacing)
+                .height(heroCardHeight)
         ) {
             GiftHeroCard(
                 item = firstGift,
@@ -2161,6 +2327,7 @@ private fun GiftTopPanel(
                 quantity = quantities[firstGift.code] ?: 0,
                 onIncrement = { onIncrement(firstGift) },
                 onDecrement = { onDecrement(firstGift) },
+                isTablet = isTablet,
                 modifier = Modifier.weight(1f)
             )
             GiftHeroCard(
@@ -2174,6 +2341,7 @@ private fun GiftTopPanel(
                 quantity = quantities[secondGift.code] ?: 0,
                 onIncrement = { onIncrement(secondGift) },
                 onDecrement = { onDecrement(secondGift) },
+                isTablet = isTablet,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -2190,6 +2358,7 @@ private fun GiftHeroCard(
     quantity: Int,
     onIncrement: () -> Unit,
     onDecrement: () -> Unit,
+    isTablet: Boolean,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -2201,13 +2370,13 @@ private fun GiftHeroCard(
     ) {
         Column(
             modifier = Modifier
-                .padding(start = 10.dp, top = 12.dp, bottom = 12.dp)
-                .width(82.dp)
+                .padding(start = if (isTablet) 12.dp else 10.dp, top = if (isTablet) 14.dp else 12.dp, bottom = if (isTablet) 14.dp else 12.dp)
+                .width(if (isTablet) 96.dp else 82.dp)
         ) {
             Text(
                 text = title,
                 color = titleColor,
-                fontSize = 24.sp,
+                fontSize = if (isTablet) 26.sp else 24.sp,
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Bold
             )
@@ -2215,12 +2384,12 @@ private fun GiftHeroCard(
             Text(
                 text = subtitle,
                 color = Color(0xFF7D4A59),
-                fontSize = 8.sp,
-                lineHeight = 11.sp,
+                fontSize = if (isTablet) 9.sp else 8.sp,
+                lineHeight = if (isTablet) 12.sp else 11.sp,
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Normal
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(if (isTablet) 14.dp else 12.dp))
             GiftPricePill(price = item.price)
         }
         Image(
@@ -2228,7 +2397,7 @@ private fun GiftHeroCard(
             contentDescription = null,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .size(width = 92.dp, height = 127.dp),
+                .size(width = if (isTablet) 102.dp else 92.dp, height = if (isTablet) 138.dp else 127.dp),
             contentScale = ContentScale.Fit
         )
         if (quantity > 0) {
@@ -2245,13 +2414,18 @@ private fun GiftHeroCard(
 }
 
 @Composable
-private fun GiftHeartsDivider(hearts: Int) {
+private fun GiftHeartsDivider(
+    hearts: Int,
+    horizontalPadding: Dp = 28.dp,
+    topPadding: Dp = 24.dp,
+    bottomPadding: Dp = 24.dp
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 28.dp)
-            .padding(top = 24.dp, bottom = 24.dp)
+            .padding(horizontal = horizontalPadding)
+            .padding(top = topPadding, bottom = bottomPadding)
     ) {
         Box(
             modifier = Modifier
@@ -2280,10 +2454,10 @@ private fun GiftHeartsDivider(hearts: Int) {
 }
 
 @Composable
-private fun GiftSectionTitle(icon: String, text: String) {
+private fun GiftSectionTitle(icon: String, text: String, horizontalPadding: Dp) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(horizontal = 18.dp)
+        modifier = Modifier.padding(horizontal = horizontalPadding)
     ) {
         Text(text = icon, fontSize = 16.sp)
         Spacer(modifier = Modifier.width(6.dp))
@@ -2302,15 +2476,23 @@ private fun GiftSmallGrid(
     items: List<GiftItem>,
     quantities: Map<String, Int>,
     onIncrement: (GiftItem) -> Unit,
-    onDecrement: (GiftItem) -> Unit
+    onDecrement: (GiftItem) -> Unit,
+    containerWidth: Dp,
+    isTablet: Boolean
 ) {
+    val horizontalPadding = if (isTablet) 20.dp else 16.dp
+    val columnSpacing = if (isTablet) 12.dp else 10.dp
+    val rowSpacing = if (isTablet) 12.dp else 10.dp
+    val cardWidth = (((containerWidth - (horizontalPadding * 2) - (columnSpacing * 2)) / 3))
+        .coerceAtMost(if (isTablet) 144.dp else 110.dp)
+    val cardHeight = if (isTablet) 126.dp else 118.dp
     Column(
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier.padding(horizontal = 16.dp)
+        verticalArrangement = Arrangement.spacedBy(rowSpacing),
+        modifier = Modifier.padding(horizontal = horizontalPadding)
     ) {
         items.chunked(3).forEach { rowItems ->
             Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(columnSpacing),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 rowItems.forEach { item ->
@@ -2323,7 +2505,8 @@ private fun GiftSmallGrid(
                             quantity = quantities[item.code] ?: 0,
                             onIncrement = { onIncrement(item) },
                             onDecrement = { onDecrement(item) },
-                            modifier = Modifier.size(width = 110.dp, height = 118.dp)
+                            isTablet = isTablet,
+                            modifier = Modifier.size(width = cardWidth, height = cardHeight)
                         )
                     }
                 }
@@ -2340,13 +2523,20 @@ private fun GiftLoveRow(
     items: List<GiftItem>,
     quantities: Map<String, Int>,
     onIncrement: (GiftItem) -> Unit,
-    onDecrement: (GiftItem) -> Unit
+    onDecrement: (GiftItem) -> Unit,
+    containerWidth: Dp,
+    isTablet: Boolean
 ) {
+    val horizontalPadding = if (isTablet) 20.dp else 16.dp
+    val spacing = if (isTablet) 12.dp else 10.dp
+    val cardWidth = (((containerWidth - (horizontalPadding * 2) - spacing) / 2))
+        .coerceAtMost(if (isTablet) 270.dp else 180.dp)
+    val cardHeight = if (isTablet) 108.dp else 92.dp
     Row(
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(spacing),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = horizontalPadding)
     ) {
         items.forEach { item ->
             GiftLoveCard(
@@ -2354,9 +2544,10 @@ private fun GiftLoveRow(
                 quantity = quantities[item.code] ?: 0,
                 onIncrement = { onIncrement(item) },
                 onDecrement = { onDecrement(item) },
+                isTablet = isTablet,
                 modifier = Modifier
-                    .weight(1f)
-                    .height(92.dp)
+                    .width(cardWidth)
+                    .height(cardHeight)
             )
         }
     }
@@ -2368,6 +2559,7 @@ private fun GiftProductCard(
     quantity: Int,
     onIncrement: () -> Unit,
     onDecrement: () -> Unit,
+    isTablet: Boolean,
     modifier: Modifier = Modifier
 ) {
     val borderColor = if (quantity > 0) Color(0xFFF5B120) else Color.Black
@@ -2384,7 +2576,7 @@ private fun GiftProductCard(
             contentDescription = null,
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .size(width = 50.dp, height = 56.dp),
+                .size(width = if (isTablet) 54.dp else 50.dp, height = if (isTablet) 60.dp else 56.dp),
             contentScale = ContentScale.Fit
         )
         Column(
@@ -2396,7 +2588,7 @@ private fun GiftProductCard(
             Text(
                 text = item.name,
                 color = Color.Black,
-                fontSize = 11.sp,
+                fontSize = if (isTablet) 12.sp else 11.sp,
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Normal,
                 maxLines = 1
@@ -2421,6 +2613,7 @@ private fun GiftLoveCard(
     quantity: Int,
     onIncrement: () -> Unit,
     onDecrement: () -> Unit,
+    isTablet: Boolean,
     modifier: Modifier = Modifier
 ) {
     val borderColor = if (quantity > 0) Color(0xFFF5B120) else Color.Black
@@ -2435,7 +2628,7 @@ private fun GiftLoveCard(
         Text(
             text = item.name,
             color = Color.Black,
-            fontSize = 9.sp,
+            fontSize = if (isTablet) 10.sp else 9.sp,
             fontFamily = GaretFontFamily,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.align(Alignment.TopStart)
@@ -2445,7 +2638,7 @@ private fun GiftLoveCard(
             contentDescription = null,
             modifier = Modifier
                 .align(Alignment.CenterEnd)
-                .size(width = 76.dp, height = 74.dp),
+                .size(width = if (isTablet) 84.dp else 76.dp, height = if (isTablet) 82.dp else 74.dp),
             contentScale = ContentScale.Fit
         )
         if (quantity > 0) {
@@ -3281,6 +3474,8 @@ private fun CallSafetyButton(
 @Composable
 private fun CallParticipantCard(
     name: String,
+    avatarUrl: String? = null,
+    gender: String? = null,
     avatarRes: Int,
     background: Color
 ) {
@@ -3299,8 +3494,10 @@ private fun CallParticipantCard(
                     RoundedCornerShape(12.dp)
                 )
         ) {
-            Image(
-                painter = painterResource(id = avatarRes),
+            CachedAvatarImage(
+                avatarUrl = avatarUrl,
+                gender = gender,
+                fallbackRes = gender.toCallFallbackAvatarRes(avatarRes),
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
@@ -3316,6 +3513,14 @@ private fun CallParticipantCard(
             fontFamily = GaretFontFamily,
             fontWeight = FontWeight.Bold
         )
+    }
+}
+
+private fun String?.toCallFallbackAvatarRes(defaultRes: Int): Int {
+    return when (this.toAvatarGender()) {
+        AvatarGender.Female -> R.drawable.women_avatar1
+        AvatarGender.Male -> R.drawable.man_avatar1
+        else -> defaultRes
     }
 }
 
