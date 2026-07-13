@@ -1,5 +1,9 @@
 package com.gobff.getfriends.screens
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
@@ -26,6 +30,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -38,6 +43,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lock
@@ -56,6 +62,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -79,6 +86,7 @@ import com.gobff.getfriends.viewmodel.LogoutViewModel
 private val SettingsPurple = Color(0xFFC471FF)
 private val SettingsAccent = Color(0xFF7D3CF0)
 private val SettingsHeaderText = Color(0xFF2D2D2D)
+private const val SUPPORT_EMAIL = "team@gobff.app"
 
 private enum class SettingsPage {
     Main,
@@ -434,27 +442,70 @@ private fun HelpSupportContent(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    SettingsDetailScaffold(
-        title = "Help & Support",
-        onBack = onBack,
-        modifier = modifier
-    ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-            HelpActionCard(
-                iconRes = R.drawable.help_bug_report,
-                title = "Report a Bug",
-                iconBackground = Color(0xFFE7F5D9),
-                modifier = Modifier.weight(1f)
+    val context = LocalContext.current
+    var showBugReportSheet by remember { mutableStateOf(false) }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        SettingsDetailScaffold(
+            title = "Help & Support",
+            onBack = onBack,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                HelpActionCard(
+                    iconRes = R.drawable.help_bug_report,
+                    title = "Report a Bug",
+                    iconBackground = Color(0xFFE7F5D9),
+                    onClick = { showBugReportSheet = true },
+                    modifier = Modifier.weight(1f)
+                )
+                HelpActionCard(
+                    iconRes = R.drawable.help_contact_us,
+                    title = "Contact us",
+                    iconBackground = Color(0xFFFEE4EC),
+                    onClick = {
+                        context.openSupportEmail(
+                            subject = "BFF Support Request",
+                            body = "Hi BFF Team,\n\n"
+                        )
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Spacer(modifier = Modifier.height(26.dp))
+            FaqCard()
+        }
+
+        if (showBugReportSheet) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(Color.Black.copy(alpha = 0.42f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { showBugReportSheet = false }
+                    )
             )
-            HelpActionCard(
-                iconRes = R.drawable.help_contact_us,
-                title = "Contact us",
-                iconBackground = Color(0xFFFEE4EC),
-                modifier = Modifier.weight(1f)
+            BugReportSheet(
+                onDismiss = { showBugReportSheet = false },
+                onSubmit = { title, details ->
+                    context.openSupportEmail(
+                        subject = title.ifBlank { "BFF Bug Report" },
+                        body = details.ifBlank { "No additional details provided." }
+                    )
+                    showBugReportSheet = false
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .imePadding()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {}
+                    )
             )
         }
-        Spacer(modifier = Modifier.height(26.dp))
-        FaqCard()
     }
 }
 
@@ -998,6 +1049,34 @@ private fun settingsSubtitleFor(title: String): String =
         else -> ""
     }
 
+private fun Context.openSupportEmail(
+    subject: String,
+    body: String
+) {
+    val mailToUri = Uri.parse(
+        "mailto:$SUPPORT_EMAIL" +
+            "?subject=${Uri.encode(subject)}" +
+            "&body=${Uri.encode(body)}"
+    )
+    val emailIntent = Intent(Intent.ACTION_SENDTO, mailToUri)
+    val chooser = Intent.createChooser(emailIntent, "Send email")
+    try {
+        startActivity(chooser)
+    } catch (_: ActivityNotFoundException) {
+        val fallbackIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "message/rfc822"
+            putExtra(Intent.EXTRA_EMAIL, arrayOf(SUPPORT_EMAIL))
+            putExtra(Intent.EXTRA_SUBJECT, subject)
+            putExtra(Intent.EXTRA_TEXT, body)
+        }
+        try {
+            startActivity(Intent.createChooser(fallbackIntent, "Send email"))
+        } catch (_: ActivityNotFoundException) {
+            // No email app is available on this device.
+        }
+    }
+}
+
 @Composable
 private fun SettingsWhiteHeader(
     title: String,
@@ -1319,10 +1398,19 @@ private fun HelpActionCard(
     iconRes: Int,
     title: String,
     iconBackground: Color,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val shape = HandDrawnCardShape
-    Box(modifier = modifier.height(78.dp)) {
+    Box(
+        modifier = modifier
+            .height(78.dp)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+    ) {
         Box(
             modifier = Modifier
                 .matchParentSize()
@@ -1353,6 +1441,71 @@ private fun HelpActionCard(
                 fontWeight = FontWeight.Bold
             )
         }
+    }
+}
+
+@Composable
+private fun BugReportSheet(
+    onDismiss: () -> Unit,
+    onSubmit: (String, String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var reportTitle by remember { mutableStateOf("") }
+    var reportDetails by remember { mutableStateOf("") }
+    val canSubmit = reportTitle.isNotBlank() || reportDetails.isNotBlank()
+
+    BottomSheetSurface(modifier = modifier) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = "Report a Bug",
+                color = Color.Black,
+                fontSize = 20.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.Center)
+            )
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "Close",
+                tint = Color.Black,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .size(24.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onDismiss
+                    )
+            )
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        BottomSheetLabel("Report title")
+        Spacer(modifier = Modifier.height(8.dp))
+        SettingsInputField(
+            value = reportTitle,
+            onValueChange = { reportTitle = it },
+            placeholder = "What's the issue?"
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+        BottomSheetLabel("Detailed explanation")
+        Spacer(modifier = Modifier.height(8.dp))
+        SettingsMultilineInputField(
+            value = reportDetails,
+            onValueChange = { reportDetails = it },
+            placeholder = "Tell us what happened, where it happened, and any steps to reproduce it."
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        PurpleActionButton(
+            text = "Report",
+            onClick = {
+                if (canSubmit) {
+                    onSubmit(reportTitle.trim(), reportDetails.trim())
+                }
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+        )
     }
 }
 
@@ -1764,6 +1917,48 @@ private fun SettingsInputField(
             Spacer(modifier = Modifier.width(10.dp))
             trailingIcon()
         }
+    }
+}
+
+@Composable
+private fun SettingsMultilineInputField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String
+) {
+    val shape = HandDrawnCardShape
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(132.dp)
+            .clip(shape)
+            .background(Color.White)
+            .border(1.3.dp, Color.Black, shape)
+            .padding(horizontal = 18.dp, vertical = 16.dp)
+    ) {
+        if (value.isEmpty()) {
+            Text(
+                text = placeholder,
+                color = Color(0xFFB5B5B5),
+                fontSize = 14.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Medium,
+                lineHeight = 19.sp
+            )
+        }
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            cursorBrush = SolidColor(Color.Black),
+            textStyle = TextStyle(
+                color = Color(0xFF666666),
+                fontSize = 14.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Medium,
+                lineHeight = 19.sp
+            ),
+            modifier = Modifier.fillMaxSize()
+        )
     }
 }
 
