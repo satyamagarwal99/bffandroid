@@ -23,6 +23,7 @@ import com.gobff.getfriends.data.model.OtpVerifyResponse
 import com.gobff.getfriends.data.model.PresenceRequestBody
 import com.gobff.getfriends.data.model.PresenceResponse
 import com.gobff.getfriends.data.model.RechargeOptionsResponse
+import com.gobff.getfriends.data.model.RechargeOrderStatusResponse
 import com.gobff.getfriends.data.model.RechargePurchaseBody
 import com.gobff.getfriends.data.model.RechargePurchaseResponse
 import com.gobff.getfriends.data.model.RechargeQuoteBody
@@ -116,6 +117,12 @@ class MainRepository(
         body: RechargePurchaseBody
     ): Response<RechargePurchaseResponse> =
         apiService.purchaseRecharge(bearerToken, idempotencyKey, body)
+
+    suspend fun getRechargeOrderStatus(
+        bearerToken: String,
+        orderId: String
+    ): Response<RechargeOrderStatusResponse> =
+        apiService.getRechargeOrderStatus(bearerToken, orderId)
 
     suspend fun createRoom(
         bearerToken: String,

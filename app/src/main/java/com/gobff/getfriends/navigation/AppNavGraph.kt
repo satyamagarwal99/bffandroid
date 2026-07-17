@@ -394,7 +394,6 @@ fun AppNavGraph(
 
         composable(AppRoute.Login.route) {
             LoginScreen(
-                onSkipLogin = { navController.navigateSingleTop(AppRoute.Gender) },
                 onAuthenticated = {
                     coroutineScope.launch {
                         val hasProfile = userProfileViewModel.refreshProfile()

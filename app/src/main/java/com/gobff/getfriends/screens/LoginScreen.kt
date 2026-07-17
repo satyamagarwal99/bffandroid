@@ -21,11 +21,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
-import androidx.compose.material3.Icon
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -35,7 +33,6 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -76,7 +73,6 @@ import com.gobff.getfriends.viewmodel.LoginViewModel
 @Composable
 fun LoginScreen(
     modifier: Modifier = Modifier,
-    onSkipLogin: () -> Unit = {},
     onAuthenticated: () -> Unit = {},
     viewModel: LoginViewModel = viewModel()
 ) {
@@ -93,7 +89,6 @@ fun LoginScreen(
         onLoginClick = viewModel::onLoginClick,
         onContinueClick = viewModel::onContinueClick,
         onGoogleSignInClick = viewModel::onGoogleSignInClick,
-        onSkipLogin = onSkipLogin,
         modifier = modifier
     )
 }
@@ -106,7 +101,6 @@ private fun LoginScreenContent(
     onLoginClick: () -> Unit,
     onContinueClick: () -> Unit,
     onGoogleSignInClick: () -> Unit,
-    onSkipLogin: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val loginMethod = uiState.loginCountry.loginMethod
@@ -156,13 +150,6 @@ private fun LoginScreenContent(
                     .offset(x = (-50).dp, y = 307.dp)
             )
         } else {
-            TopArrowButton(
-                onClick = onSkipLogin,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .offset(x = (-17).dp, y = 48.dp)
-            )
-
             Column(
                 horizontalAlignment = Alignment.Start,
                 modifier = Modifier
@@ -215,8 +202,8 @@ private fun LoginScreenContent(
                     text = uiState.authStatusText,
                     modifier = Modifier
                         .align(Alignment.TopCenter)
-                        .offset(y = screenHeight * 0.37f)
-                        .width(screenWidth * 0.72f)
+                        .offset(y = screenHeight * 0.365f)
+                        .width(screenWidth * 0.78f)
                         .loginCrossfadeMotion(formProgress, slideY = 14f)
                 )
 
@@ -285,11 +272,15 @@ private fun LoginStatusText(
         text = text,
         color = Color.White,
         fontSize = 12.sp,
-        lineHeight = 12.sp,
+        lineHeight = 14.sp,
         fontFamily = GaretFontFamily,
         fontWeight = FontWeight.Medium,
-        maxLines = 1,
+        textAlign = TextAlign.Center,
+        maxLines = 2,
         modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color.Black.copy(alpha = 0.18f))
+            .padding(horizontal = 10.dp, vertical = 5.dp)
     )
 }
 
@@ -446,39 +437,6 @@ private fun GoogleSignInButton(
     }
 }
 
-@Composable
-private fun TopArrowButton(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val pressScale by animateFloatAsState(
-        targetValue = if (isPressed) 0.92f else 1f,
-        animationSpec = spring(dampingRatio = 0.62f, stiffness = 540f),
-        label = "topArrowPress"
-    )
-    Box(
-        modifier = modifier
-            .size(width = 52.dp, height = 27.dp)
-            .scale(pressScale)
-            .clip(RoundedCornerShape(50))
-            .background(Color.Black)
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-            contentDescription = "Next",
-            tint = Color.White,
-            modifier = Modifier.size(18.dp)
-        )
-    }
-}
 @Composable
 private fun PrivacyLine(modifier: Modifier = Modifier) {
     Row(
@@ -1040,8 +998,7 @@ private fun LoginScreenPreview() {
             onOtpCodeChange = {},
             onLoginClick = {},
             onContinueClick = {},
-            onGoogleSignInClick = {},
-            onSkipLogin = {}
+            onGoogleSignInClick = {}
         )
     }
 }

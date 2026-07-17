@@ -15,8 +15,8 @@ android {
         applicationId = "com.gobff.getfriends"
         minSdk = 29
         targetSdk = 36
-        versionCode = 5
-        versionName = "1.4"
+        versionCode = 6
+        versionName = "1.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -70,6 +70,8 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.converter.gson)
     implementation(libs.logging.interceptor)
+    implementation(libs.cashfree.pg.api)
+    implementation(libs.cashfree.pg.ui)
 
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)

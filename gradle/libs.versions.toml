@@ -16,6 +16,7 @@ loggingInterceptor = "4.12.0"
 navigationCompose = "2.9.0"
 retrofit = "2.9.0"
 securityCrypto = "1.1.0"
+cashfreePg = "2.4.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -40,6 +41,8 @@ androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-
 androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
+cashfree-pg-api = { module = "com.cashfree.pg:api", version.ref = "cashfreePg" }
+cashfree-pg-ui = { module = "com.cashfree.pg:ui", version.ref = "cashfreePg" }
 logging-interceptor = { module = "com.squareup.okhttp3:logging-interceptor", version.ref = "loggingInterceptor" }
 retrofit = { module = "com.squareup.retrofit2:retrofit", version.ref = "retrofit" }
 

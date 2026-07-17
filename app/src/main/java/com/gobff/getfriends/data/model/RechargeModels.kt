@@ -20,19 +20,30 @@ data class RechargeQuoteResult(
 data class RechargePurchaseResult(
     val isSuccessful: Boolean,
     val message: String?,
-    val checkout: JuspayCheckoutData? = null,
+    val checkout: CashfreeCheckoutData? = null,
     val rawResponse: String? = null
 )
 
-data class JuspayCheckoutData(
+data class CashfreeCheckoutData(
     val orderId: String?,
+    val paymentSessionId: String?,
+    val environment: String?,
     val paymentUrl: String?,
     val sdkPayload: String?,
     val rawResponse: String
 ) {
+    val hasCashfreeSession: Boolean
+        get() = !orderId.isNullOrBlank() && !paymentSessionId.isNullOrBlank()
+
     val launchKey: String
-        get() = orderId ?: paymentUrl ?: sdkPayload?.hashCode()?.toString() ?: rawResponse.hashCode().toString()
+        get() = orderId
+            ?: paymentSessionId
+            ?: paymentUrl
+            ?: sdkPayload?.hashCode()?.toString()
+            ?: rawResponse.hashCode().toString()
 }
+
+typealias JuspayCheckoutData = CashfreeCheckoutData
 
 data class RechargeOptionsResult(
     val isSuccessful: Boolean,
@@ -51,11 +62,20 @@ data class RechargeUiState(
     val isPurchaseLoading: Boolean = false,
     val isPurchaseSuccessful: Boolean = false,
     val purchaseMessage: String? = null,
-    val checkout: JuspayCheckoutData? = null,
-    val launchedCheckoutKey: String? = null
+    val checkout: CashfreeCheckoutData? = null,
+    val launchedCheckoutKey: String? = null,
+    val activeOrderId: String? = null,
+    val isStatusPolling: Boolean = false,
+    val paymentResolution: RechargePaymentResolution? = null
 ) {
     val selectedOption: RechargeOption?
         get() = options.firstOrNull { it.id == selectedOptionId }
+}
+
+enum class RechargePaymentResolution {
+    Success,
+    Failed,
+    Pending
 }
 
 data class RechargeQuoteBody(
@@ -69,21 +89,26 @@ data class RechargeQuoteResponse(
 
 data class RechargePurchaseBody(
     @SerializedName("packCode") val packCode: String,
-    @SerializedName("couponCode") val couponCode: String,
-    @SerializedName("customerEmail") val customerEmail: String,
-    @SerializedName("customerPhone") val customerPhone: String,
-    @SerializedName("firstName") val firstName: String,
-    @SerializedName("lastName") val lastName: String,
-    @SerializedName("returnUrl") val returnUrl: String,
-    @SerializedName("description") val description: String
+    @SerializedName("couponCode") val couponCode: String
 )
 
 data class RechargePurchaseResponse(
     @SerializedName("message") val message: String?,
+    @SerializedName("status") val status: String?,
+    @SerializedName("gatewayOrderId") val gatewayOrderId: String?,
     @SerializedName("orderId") val orderId: String?,
     @SerializedName("order_id") val order_id: String?,
+    @SerializedName("cfOrderId") val cfOrderId: String?,
+    @SerializedName("cf_order_id") val cf_order_id: String?,
     @SerializedName("juspayOrderId") val juspayOrderId: String?,
     @SerializedName("paymentOrderId") val paymentOrderId: String?,
+    @SerializedName("paymentSessionId") val paymentSessionId: String?,
+    @SerializedName("payment_session_id") val payment_session_id: String?,
+    @SerializedName("cashfreePaymentSessionId") val cashfreePaymentSessionId: String?,
+    @SerializedName("cashfree_payment_session_id") val cashfree_payment_session_id: String?,
+    @SerializedName("environment") val environment: String?,
+    @SerializedName("cashfreeEnvironment") val cashfreeEnvironment: String?,
+    @SerializedName("cashfree_environment") val cashfree_environment: String?,
     @SerializedName("paymentUrl") val paymentUrl: String?,
     @SerializedName("payment_url") val payment_url: String?,
     @SerializedName("paymentLink") val paymentLink: String?,
@@ -97,7 +122,49 @@ data class RechargePurchaseResponse(
     @SerializedName("juspayPayload") val juspayPayload: JsonElement?,
     @SerializedName("hyperSdkPayload") val hyperSdkPayload: JsonElement?,
     @SerializedName("processPayload") val processPayload: JsonElement?,
-    @SerializedName("paymentPagePayload") val paymentPagePayload: JsonElement?
+    @SerializedName("paymentPagePayload") val paymentPagePayload: JsonElement?,
+    @SerializedName("paymentSession") val paymentSession: RechargePaymentSession?
+)
+
+data class RechargePaymentSession(
+    @SerializedName("webPaymentLink") val webPaymentLink: String?,
+    @SerializedName("web_payment_link") val web_payment_link: String?,
+    @SerializedName("sdkPayload") val sdkPayload: RechargePaymentSessionPayload?,
+    @SerializedName("sdk_payload") val sdk_payload: RechargePaymentSessionPayload?
+)
+
+data class RechargePaymentSessionPayload(
+    @SerializedName("orderId") val orderId: String?,
+    @SerializedName("order_id") val order_id: String?,
+    @SerializedName("paymentSessionId") val paymentSessionId: String?,
+    @SerializedName("payment_session_id") val payment_session_id: String?
+)
+
+data class RechargeOrderStatusResponse(
+    @SerializedName("message") val message: String?,
+    @SerializedName("status") val status: String?,
+    @SerializedName("orderStatus") val orderStatus: String?,
+    @SerializedName("order_status") val order_status: String?,
+    @SerializedName("paymentStatus") val paymentStatus: String?,
+    @SerializedName("payment_status") val payment_status: String?,
+    @SerializedName("cashfreeStatus") val cashfreeStatus: String?,
+    @SerializedName("cashfree_status") val cashfree_status: String?,
+    @SerializedName("transactionStatus") val transactionStatus: String?,
+    @SerializedName("transaction_status") val transaction_status: String?,
+    @SerializedName("data") val data: RechargeOrderStatusContainer?
+)
+
+data class RechargeOrderStatusContainer(
+    @SerializedName("message") val message: String?,
+    @SerializedName("status") val status: String?,
+    @SerializedName("orderStatus") val orderStatus: String?,
+    @SerializedName("order_status") val order_status: String?,
+    @SerializedName("paymentStatus") val paymentStatus: String?,
+    @SerializedName("payment_status") val payment_status: String?,
+    @SerializedName("cashfreeStatus") val cashfreeStatus: String?,
+    @SerializedName("cashfree_status") val cashfree_status: String?,
+    @SerializedName("transactionStatus") val transactionStatus: String?,
+    @SerializedName("transaction_status") val transaction_status: String?
 )
 
 data class RechargeOptionsResponse(

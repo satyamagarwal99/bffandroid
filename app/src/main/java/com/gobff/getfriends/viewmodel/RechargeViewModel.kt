@@ -7,14 +7,17 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gobff.getfriends.data.MainRepository
-import com.gobff.getfriends.data.model.JuspayCheckoutData
+import com.gobff.getfriends.data.model.CashfreeCheckoutData
 import com.gobff.getfriends.data.model.RechargeOption
+import com.gobff.getfriends.data.model.RechargeOrderStatusResponse
+import com.gobff.getfriends.data.model.RechargePaymentResolution
 import com.gobff.getfriends.data.model.RechargeOptionsResponse
 import com.gobff.getfriends.data.model.RechargePurchaseBody
 import com.gobff.getfriends.data.model.RechargePurchaseResponse
 import com.gobff.getfriends.data.model.RechargeQuoteBody
 import com.gobff.getfriends.data.model.RechargeUiState
 import com.gobff.getfriends.utils.TokenUtils
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -161,15 +164,9 @@ class RechargeViewModel(
 
             val body = RechargePurchaseBody(
                 packCode = selectedOption.packCode,
-                couponCode = couponCode,
-                customerEmail = "test@mail.com",
-                customerPhone = "9876543210",
-                firstName = "John",
-                lastName = "Wick",
-                returnUrl = "https://shop.merchant.com",
-                description = "Complete your payment"
+                couponCode = couponCode
             )
-            val idempotencyKey = "wallet-recharge-${UUID.randomUUID()}"
+            val idempotencyKey = UUID.randomUUID().toString()
 
             runCatching { mainRepository.purchaseRecharge(token, idempotencyKey, body) }
                 .onSuccess { response ->
@@ -182,7 +179,8 @@ class RechargeViewModel(
                         } else {
                             "Unable to start payment"
                         },
-                        checkout = responseBody?.takeIf { response.isSuccessful }?.let(::parseJuspayCheckoutData)
+                        checkout = responseBody?.takeIf { response.isSuccessful }?.let(::parseCashfreeCheckoutData),
+                        activeOrderId = responseBody?.takeIf { response.isSuccessful }?.let(::parseOrderId)
                     )
                 }
                 .onFailure { error ->
@@ -212,6 +210,31 @@ class RechargeViewModel(
         )
     }
 
+    fun markPaymentReturned(orderId: String?) {
+        val resolvedOrderId = orderId?.takeIf { it.isNotBlank() } ?: uiState.activeOrderId
+        if (resolvedOrderId.isNullOrBlank()) {
+            uiState = uiState.copy(
+                purchaseMessage = "Confirming payment...",
+                paymentResolution = RechargePaymentResolution.Pending
+            )
+            return
+        }
+        pollRechargeStatus(resolvedOrderId)
+    }
+
+    fun markPaymentReturnFailed(orderId: String?, message: String) {
+        val resolvedOrderId = orderId?.takeIf { it.isNotBlank() } ?: uiState.activeOrderId
+        if (resolvedOrderId.isNullOrBlank()) {
+            uiState = uiState.copy(
+                isStatusPolling = false,
+                purchaseMessage = message,
+                paymentResolution = RechargePaymentResolution.Failed
+            )
+            return
+        }
+        pollRechargeStatus(resolvedOrderId)
+    }
+
     fun clearQuoteState() {
         uiState = uiState.copy(
             isQuoteLoading = false,
@@ -221,8 +244,77 @@ class RechargeViewModel(
             isPurchaseSuccessful = false,
             purchaseMessage = null,
             checkout = null,
-            launchedCheckoutKey = null
+            launchedCheckoutKey = null,
+            activeOrderId = null,
+            isStatusPolling = false,
+            paymentResolution = null
         )
+    }
+
+    private fun pollRechargeStatus(orderId: String) {
+        if (uiState.isStatusPolling && uiState.activeOrderId == orderId) return
+
+        viewModelScope.launch {
+            val token = TokenUtils.getToken()
+            if (token.isBlank()) {
+                uiState = uiState.copy(
+                    isStatusPolling = false,
+                    purchaseMessage = "Login token missing",
+                    paymentResolution = RechargePaymentResolution.Pending
+                )
+                return@launch
+            }
+
+            uiState = uiState.copy(
+                activeOrderId = orderId,
+                isStatusPolling = true,
+                purchaseMessage = "Confirming payment...",
+                paymentResolution = null
+            )
+
+            var delayMs = 2_000L
+            val deadline = System.currentTimeMillis() + STATUS_POLL_TIMEOUT_MS
+            while (System.currentTimeMillis() < deadline) {
+                val resolution = runCatching {
+                    val response = mainRepository.getRechargeOrderStatus(token, orderId)
+                    response.body()?.let(::parsePaymentResolution)
+                }.getOrNull()
+
+                when (resolution) {
+                    RechargePaymentResolution.Success -> {
+                        uiState = uiState.copy(
+                            isStatusPolling = false,
+                            isPurchaseSuccessful = true,
+                            purchaseMessage = "Recharge successful",
+                            paymentResolution = RechargePaymentResolution.Success
+                        )
+                        loadRechargeOptions()
+                        return@launch
+                    }
+                    RechargePaymentResolution.Failed -> {
+                        uiState = uiState.copy(
+                            isStatusPolling = false,
+                            isPurchaseSuccessful = false,
+                            purchaseMessage = "Payment failed. If money was deducted, we will update it after confirmation.",
+                            paymentResolution = RechargePaymentResolution.Failed
+                        )
+                        return@launch
+                    }
+                    RechargePaymentResolution.Pending,
+                    null -> {
+                        delay(delayMs)
+                        delayMs = (delayMs * 1.5f).toLong().coerceAtMost(15_000L)
+                    }
+                }
+            }
+
+            uiState = uiState.copy(
+                isStatusPolling = false,
+                isPurchaseSuccessful = false,
+                purchaseMessage = "Payment is pending. We'll notify you once it is confirmed.",
+                paymentResolution = RechargePaymentResolution.Pending
+            )
+        }
     }
 
     private fun parseRechargeOptions(body: RechargeOptionsResponse): List<RechargeOption> {
@@ -270,9 +362,19 @@ class RechargeViewModel(
         }
     }
 
-    private fun parseJuspayCheckoutData(body: RechargePurchaseResponse): JuspayCheckoutData {
-        return JuspayCheckoutData(
-            orderId = body.orderId ?: body.order_id ?: body.juspayOrderId ?: body.paymentOrderId,
+    private fun parseCashfreeCheckoutData(body: RechargePurchaseResponse): CashfreeCheckoutData {
+        val nestedPayload = body.paymentSession?.sdkPayload ?: body.paymentSession?.sdk_payload
+        return CashfreeCheckoutData(
+            orderId = parseOrderId(body),
+            paymentSessionId = body.paymentSessionId
+                ?: body.payment_session_id
+                ?: body.cashfreePaymentSessionId
+                ?: body.cashfree_payment_session_id
+                ?: nestedPayload?.paymentSessionId
+                ?: nestedPayload?.payment_session_id,
+            environment = body.environment
+                ?: body.cashfreeEnvironment
+                ?: body.cashfree_environment,
             paymentUrl = body.paymentUrl
                 ?: body.payment_url
                 ?: body.paymentLink
@@ -280,7 +382,9 @@ class RechargeViewModel(
                 ?: body.redirectUrl
                 ?: body.redirect_url
                 ?: body.webUrl
-                ?: body.web_url,
+                ?: body.web_url
+                ?: body.paymentSession?.webPaymentLink
+                ?: body.paymentSession?.web_payment_link,
             sdkPayload = (body.sdkPayload
                 ?: body.sdk_payload
                 ?: body.juspayPayload
@@ -289,5 +393,55 @@ class RechargeViewModel(
                 ?: body.paymentPagePayload)?.toString(),
             rawResponse = body.toString()
         )
+    }
+
+    private fun parseOrderId(body: RechargePurchaseResponse): String? {
+        return body.orderId
+            ?: body.order_id
+            ?: body.cfOrderId
+            ?: body.cf_order_id
+            ?: body.paymentSession?.sdkPayload?.orderId
+            ?: body.paymentSession?.sdkPayload?.order_id
+            ?: body.paymentSession?.sdk_payload?.orderId
+            ?: body.paymentSession?.sdk_payload?.order_id
+            ?: body.juspayOrderId
+            ?: body.paymentOrderId
+    }
+
+    private fun parsePaymentResolution(body: RechargeOrderStatusResponse): RechargePaymentResolution {
+        val status = listOfNotNull(
+            body.status,
+            body.orderStatus,
+            body.order_status,
+            body.paymentStatus,
+            body.payment_status,
+            body.cashfreeStatus,
+            body.cashfree_status,
+            body.transactionStatus,
+            body.transaction_status,
+            body.data?.status,
+            body.data?.orderStatus,
+            body.data?.order_status,
+            body.data?.paymentStatus,
+            body.data?.payment_status,
+            body.data?.cashfreeStatus,
+            body.data?.cashfree_status,
+            body.data?.transactionStatus,
+            body.data?.transaction_status
+        ).firstOrNull { it.isNotBlank() }?.uppercase() ?: return RechargePaymentResolution.Pending
+
+        return when (status) {
+            "PAID", "SUCCESS", "SUCCESSFUL", "COMPLETED", "CHARGED", "CAPTURED" ->
+                RechargePaymentResolution.Success
+            "FAILED", "FAILURE", "CANCELLED", "CANCELED", "EXPIRED", "VOID", "TERMINATED" ->
+                RechargePaymentResolution.Failed
+            "ACTIVE", "PENDING", "PAYMENT_PENDING", "PAYMENT_SESSION_CREATED", "CREATED" ->
+                RechargePaymentResolution.Pending
+            else -> RechargePaymentResolution.Pending
+        }
+    }
+
+    private companion object {
+        const val STATUS_POLL_TIMEOUT_MS = 180_000L
     }
 }

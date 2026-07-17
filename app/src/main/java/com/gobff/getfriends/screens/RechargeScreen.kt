@@ -65,9 +65,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gobff.getfriends.data.model.RechargeOption
+import com.gobff.getfriends.data.model.RechargePaymentResolution
 import com.gobff.getfriends.data.model.RechargeUiState
 import com.gobff.getfriends.R
-import com.gobff.getfriends.payment.JuspayCheckoutLauncher
+import com.gobff.getfriends.payment.CashfreePaymentLauncher
 import com.gobff.getfriends.ui.component.HandDrawnCardShape
 import com.gobff.getfriends.ui.component.HeartChipShape
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
@@ -96,6 +97,7 @@ fun RechargeScreen(
     var selectedPayment by remember { mutableStateOf(paymentMethods.first()) }
     var stage by remember { mutableStateOf(RechargeStage.Main) }
     var pendingCouponCode by remember { mutableStateOf("") }
+    var availableUpiApps by remember { mutableStateOf(emptyList<CashfreePaymentLauncher.UpiPaymentApp>()) }
     val context = LocalContext.current
     val selectedPack = rechargePacks.firstOrNull { it.id == rechargeUiState.selectedOptionId }
         ?: rechargePacks.firstOrNull()
@@ -104,6 +106,7 @@ fun RechargeScreen(
         when (stage) {
             RechargeStage.Main -> onBack()
             RechargeStage.Coupon -> stage = RechargeStage.Main
+            RechargeStage.UpiPicker -> stage = RechargeStage.Processing
             RechargeStage.Processing -> {
                 rechargeViewModel.clearQuoteState()
                 stage = RechargeStage.Main
@@ -112,6 +115,15 @@ fun RechargeScreen(
                 rechargeViewModel.clearQuoteState()
                 stage = RechargeStage.Main
             }
+        }
+    }
+
+    LaunchedEffect(rechargeUiState.paymentResolution) {
+        when (rechargeUiState.paymentResolution) {
+            RechargePaymentResolution.Success -> stage = RechargeStage.Success
+            RechargePaymentResolution.Failed,
+            RechargePaymentResolution.Pending -> Unit
+            null -> Unit
         }
     }
 
@@ -137,11 +149,25 @@ fun RechargeScreen(
                 return@LaunchedEffect
             }
 
-            when (val result = JuspayCheckoutLauncher.launch(activity, checkout)) {
-                JuspayCheckoutLauncher.LaunchResult.Launched -> {
+            if (checkout.hasCashfreeSession) {
+                val upiApps = CashfreePaymentLauncher.installedUpiApps(activity)
+                if (upiApps.isNotEmpty()) {
+                    availableUpiApps = upiApps
+                    stage = RechargeStage.UpiPicker
+                    return@LaunchedEffect
+                }
+            }
+
+            when (val result = CashfreePaymentLauncher.fallback(
+                activity = activity,
+                checkout = checkout,
+                onReturn = rechargeViewModel::markPaymentReturned,
+                onFailure = rechargeViewModel::markPaymentReturnFailed
+            )) {
+                CashfreePaymentLauncher.LaunchResult.Launched -> {
                     rechargeViewModel.markCheckoutLaunched(checkout.launchKey)
                 }
-                is JuspayCheckoutLauncher.LaunchResult.Failure -> {
+                is CashfreePaymentLauncher.LaunchResult.Failure -> {
                     rechargeViewModel.markCheckoutLaunchFailed(result.message)
                     stage = RechargeStage.Main
                 }
@@ -175,6 +201,9 @@ fun RechargeScreen(
             RechargeStage.Processing -> RechargeProcessingScreen(
                 statusMessage = rechargeUiState.purchaseMessage
             )
+            RechargeStage.UpiPicker -> RechargeProcessingScreen(
+                statusMessage = rechargeUiState.purchaseMessage
+            )
             RechargeStage.Success -> RechargeSuccessScreen(
                 balance = walletHearts,
                 onDismiss = {
@@ -191,6 +220,64 @@ fun RechargeScreen(
         if (stage == RechargeStage.Coupon) {
             CouponOverlay(
                 onDismiss = { stage = RechargeStage.Main }
+            )
+        }
+
+        if (stage == RechargeStage.UpiPicker) {
+            UpiAppsOverlay(
+                apps = availableUpiApps,
+                onDismiss = { stage = RechargeStage.Processing },
+                onAppSelected = { app ->
+                    val activity = context as? Activity
+                    val checkout = rechargeUiState.checkout
+                    if (activity == null || checkout == null) {
+                        rechargeViewModel.markCheckoutLaunchFailed("Unable to open payment app")
+                        stage = RechargeStage.Main
+                        return@UpiAppsOverlay
+                    }
+
+                    when (val result = CashfreePaymentLauncher.launchUpiIntent(
+                        activity = activity,
+                        checkout = checkout,
+                        selectedPackageName = app.packageName,
+                        onReturn = rechargeViewModel::markPaymentReturned,
+                        onFailure = rechargeViewModel::markPaymentReturnFailed
+                    )) {
+                        CashfreePaymentLauncher.LaunchResult.Launched -> {
+                            rechargeViewModel.markCheckoutLaunched(checkout.launchKey)
+                            stage = RechargeStage.Processing
+                        }
+                        is CashfreePaymentLauncher.LaunchResult.Failure -> {
+                            rechargeViewModel.markCheckoutLaunchFailed(result.message)
+                            stage = RechargeStage.Main
+                        }
+                    }
+                },
+                onFallback = {
+                    val activity = context as? Activity
+                    val checkout = rechargeUiState.checkout
+                    if (activity == null || checkout == null) {
+                        rechargeViewModel.markCheckoutLaunchFailed("Unable to open payment page")
+                        stage = RechargeStage.Main
+                        return@UpiAppsOverlay
+                    }
+
+                    when (val result = CashfreePaymentLauncher.fallback(
+                        activity = activity,
+                        checkout = checkout,
+                        onReturn = rechargeViewModel::markPaymentReturned,
+                        onFailure = rechargeViewModel::markPaymentReturnFailed
+                    )) {
+                        CashfreePaymentLauncher.LaunchResult.Launched -> {
+                            rechargeViewModel.markCheckoutLaunched(checkout.launchKey)
+                            stage = RechargeStage.Processing
+                        }
+                        is CashfreePaymentLauncher.LaunchResult.Failure -> {
+                            rechargeViewModel.markCheckoutLaunchFailed(result.message)
+                            stage = RechargeStage.Main
+                        }
+                    }
+                }
             )
         }
     }
@@ -259,7 +346,14 @@ private fun RechargeMainContent(
                 modifier = Modifier.padding(horizontal = 24.dp),
                 onClick = onCouponClick
             )
-            Spacer(modifier = Modifier.height(154.dp))
+            Spacer(modifier = Modifier.height(28.dp))
+            PaymentMethodRow(
+                methods = paymentMethods,
+                selectedPayment = selectedPayment,
+                onPaymentSelected = onPaymentSelected,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
+            Spacer(modifier = Modifier.height(42.dp))
             selectedPack?.let { pack ->
                 RechargePayButton(
                     pack = pack,
@@ -779,6 +873,7 @@ private fun RechargePayButton(
         modifier = modifier
             .fillMaxWidth()
             .height(54.dp)
+            .clickable(onClick = onClick)
     ) {
         Box(
             modifier = Modifier
@@ -799,7 +894,7 @@ private fun RechargePayButton(
                 modifier = Modifier.align(Alignment.Center)
             ) {
                 Text(
-                    text = "Payments Coming Soon",
+                    text = "Pay ₹${pack.price}",
                     color = Color.White,
                     fontSize = 14.sp,
                     fontFamily = GaretFontFamily,
@@ -807,12 +902,107 @@ private fun RechargePayButton(
                 )
                 Spacer(modifier = Modifier.width(10.dp))
                 Icon(
-                    imageVector = Icons.Default.Lock,
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = null,
                     tint = Color.White,
                     modifier = Modifier.size(20.dp)
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun UpiAppsOverlay(
+    apps: List<CashfreePaymentLauncher.UpiPaymentApp>,
+    onDismiss: () -> Unit,
+    onAppSelected: (CashfreePaymentLauncher.UpiPaymentApp) -> Unit,
+    onFallback: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.50f))
+            .clickable(onClick = onDismiss)
+    ) {
+        val sheetShape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .clip(sheetShape)
+                .background(Color.White)
+                .clickable(enabled = false, onClick = {})
+                .padding(start = 24.dp, top = 22.dp, end = 24.dp, bottom = 30.dp)
+        ) {
+            Text(
+                text = "Pay with UPI",
+                color = RechargeInk,
+                fontSize = 18.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "Choose an app to complete the payment",
+                color = RechargeMuted,
+                fontSize = 12.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Medium
+            )
+            Spacer(modifier = Modifier.height(18.dp))
+            apps.take(8).forEach { app ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .clickable { onAppSelected(app) }
+                ) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFF1F0FF))
+                    ) {
+                        Text(
+                            text = app.label.firstOrNull()?.uppercase() ?: "U",
+                            color = RechargePurple,
+                            fontSize = 14.sp,
+                            fontFamily = GaretFontFamily,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Text(
+                        text = app.label,
+                        color = RechargeInk,
+                        fontSize = 14.sp,
+                        fontFamily = GaretFontFamily,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        tint = RechargeMuted,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "Use another payment method",
+                color = RechargePurple,
+                fontSize = 14.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .clickable(onClick = onFallback)
+                    .padding(vertical = 8.dp)
+            )
         }
     }
 }
@@ -1228,6 +1418,7 @@ private data class PaymentMethod(
 private enum class RechargeStage {
     Main,
     Coupon,
+    UpiPicker,
     Processing,
     Success
 }

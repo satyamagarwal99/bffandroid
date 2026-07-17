@@ -23,6 +23,7 @@ import com.gobff.getfriends.data.model.OtpVerifyResponse
 import com.gobff.getfriends.data.model.PresenceRequestBody
 import com.gobff.getfriends.data.model.PresenceResponse
 import com.gobff.getfriends.data.model.RechargeOptionsResponse
+import com.gobff.getfriends.data.model.RechargeOrderStatusResponse
 import com.gobff.getfriends.data.model.RechargePurchaseBody
 import com.gobff.getfriends.data.model.RechargePurchaseResponse
 import com.gobff.getfriends.data.model.RechargeQuoteBody
@@ -152,6 +153,12 @@ interface ApiService {
         @Header("Idempotency-Key") idempotencyKey: String,
         @Body body: RechargePurchaseBody
     ): Response<RechargePurchaseResponse>
+
+    @GET("wallet/recharge/orders/{orderId}/status")
+    suspend fun getRechargeOrderStatus(
+        @Header("Authorization") bearerToken: String,
+        @Path("orderId") orderId: String
+    ): Response<RechargeOrderStatusResponse>
 
     @POST("rooms")
     suspend fun createRoom(

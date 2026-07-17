@@ -25,6 +25,7 @@ import com.gobff.getfriends.utils.TokenUtils
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -140,10 +141,14 @@ class LoginViewModel(
                             authStatusText = "OTP sent to ${response.body()!!.phoneE164}"
                         )
                     } else {
+                        val errorMessage = response.errorBody()
+                            ?.string()
+                            ?.backendMessage()
+                            ?: "Unable to request OTP"
                         uiState = uiState.copy(
                             isOtpRequestLoading = false,
                             showOtp = false,
-                            authStatusText = "Unable to request OTP"
+                            authStatusText = errorMessage
                         )
                     }
                 }
@@ -156,6 +161,13 @@ class LoginViewModel(
                 }
         }
     }
+
+    private fun String.backendMessage(): String? {
+        return runCatching {
+            JSONObject(this).optString("message").takeIf { it.isNotBlank() }
+        }.getOrNull()
+    }
+
     private fun verifyOtp() {
         val otp = uiState.otpCode.filter { it.isDigit() }
         if (otp.length < OTP_LENGTH) {

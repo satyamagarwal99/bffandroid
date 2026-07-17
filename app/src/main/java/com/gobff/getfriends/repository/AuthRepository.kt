@@ -225,32 +225,20 @@ class AuthRepository {
     suspend fun purchaseRecharge(
         accessToken: String,
         packCode: String,
-        couponCode: String,
-        customerEmail: String,
-        customerPhone: String,
-        firstName: String,
-        lastName: String,
-        returnUrl: String = DEFAULT_RETURN_URL,
-        description: String = DEFAULT_RECHARGE_DESCRIPTION
+        couponCode: String
     ): RechargePurchaseResult {
         return withContext(Dispatchers.IO) {
             runCatching {
                 val requestBody = JSONObject().apply {
                     put("packCode", packCode)
                     put("couponCode", couponCode)
-                    put("customerEmail", customerEmail)
-                    put("customerPhone", customerPhone.onlyDigits())
-                    put("firstName", firstName)
-                    put("lastName", lastName)
-                    put("returnUrl", returnUrl)
-                    put("description", description)
                 }
                 val response = executeJsonRequest(
                     url = RECHARGE_PURCHASE_ENDPOINT,
                     method = "POST",
                     body = requestBody.toString(),
                     bearerToken = accessToken,
-                    idempotencyKey = "wallet-recharge-${java.util.UUID.randomUUID()}"
+                    idempotencyKey = java.util.UUID.randomUUID().toString()
                 )
                 RechargePurchaseResult(
                     isSuccessful = true,
@@ -529,18 +517,37 @@ class AuthRepository {
             "redirectUrl",
             "redirect_url",
             "webUrl",
-            "web_url"
+            "web_url",
+            "webPaymentLink",
+            "web_payment_link"
         )
         val orderId = findStringValue(
             json,
             "orderId",
             "order_id",
+            "cfOrderId",
+            "cf_order_id",
             "juspayOrderId",
             "paymentOrderId"
+        )
+        val paymentSessionId = findStringValue(
+            json,
+            "paymentSessionId",
+            "payment_session_id",
+            "cashfreePaymentSessionId",
+            "cashfree_payment_session_id"
+        )
+        val environment = findStringValue(
+            json,
+            "environment",
+            "cashfreeEnvironment",
+            "cashfree_environment"
         )
 
         return JuspayCheckoutData(
             orderId = orderId,
+            paymentSessionId = paymentSessionId,
+            environment = environment,
             paymentUrl = paymentUrl,
             sdkPayload = sdkPayload,
             rawResponse = response
@@ -631,8 +638,6 @@ class AuthRepository {
         const val RECHARGE_QUOTE_ENDPOINT = "https://api.gobff.app/api/v1/wallet/recharge/quote"
         const val RECHARGE_PURCHASE_ENDPOINT = "https://api.gobff.app/api/v1/wallet/recharge/purchase"
         const val WALLET_BALANCE_ENDPOINT = "https://api.gobff.app/api/v1/wallet/balance"
-        const val DEFAULT_RETURN_URL = "https://shop.merchant.com"
-        const val DEFAULT_RECHARGE_DESCRIPTION = "Complete your payment"
         const val DEFAULT_COUNTRY_ISO = "IN"
         const val DEFAULT_INSTALLATION_ID = "android-device-1"
         const val DEFAULT_DISPLAY_NAME = "Android User"
