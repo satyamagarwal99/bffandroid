@@ -143,6 +143,9 @@ data class RechargePaymentSessionPayload(
 data class RechargeOrderStatusResponse(
     @SerializedName("message") val message: String?,
     @SerializedName("status") val status: String?,
+    @SerializedName("gatewayStatus") val gatewayStatus: String?,
+    @SerializedName("gateway_status") val gateway_status: String?,
+    @SerializedName("credited") val credited: Boolean?,
     @SerializedName("orderStatus") val orderStatus: String?,
     @SerializedName("order_status") val order_status: String?,
     @SerializedName("paymentStatus") val paymentStatus: String?,
@@ -157,6 +160,9 @@ data class RechargeOrderStatusResponse(
 data class RechargeOrderStatusContainer(
     @SerializedName("message") val message: String?,
     @SerializedName("status") val status: String?,
+    @SerializedName("gatewayStatus") val gatewayStatus: String?,
+    @SerializedName("gateway_status") val gateway_status: String?,
+    @SerializedName("credited") val credited: Boolean?,
     @SerializedName("orderStatus") val orderStatus: String?,
     @SerializedName("order_status") val order_status: String?,
     @SerializedName("paymentStatus") val paymentStatus: String?,

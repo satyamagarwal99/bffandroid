@@ -15,8 +15,10 @@ android {
         applicationId = "com.gobff.getfriends"
         minSdk = 29
         targetSdk = 36
-        versionCode = 6
-        versionName = "1.5"
+
+
+        versionCode = 7
+        versionName = "1.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

@@ -95,6 +95,7 @@ private enum class SettingsPage {
     HelpSupport,
     SuggestFeature,
     AccountManagement,
+    About,
     TermsAndConditions,
     RefundCancellations,
     PrivacyPolicy
@@ -137,6 +138,7 @@ fun SettingsScreen(
             onHelpSupport = { page = SettingsPage.HelpSupport },
             onSuggestFeature = { page = SettingsPage.SuggestFeature },
             onAccountManagement = { page = SettingsPage.AccountManagement },
+            onAbout = { page = SettingsPage.About },
             onTermsAndConditions = { page = SettingsPage.TermsAndConditions },
             onRefundCancellations = { page = SettingsPage.RefundCancellations },
             onPrivacyPolicy = { page = SettingsPage.PrivacyPolicy },
@@ -175,6 +177,11 @@ fun SettingsScreen(
             modifier = modifier
         )
 
+        SettingsPage.About -> AboutContent(
+            onBack = { page = SettingsPage.Main },
+            modifier = modifier
+        )
+
         SettingsPage.TermsAndConditions -> TermsAndConditionsContent(
             onBack = { page = SettingsPage.Main },
             modifier = modifier
@@ -200,6 +207,7 @@ private fun SettingsHomeContent(
     onHelpSupport: () -> Unit,
     onSuggestFeature: () -> Unit,
     onAccountManagement: () -> Unit,
+    onAbout: () -> Unit,
     onTermsAndConditions: () -> Unit,
     onRefundCancellations: () -> Unit,
     onPrivacyPolicy: () -> Unit,
@@ -341,6 +349,13 @@ private fun SettingsHomeContent(
                             iconRes = R.drawable.setting_privacy,
                             iconBackground = Color(0xFFF3F2F7),
                             onClick = onPrivacyPolicy
+                        )
+                        SettingsDivider()
+                        SettingsRow(
+                            title = "About",
+                            iconRes = R.drawable.setting_terms,
+                            iconBackground = Color(0xFFF3F2F7),
+                            onClick = onAbout
                         )
                         SettingsDivider()
                         SettingsRow(
@@ -676,6 +691,33 @@ private fun PrivacyPolicyContent(
         LegalInfoCard(
             title = "Your choices",
             body = "You can update account details, control notification access from your device settings, contact support for privacy questions, and request account deletion from Account Management where available."
+        )
+    }
+}
+
+@Composable
+private fun AboutContent(
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    SettingsDetailScaffold(
+        title = "About",
+        onBack = onBack,
+        modifier = modifier
+    ) {
+        LegalInfoCard(
+            title = "About BFF",
+            body = "BFF is operated by CIVILS WEB PRIVATE LIMITED. The app is built for friendly audio chats, casual conversations, games, gifts, and safe social entertainment."
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+        LegalInfoCard(
+            title = "Company",
+            body = "CIVILS WEB PRIVATE LIMITED"
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+        LegalInfoCard(
+            title = "Support",
+            body = "For app support, account questions, safety reports, or review-related queries, contact us at $SUPPORT_EMAIL."
         )
     }
 }
@@ -1042,6 +1084,7 @@ private fun settingsSubtitleFor(title: String): String =
         "Help & Support" -> "We're here when you need us"
         "Suggest A Feature" -> "We'd love to hear your suggestions"
         "Account Management" -> "Keep your account up to date"
+        "About" -> "Company and app information"
         "Safety Center" -> "Stay safe while having fun"
         "Terms & Conditions" -> "Rules for using BFF"
         "Refund & Cancellations" -> "Payments, refunds, and cancellations"

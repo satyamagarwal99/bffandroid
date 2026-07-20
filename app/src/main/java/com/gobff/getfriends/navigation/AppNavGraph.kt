@@ -628,6 +628,9 @@ fun AppNavGraph(
         composable(AppRoute.Recharge.route) {
             RechargeScreen(
                 walletHearts = walletHearts,
+                onRechargeSuccess = {
+                    walletViewModel.loadWalletBalance()
+                },
                 onBack = navController::navigateUp
             )
         }

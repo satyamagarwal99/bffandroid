@@ -14,6 +14,7 @@ import com.cashfree.pg.core.api.utils.CFErrorResponse
 import com.cashfree.pg.core.api.webcheckout.CFWebCheckoutPayment
 import com.cashfree.pg.ui.api.upi.intent.CFUPIIntentCheckout
 import com.cashfree.pg.ui.api.upi.intent.CFUPIIntentCheckoutPayment
+import com.gobff.getfriends.BuildConfig
 import com.gobff.getfriends.data.model.CashfreeCheckoutData
 
 object CashfreePaymentLauncher {
@@ -150,6 +151,7 @@ object CashfreePaymentLauncher {
                 environment.equals("PROD", ignoreCase = true) -> CFSession.Environment.PRODUCTION
             environment.equals("SANDBOX", ignoreCase = true) ||
                 environment.equals("TEST", ignoreCase = true) -> CFSession.Environment.SANDBOX
+            BuildConfig.DEBUG -> CFSession.Environment.SANDBOX
             else -> CFSession.Environment.PRODUCTION
         }
     }

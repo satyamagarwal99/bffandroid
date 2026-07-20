@@ -38,6 +38,8 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -85,6 +87,7 @@ fun RechargeScreen(
     modifier: Modifier = Modifier,
     walletHearts: Int = 0,
     onBack: () -> Unit = {},
+    onRechargeSuccess: () -> Unit = {},
     rechargeViewModel: RechargeViewModel = viewModel()
 ) {
     val rechargeUiState = rechargeViewModel.uiState
@@ -96,6 +99,7 @@ fun RechargeScreen(
     val paymentMethods = remember { paymentMethods() }
     var selectedPayment by remember { mutableStateOf(paymentMethods.first()) }
     var stage by remember { mutableStateOf(RechargeStage.Main) }
+    var appliedCouponCode by remember { mutableStateOf("") }
     var pendingCouponCode by remember { mutableStateOf("") }
     var availableUpiApps by remember { mutableStateOf(emptyList<CashfreePaymentLauncher.UpiPaymentApp>()) }
     val context = LocalContext.current
@@ -107,7 +111,8 @@ fun RechargeScreen(
             RechargeStage.Main -> onBack()
             RechargeStage.Coupon -> stage = RechargeStage.Main
             RechargeStage.UpiPicker -> stage = RechargeStage.Processing
-            RechargeStage.Processing -> {
+            RechargeStage.Processing,
+            RechargeStage.PaymentStatus -> {
                 rechargeViewModel.clearQuoteState()
                 stage = RechargeStage.Main
             }
@@ -120,9 +125,12 @@ fun RechargeScreen(
 
     LaunchedEffect(rechargeUiState.paymentResolution) {
         when (rechargeUiState.paymentResolution) {
-            RechargePaymentResolution.Success -> stage = RechargeStage.Success
+            RechargePaymentResolution.Success -> {
+                onRechargeSuccess()
+                stage = RechargeStage.Success
+            }
             RechargePaymentResolution.Failed,
-            RechargePaymentResolution.Pending -> Unit
+            RechargePaymentResolution.Pending -> stage = RechargeStage.PaymentStatus
             null -> Unit
         }
     }
@@ -193,7 +201,7 @@ fun RechargeScreen(
                 onPayClick = {
                     if (selectedPack != null) {
                         rechargeViewModel.clearQuoteState()
-                        pendingCouponCode = ""
+                        pendingCouponCode = appliedCouponCode.trim()
                         stage = RechargeStage.Processing
                     }
                 }
@@ -203,6 +211,14 @@ fun RechargeScreen(
             )
             RechargeStage.UpiPicker -> RechargeProcessingScreen(
                 statusMessage = rechargeUiState.purchaseMessage
+            )
+            RechargeStage.PaymentStatus -> RechargePaymentStatusScreen(
+                resolution = rechargeUiState.paymentResolution ?: RechargePaymentResolution.Pending,
+                statusMessage = rechargeUiState.purchaseMessage,
+                onBackToRecharge = {
+                    rechargeViewModel.clearQuoteState()
+                    stage = RechargeStage.Main
+                }
             )
             RechargeStage.Success -> RechargeSuccessScreen(
                 balance = walletHearts,
@@ -219,6 +235,12 @@ fun RechargeScreen(
 
         if (stage == RechargeStage.Coupon) {
             CouponOverlay(
+                couponCode = appliedCouponCode,
+                onCouponCodeChange = { appliedCouponCode = it },
+                onApply = {
+                    appliedCouponCode = it.trim()
+                    stage = RechargeStage.Main
+                },
                 onDismiss = { stage = RechargeStage.Main }
             )
         }
@@ -1009,6 +1031,9 @@ private fun UpiAppsOverlay(
 
 @Composable
 private fun CouponOverlay(
+    couponCode: String,
+    onCouponCodeChange: (String) -> Unit,
+    onApply: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
     Box(
@@ -1079,12 +1104,31 @@ private fun CouponOverlay(
                             .background(Color.White)
                             .padding(horizontal = 18.dp)
                     ) {
-                        Text(
-                            text = "Enter coupon code",
-                            color = Color(0xFF404040),
-                            fontSize = 14.sp,
-                            fontFamily = GaretFontFamily,
-                            fontWeight = FontWeight.Normal,
+                        TextField(
+                            value = couponCode,
+                            onValueChange = onCouponCodeChange,
+                            placeholder = {
+                                Text(
+                                    text = "Enter coupon code",
+                                    color = Color(0xFF777777),
+                                    fontSize = 14.sp,
+                                    fontFamily = GaretFontFamily
+                                )
+                            },
+                            singleLine = true,
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                disabledContainerColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent
+                            ),
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                color = Color(0xFF404040),
+                                fontSize = 14.sp,
+                                fontFamily = GaretFontFamily,
+                                fontWeight = FontWeight.Normal
+                            ),
                             modifier = Modifier.weight(1f)
                         )
                         Text(
@@ -1092,7 +1136,10 @@ private fun CouponOverlay(
                             color = Color.Black,
                             fontSize = 16.sp,
                             fontFamily = GaretFontFamily,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clickable {
+                                onApply(couponCode)
+                            }
                         )
                     }
                 }
@@ -1226,6 +1273,78 @@ private fun RechargeProcessingScreen(
                     fontWeight = FontWeight.Normal
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun RechargePaymentStatusScreen(
+    resolution: RechargePaymentResolution,
+    statusMessage: String?,
+    onBackToRecharge: () -> Unit
+) {
+    val isFailed = resolution == RechargePaymentResolution.Failed
+    val title = if (isFailed) "Payment failed" else "Payment pending"
+    val fallbackMessage = if (isFailed) {
+        "Your payment could not be completed. No hearts were added."
+    } else {
+        "We are still confirming your payment. We'll update your hearts once it is confirmed."
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(RechargeProcessPurple)
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.process_screen_oject),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.Crop
+        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(horizontal = 30.dp)
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(118.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.12f))
+                    .border(1.dp, Color.White.copy(alpha = 0.35f), CircleShape)
+            ) {
+                Icon(
+                    imageVector = if (isFailed) Icons.AutoMirrored.Filled.ArrowBack else Icons.Default.Lock,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(46.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(28.dp))
+            Text(
+                text = title,
+                color = Color.White,
+                fontSize = 24.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = statusMessage?.takeIf { it.isNotBlank() } ?: fallbackMessage,
+                color = Color.White.copy(alpha = 0.88f),
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Normal
+            )
+            Spacer(modifier = Modifier.height(30.dp))
+            LargeSuccessButton(
+                text = "Back to recharge",
+                onClick = onBackToRecharge
+            )
         }
     }
 }
@@ -1420,6 +1539,7 @@ private enum class RechargeStage {
     Coupon,
     UpiPicker,
     Processing,
+    PaymentStatus,
     Success
 }
 
