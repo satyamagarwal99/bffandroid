@@ -66,6 +66,7 @@ data class RechargeUiState(
     val launchedCheckoutKey: String? = null,
     val activeOrderId: String? = null,
     val isStatusPolling: Boolean = false,
+    val statusTimerEndsAtMillis: Long? = null,
     val paymentResolution: RechargePaymentResolution? = null
 ) {
     val selectedOption: RechargeOption?
@@ -75,7 +76,8 @@ data class RechargeUiState(
 enum class RechargePaymentResolution {
     Success,
     Failed,
-    Pending
+    Pending,
+    InProgress
 }
 
 data class RechargeQuoteBody(

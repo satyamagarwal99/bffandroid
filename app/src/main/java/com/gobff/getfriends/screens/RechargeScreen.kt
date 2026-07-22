@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -35,7 +36,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CurrencyRupee
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -48,6 +51,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -58,6 +62,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
@@ -110,7 +115,10 @@ fun RechargeScreen(
         when (stage) {
             RechargeStage.Main -> onBack()
             RechargeStage.Coupon -> stage = RechargeStage.Main
-            RechargeStage.UpiPicker -> stage = RechargeStage.Processing
+            RechargeStage.UpiPicker -> {
+                rechargeViewModel.clearQuoteState()
+                stage = RechargeStage.Main
+            }
             RechargeStage.Processing,
             RechargeStage.PaymentStatus -> {
                 rechargeViewModel.clearQuoteState()
@@ -130,7 +138,8 @@ fun RechargeScreen(
                 stage = RechargeStage.Success
             }
             RechargePaymentResolution.Failed,
-            RechargePaymentResolution.Pending -> stage = RechargeStage.PaymentStatus
+            RechargePaymentResolution.Pending,
+            RechargePaymentResolution.InProgress -> stage = RechargeStage.PaymentStatus
             null -> Unit
         }
     }
@@ -207,14 +216,24 @@ fun RechargeScreen(
                 }
             )
             RechargeStage.Processing -> RechargeProcessingScreen(
-                statusMessage = rechargeUiState.purchaseMessage
+                statusMessage = rechargeUiState.purchaseMessage,
+                onBackToRecharge = {
+                    rechargeViewModel.clearQuoteState()
+                    stage = RechargeStage.Main
+                }
             )
             RechargeStage.UpiPicker -> RechargeProcessingScreen(
-                statusMessage = rechargeUiState.purchaseMessage
+                statusMessage = rechargeUiState.purchaseMessage,
+                onBackToRecharge = {
+                    rechargeViewModel.clearQuoteState()
+                    stage = RechargeStage.Main
+                }
             )
             RechargeStage.PaymentStatus -> RechargePaymentStatusScreen(
                 resolution = rechargeUiState.paymentResolution ?: RechargePaymentResolution.Pending,
                 statusMessage = rechargeUiState.purchaseMessage,
+                timerEndsAtMillis = rechargeUiState.statusTimerEndsAtMillis,
+                isTimerRunning = rechargeUiState.isStatusPolling,
                 onBackToRecharge = {
                     rechargeViewModel.clearQuoteState()
                     stage = RechargeStage.Main
@@ -248,7 +267,10 @@ fun RechargeScreen(
         if (stage == RechargeStage.UpiPicker) {
             UpiAppsOverlay(
                 apps = availableUpiApps,
-                onDismiss = { stage = RechargeStage.Processing },
+                onDismiss = {
+                    rechargeViewModel.clearQuoteState()
+                    stage = RechargeStage.Main
+                },
                 onAppSelected = { app ->
                     val activity = context as? Activity
                     val checkout = rechargeUiState.checkout
@@ -1174,7 +1196,8 @@ private fun CouponOverlay(
 
 @Composable
 private fun RechargeProcessingScreen(
-    statusMessage: String?
+    statusMessage: String?,
+    onBackToRecharge: () -> Unit
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "recharge-process")
     val progressSweep by infiniteTransition.animateFloat(
@@ -1196,26 +1219,16 @@ private fun RechargeProcessingScreen(
         label = "progress-rotation"
     )
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(RechargeProcessPurple)
-    ) {
-        Image(
-            painter = painterResource(id = R.drawable.process_screen_oject),
-            contentDescription = null,
-            modifier = Modifier.matchParentSize(),
-            contentScale = ContentScale.Crop
-        )
+    RechargeStatusBackground {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .align(Alignment.Center)
-                .offset(y = 24.dp)
+                .offset(y = 18.dp)
         ) {
             Box(
                 contentAlignment = Alignment.Center,
-                modifier = Modifier.size(170.dp)
+                modifier = Modifier.size(154.dp)
             ) {
                 Canvas(modifier = Modifier.matchParentSize()) {
                     drawCircle(
@@ -1244,14 +1257,14 @@ private fun RechargeProcessingScreen(
                 Image(
                     painter = painterResource(id = R.drawable.single_heart),
                     contentDescription = null,
-                    modifier = Modifier.size(64.dp)
+                    modifier = Modifier.size(66.dp)
                 )
             }
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(18.dp))
             Text(
                 text = "Adding your hearts...",
                 color = Color.White,
-                fontSize = 22.sp,
+                fontSize = 18.sp,
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Bold
             )
@@ -1259,7 +1272,7 @@ private fun RechargeProcessingScreen(
             Text(
                 text = "This usually take a few seconds.",
                 color = Color.White.copy(alpha = 0.9f),
-                fontSize = 14.sp,
+                fontSize = 16.sp,
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Normal
             )
@@ -1281,71 +1294,402 @@ private fun RechargeProcessingScreen(
 private fun RechargePaymentStatusScreen(
     resolution: RechargePaymentResolution,
     statusMessage: String?,
+    timerEndsAtMillis: Long?,
+    isTimerRunning: Boolean,
     onBackToRecharge: () -> Unit
 ) {
     val isFailed = resolution == RechargePaymentResolution.Failed
-    val title = if (isFailed) "Payment failed" else "Payment pending"
-    val fallbackMessage = if (isFailed) {
-        "Your payment could not be completed. No hearts were added."
-    } else {
-        "We are still confirming your payment. We'll update your hearts once it is confirmed."
+    if (resolution == RechargePaymentResolution.InProgress) {
+        RechargeInProgressStatus(onBackToRecharge = onBackToRecharge)
+        return
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(RechargeProcessPurple)
-    ) {
-        Image(
-            painter = painterResource(id = R.drawable.process_screen_oject),
-            contentDescription = null,
-            modifier = Modifier.matchParentSize(),
-            contentScale = ContentScale.Crop
+    if (!isFailed) {
+        PendingPaymentTimerStatus(
+            statusMessage = statusMessage,
+            timerEndsAtMillis = timerEndsAtMillis,
+            isTimerRunning = isTimerRunning
         )
+        return
+    }
+
+    RechargeStatusBackground {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .align(Alignment.Center)
-                .padding(horizontal = 30.dp)
+                .offset(y = 2.dp)
+                .padding(horizontal = 32.dp)
         ) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(118.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.12f))
-                    .border(1.dp, Color.White.copy(alpha = 0.35f), CircleShape)
-            ) {
-                Icon(
-                    imageVector = if (isFailed) Icons.AutoMirrored.Filled.ArrowBack else Icons.Default.Lock,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(46.dp)
-                )
-            }
-            Spacer(modifier = Modifier.height(28.dp))
+            PaymentStatusIcon(isFailed = isFailed)
+            Spacer(modifier = Modifier.height(26.dp))
             Text(
-                text = title,
+                text = "Payment Failed",
                 color = Color.White,
-                fontSize = 24.sp,
+                fontSize = 18.sp,
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(10.dp))
             Text(
-                text = statusMessage?.takeIf { it.isNotBlank() } ?: fallbackMessage,
+                text = "We couldn't add your Hearts. Your amount wasn't deducted. Please try again.",
                 color = Color.White.copy(alpha = 0.88f),
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
                 fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Normal
-            )
-            Spacer(modifier = Modifier.height(30.dp))
-            LargeSuccessButton(
-                text = "Back to recharge",
-                onClick = onBackToRecharge
+                fontWeight = FontWeight.Normal,
+                textAlign = TextAlign.Center
             )
         }
+
+        LargeSuccessButton(
+            text = "Try again",
+            textColor = RechargeInk,
+            onClick = onBackToRecharge,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(start = 36.dp, end = 36.dp, bottom = 56.dp)
+        )
+    }
+}
+
+@Composable
+private fun RechargeInProgressStatus(onBackToRecharge: () -> Unit) {
+    RechargeStatusBackground {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .offset(y = (-28).dp)
+                .padding(horizontal = 32.dp)
+        ) {
+            PaymentStatusIcon(isFailed = false, modifier = Modifier.size(128.dp))
+            Spacer(modifier = Modifier.height(18.dp))
+            Text(
+                text = "Recharge in progress",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = "If your payment was successful,\nyour hearts will be added in a few minutes.",
+                color = Color.White.copy(alpha = 0.9f),
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Normal,
+                textAlign = TextAlign.Center
+            )
+        }
+
+        RefundInfoCard(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(start = 32.dp, end = 32.dp, bottom = 130.dp)
+        )
+
+        LargeSuccessButton(
+            text = "Got it",
+            textColor = RechargeInk,
+            onClick = onBackToRecharge,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(start = 36.dp, end = 36.dp, bottom = 46.dp)
+        )
+    }
+}
+
+@Composable
+private fun PendingPaymentTimerStatus(
+    statusMessage: String?,
+    timerEndsAtMillis: Long?,
+    isTimerRunning: Boolean
+) {
+    var remainingSeconds by remember(timerEndsAtMillis) {
+        mutableStateOf(timerEndsAtMillis.remainingPaymentTimerSeconds())
+    }
+
+    LaunchedEffect(timerEndsAtMillis) {
+        if (timerEndsAtMillis == null) return@LaunchedEffect
+        while (true) {
+            remainingSeconds = timerEndsAtMillis.remainingPaymentTimerSeconds()
+            if (remainingSeconds <= 0) break
+            kotlinx.coroutines.delay(250L)
+        }
+    }
+
+    RechargeStatusBackground {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .offset(y = 18.dp)
+                .padding(horizontal = 30.dp)
+        ) {
+            PendingPaymentTimerIcon(isRunning = isTimerRunning && remainingSeconds > 0)
+            Spacer(modifier = Modifier.height(18.dp))
+            Text(
+                text = "Payment is pending",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = statusMessage?.takeIf { it.isNotBlank() }
+                    ?: "We are still confirming your payment. Your hearts will be added once it is confirmed.",
+                color = Color.White.copy(alpha = 0.9f),
+                fontSize = 14.sp,
+                lineHeight = 20.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Normal,
+                textAlign = TextAlign.Center
+            )
+            if (timerEndsAtMillis != null) {
+                Spacer(modifier = Modifier.height(34.dp))
+                GlassStatusPill(text = remainingSeconds.formatPaymentTimer())
+            }
+        }
+    }
+}
+
+private fun Long?.remainingPaymentTimerSeconds(): Int {
+    if (this == null) return 0
+    val remainingMillis = this - System.currentTimeMillis()
+    return kotlin.math.ceil(remainingMillis.coerceAtLeast(0L) / 1000.0).toInt()
+}
+
+private fun Int.formatPaymentTimer(): String {
+    val boundedSeconds = coerceAtLeast(0)
+    val minutes = boundedSeconds / 60
+    val seconds = boundedSeconds % 60
+    return "$minutes :${seconds.toString().padStart(2, '0')}"
+}
+
+@Composable
+private fun PendingPaymentTimerIcon(isRunning: Boolean) {
+    val infiniteTransition = rememberInfiniteTransition(label = "pending-payment")
+    val progressSweep by infiniteTransition.animateFloat(
+        initialValue = 20f,
+        targetValue = 320f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "pending-progress-sweep"
+    )
+    val progressRotation by infiniteTransition.animateFloat(
+        initialValue = -90f,
+        targetValue = 270f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "pending-progress-rotation"
+    )
+
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.size(154.dp)
+    ) {
+        Canvas(modifier = Modifier.matchParentSize()) {
+            drawCircle(
+                color = Color.White.copy(alpha = 0.08f),
+                radius = size.minDimension / 2.45f
+            )
+            drawArc(
+                color = Color.White,
+                startAngle = if (isRunning) progressRotation else 35f,
+                sweepAngle = if (isRunning) progressSweep else 110f,
+                useCenter = false,
+                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                    width = 10.dp.toPx(),
+                    cap = StrokeCap.Round
+                ),
+                topLeft = androidx.compose.ui.geometry.Offset(
+                    x = size.width * 0.16f,
+                    y = size.height * 0.16f
+                ),
+                size = androidx.compose.ui.geometry.Size(
+                    width = size.width * 0.68f,
+                    height = size.height * 0.68f
+                )
+            )
+        }
+        Image(
+            painter = painterResource(id = R.drawable.single_heart),
+            contentDescription = null,
+            modifier = Modifier.size(66.dp)
+        )
+    }
+}
+
+@Composable
+private fun RechargeStatusBackground(
+    content: @Composable BoxScope.() -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(RechargePurple)
+    ) {
+        Canvas(modifier = Modifier.matchParentSize()) {
+            drawCircle(
+                color = Color.White.copy(alpha = 0.035f),
+                radius = size.width * 0.58f,
+                center = androidx.compose.ui.geometry.Offset(size.width * 0.82f, size.height * 0.13f)
+            )
+            drawCircle(
+                color = Color.White.copy(alpha = 0.03f),
+                radius = size.width * 0.38f,
+                center = androidx.compose.ui.geometry.Offset(size.width * 0.86f, size.height * 0.13f)
+            )
+            drawCircle(
+                color = Color.White.copy(alpha = 0.025f),
+                radius = size.width * 0.18f,
+                center = androidx.compose.ui.geometry.Offset(size.width * 0.93f, size.height * 0.12f)
+            )
+            drawOval(
+                color = Color.White.copy(alpha = 0.025f),
+                topLeft = androidx.compose.ui.geometry.Offset(size.width * 0.30f, size.height * 0.76f),
+                size = androidx.compose.ui.geometry.Size(size.width * 0.55f, size.height * 0.22f)
+            )
+            drawOval(
+                color = Color.White.copy(alpha = 0.018f),
+                topLeft = androidx.compose.ui.geometry.Offset(size.width * 0.40f, size.height * 0.83f),
+                size = androidx.compose.ui.geometry.Size(size.width * 0.30f, size.height * 0.11f)
+            )
+        }
+        content()
+    }
+}
+
+@Composable
+private fun GlassStatusPill(text: String) {
+    val shape = RoundedCornerShape(51.dp)
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .clip(shape)
+            .background(Color.White.copy(alpha = 0.1f))
+            .border(1.dp, Color.White.copy(alpha = 0.55f), shape)
+            .padding(horizontal = 18.dp, vertical = 8.dp)
+    ) {
+        Text(
+            text = text,
+            color = Color.White,
+            fontSize = 18.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun PaymentStatusIcon(
+    isFailed: Boolean,
+    modifier: Modifier = Modifier.size(146.dp)
+) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+    ) {
+        Canvas(modifier = Modifier.matchParentSize()) {
+            drawCircle(Color.White, radius = 4.dp.toPx(), center = androidx.compose.ui.geometry.Offset(size.width * 0.16f, size.height * 0.18f))
+            drawCircle(Color(0xFFFF6D9A), radius = 6.dp.toPx(), center = androidx.compose.ui.geometry.Offset(size.width * 0.85f, size.height * 0.83f))
+            drawCircle(
+                Color.White,
+                radius = 4.dp.toPx(),
+                center = androidx.compose.ui.geometry.Offset(size.width * 0.04f, size.height * 0.80f),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
+            )
+        }
+        Icon(
+            imageVector = Icons.Default.Close,
+            contentDescription = null,
+            tint = Color(0xFFD678FF),
+            modifier = Modifier
+                .size(24.dp)
+                .align(Alignment.TopEnd)
+                .offset(x = (-4).dp, y = 8.dp)
+        )
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(111.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.1f))
+                .border(1.dp, Color.White.copy(alpha = 0.45f), CircleShape)
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(68.dp)
+                    .clip(CircleShape)
+                    .background(Color.White)
+            ) {
+                Icon(
+                    imageVector = if (isFailed) Icons.Default.Close else Icons.Default.Refresh,
+                    contentDescription = null,
+                    tint = Color(0xFFC13AB2),
+                    modifier = Modifier.size(38.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RefundInfoCard(modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Color.White.copy(alpha = 0.12f))
+            .border(1.dp, Color.White.copy(alpha = 0.55f), shape)
+            .padding(horizontal = 12.dp, vertical = 14.dp)
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(30.dp)
+                .clip(CircleShape)
+                .background(Color.White)
+        ) {
+            Icon(
+                imageVector = Icons.Default.CurrencyRupee,
+                contentDescription = null,
+                tint = Color(0xFFC13AB2),
+                modifier = Modifier.size(17.dp)
+            )
+        }
+        Text(
+            text = buildAnnotatedString {
+                append("Recharge failed after payment? You'll receive a refund within ")
+                withStyle(
+                    SpanStyle(
+                        color = Color(0xFFFEE185),
+                        fontWeight = FontWeight.Bold
+                    )
+                ) {
+                    append("2-4 working days")
+                }
+            },
+            color = Color.White,
+            fontSize = 11.sp,
+            lineHeight = 17.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f)
+        )
     }
 }
 
@@ -1358,23 +1702,26 @@ private fun RechargeSuccessScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(RechargeProcessPurple)
+            .background(RechargePurple)
     ) {
         Image(
             painter = painterResource(id = R.drawable.process_screen_oject),
             contentDescription = null,
-            modifier = Modifier.matchParentSize(),
+            modifier = Modifier
+                .matchParentSize()
+                .alpha(0.22f),
             contentScale = ContentScale.Crop
         )
+        SuccessConfetti(modifier = Modifier.matchParentSize())
         Text(
             text = "Yay!",
             color = Color.White,
-            fontSize = 34.sp,
+            fontSize = 32.sp,
             fontFamily = GaretFontFamily,
             fontWeight = FontWeight.Bold,
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 88.dp)
+                .padding(top = 78.dp)
         )
         Text(
             text = "Recharge successful",
@@ -1384,15 +1731,14 @@ private fun RechargeSuccessScreen(
             fontWeight = FontWeight.Normal,
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 140.dp)
+                .padding(top = 130.dp)
         )
-        Text(
-            text = "x",
-            color = Color.White,
-            fontSize = 34.sp,
-            fontFamily = GaretFontFamily,
-            fontWeight = FontWeight.Normal,
+        Icon(
+            imageVector = Icons.Default.Close,
+            contentDescription = "Close",
+            tint = Color.White,
             modifier = Modifier
+                .size(32.dp)
                 .align(Alignment.TopEnd)
                 .padding(top = 56.dp, end = 28.dp)
                 .clickable(onClick = onDismiss)
@@ -1403,37 +1749,86 @@ private fun RechargeSuccessScreen(
             modifier = Modifier
                 .align(Alignment.Center)
                 .fillMaxWidth()
-                .offset(y = (-24).dp),
+                .offset(y = (-30).dp),
             contentScale = ContentScale.FillWidth
         )
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 48.dp, start = 28.dp, end = 28.dp)
+                .padding(bottom = 64.dp, start = 36.dp, end = 36.dp)
         ) {
-            Text(
-                text = "You can now talk for up to",
-                color = Color.White,
-                fontSize = 14.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Normal
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = "20 Minutes",
-                color = Color(0xFFFFE16A),
-                fontSize = 34.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(26.dp))
             BalanceAvailableChip(balance = balance)
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(28.dp))
             LargeSuccessButton(
                 text = "Start talking now",
+                textColor = RechargeProcessPurple,
+                height = 48.dp,
+                shape = RoundedCornerShape(12.dp),
                 onClick = onStartTalking
             )
+        }
+    }
+}
+
+@Composable
+private fun SuccessConfetti(modifier: Modifier = Modifier) {
+    val infiniteTransition = rememberInfiniteTransition(label = "success-confetti")
+    val fallProgress by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2600, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "success-confetti-fall"
+    )
+
+    Canvas(modifier = modifier) {
+        fun normalizedY(base: Float, speed: Float): Float = (base + fallProgress * speed) % 1f
+
+        fun strip(index: Int, xBase: Float, yBase: Float, color: Color) {
+            val speed = 0.22f + (index % 7) * 0.035f
+            val y = normalizedY(yBase, speed)
+            val sway = kotlin.math.sin((fallProgress * 6.28f + index) * 1.7f).toFloat() * 0.018f
+            val x = (xBase + sway).coerceIn(0.01f, 0.99f)
+            val tilt = if (index % 2 == 0) 0.014f else -0.014f
+            drawLine(
+                color = color,
+                start = androidx.compose.ui.geometry.Offset(size.width * x, size.height * y),
+                end = androidx.compose.ui.geometry.Offset(size.width * (x + tilt), size.height * (y - 0.014f)),
+                strokeWidth = (3 + index % 3).dp.toPx(),
+                cap = StrokeCap.Square
+            )
+        }
+
+        val colors = listOf(
+            Color(0xFFFF5C82),
+            Color(0xFFFFCB26),
+            Color(0xFF8F73FF),
+            Color(0xFF23D665),
+            Color.White
+        )
+        val particles = listOf(
+            0.05f to 0.07f, 0.14f to 0.13f, 0.24f to 0.04f, 0.34f to 0.16f, 0.47f to 0.08f,
+            0.60f to 0.14f, 0.72f to 0.05f, 0.84f to 0.17f, 0.94f to 0.10f, 0.09f to 0.30f,
+            0.19f to 0.39f, 0.31f to 0.27f, 0.43f to 0.35f, 0.56f to 0.29f, 0.69f to 0.40f,
+            0.81f to 0.31f, 0.93f to 0.44f, 0.03f to 0.55f, 0.16f to 0.63f, 0.28f to 0.51f,
+            0.41f to 0.60f, 0.53f to 0.49f, 0.66f to 0.58f, 0.79f to 0.52f, 0.91f to 0.65f
+        )
+
+        particles.forEachIndexed { index, particle ->
+            if (index % 4 == 0) {
+                val y = normalizedY(particle.second, 0.24f + (index % 5) * 0.04f)
+                val x = particle.first + kotlin.math.sin((fallProgress * 6.28f + index) * 1.3f).toFloat() * 0.014f
+                drawCircle(
+                    colors[index % colors.size],
+                    radius = (2 + index % 4).dp.toPx(),
+                    center = androidx.compose.ui.geometry.Offset(size.width * x.coerceIn(0.01f, 0.99f), size.height * y)
+                )
+            } else {
+                strip(index, particle.first, particle.second, colors[index % colors.size])
+            }
         }
     }
 }
@@ -1443,39 +1838,50 @@ private fun BalanceAvailableChip(balance: Int) {
     val shape = RoundedCornerShape(28.dp)
     Box(
         modifier = Modifier
-            .size(width = 210.dp, height = 34.dp)
+            .size(width = 286.dp, height = 48.dp)
     ) {
         Box(
             modifier = Modifier
                 .matchParentSize()
                 .clip(shape)
                 .background(
-                    Brush.verticalGradient(
+                    Brush.horizontalGradient(
                         colors = listOf(
-                            Color.White.copy(alpha = 0.28f),
-                            Color.White.copy(alpha = 0.14f)
+                            Color(0xFFFF4F80).copy(alpha = 0.58f),
+                            Color.White.copy(alpha = 0.24f),
+                            Color(0xFF7C1BC8).copy(alpha = 0.36f)
                         )
                     )
                 )
-                .border(1.dp, Color.White.copy(alpha = 0.35f), shape)
+                .border(1.dp, Color.White.copy(alpha = 0.72f), shape)
         )
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
-            modifier = Modifier.matchParentSize()
+            modifier = Modifier
+                .matchParentSize()
+                .padding(horizontal = 14.dp)
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.single_heart),
-                contentDescription = null,
-                modifier = Modifier.size(24.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.18f))
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.single_heart),
+                    contentDescription = null,
+                    modifier = Modifier.size(19.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(10.dp))
             Text(
                 text = "$balance hearts available",
                 color = Color.White,
-                fontSize = 14.sp,
+                fontSize = 18.sp,
                 fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.Bold
             )
         }
     }
@@ -1484,13 +1890,16 @@ private fun BalanceAvailableChip(balance: Int) {
 @Composable
 private fun LargeSuccessButton(
     text: String,
-    onClick: () -> Unit
+    textColor: Color = RechargeProcessPurple,
+    height: Dp = 48.dp,
+    shape: RoundedCornerShape = RoundedCornerShape(12.dp),
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(18.dp)
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .height(58.dp)
+            .height(height)
             .clickable(onClick = onClick)
     ) {
         Box(
@@ -1509,7 +1918,7 @@ private fun LargeSuccessButton(
         ) {
             Text(
                 text = text,
-                color = RechargeProcessPurple,
+                color = textColor,
                 fontSize = 18.sp,
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Bold

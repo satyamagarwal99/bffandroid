@@ -225,7 +225,8 @@ class RechargeViewModel(
             isPurchaseLoading = false,
             isPurchaseSuccessful = false,
             purchaseMessage = message,
-            checkout = null
+            checkout = null,
+            statusTimerEndsAtMillis = null
         )
     }
 
@@ -234,6 +235,7 @@ class RechargeViewModel(
         if (resolvedOrderId.isNullOrBlank()) {
             uiState = uiState.copy(
                 purchaseMessage = "Confirming payment...",
+                statusTimerEndsAtMillis = null,
                 paymentResolution = RechargePaymentResolution.Pending
             )
             return
@@ -247,6 +249,7 @@ class RechargeViewModel(
             uiState = uiState.copy(
                 isStatusPolling = false,
                 purchaseMessage = message,
+                statusTimerEndsAtMillis = null,
                 paymentResolution = RechargePaymentResolution.Failed
             )
             return
@@ -277,6 +280,7 @@ class RechargeViewModel(
             launchedCheckoutKey = null,
             activeOrderId = null,
             isStatusPolling = false,
+            statusTimerEndsAtMillis = null,
             paymentResolution = null
         )
     }
@@ -293,6 +297,7 @@ class RechargeViewModel(
                 uiState = uiState.copy(
                     isStatusPolling = false,
                     purchaseMessage = "Login token missing",
+                    statusTimerEndsAtMillis = null,
                     paymentResolution = RechargePaymentResolution.Pending
                 )
                 return@launch
@@ -302,12 +307,15 @@ class RechargeViewModel(
                 activeOrderId = orderId,
                 isStatusPolling = true,
                 purchaseMessage = "Confirming payment...",
+                statusTimerEndsAtMillis = null,
                 paymentResolution = null
             )
 
-            val deadline = System.currentTimeMillis() + STATUS_POLL_TIMEOUT_MS
+            var deadline = System.currentTimeMillis() + STATUS_POLL_TIMEOUT_MS
+            var pendingTimerEndsAtMillis: Long? = null
+            var nullPaymentStatusPolls = 0
             while (System.currentTimeMillis() < deadline) {
-                val resolution = runCatching {
+                val statusResult = runCatching {
                     val response = mainRepository.getRechargeOrderStatus(token, orderId)
                     if (!response.isSuccessful) {
                         Log.w(TAG, "Recharge status failed orderId=$orderId status=${response.code()}")
@@ -317,21 +325,40 @@ class RechargeViewModel(
                         Log.d(
                             TAG,
                             "Recharge status orderId=$orderId status=${body?.status} " +
-                                "gatewayStatus=${body?.gatewayStatus} credited=${body?.credited}"
+                                "gatewayStatus=${body?.gatewayStatus} paymentStatus=${body?.paymentStatus} " +
+                                "credited=${body?.credited}"
                         )
-                        body?.let(::parsePaymentResolution)
+                        body?.let(::parsePaymentStatusResult)
                     }
                 }.getOrElse { error ->
                     Log.e(TAG, "Recharge status request failed orderId=$orderId", error)
                     null
                 }
 
-                when (resolution) {
+                if (statusResult?.hasNullPaymentStatus == true) {
+                    nullPaymentStatusPolls++
+                    if (nullPaymentStatusPolls >= NULL_PAYMENT_STATUS_MAX_POLLS) {
+                        uiState = uiState.copy(
+                            isStatusPolling = false,
+                            isPurchaseSuccessful = false,
+                            purchaseMessage = "Payment cancelled. No hearts were added.",
+                            statusTimerEndsAtMillis = null,
+                            paymentResolution = RechargePaymentResolution.Failed
+                        )
+                        statusPollingJob = null
+                        return@launch
+                    }
+                } else {
+                    nullPaymentStatusPolls = 0
+                }
+
+                when (statusResult?.resolution) {
                     RechargePaymentResolution.Success -> {
                         uiState = uiState.copy(
                             isStatusPolling = false,
                             isPurchaseSuccessful = true,
                             purchaseMessage = "Recharge successful",
+                            statusTimerEndsAtMillis = null,
                             paymentResolution = RechargePaymentResolution.Success
                         )
                         loadRechargeOptions()
@@ -343,13 +370,54 @@ class RechargeViewModel(
                             isStatusPolling = false,
                             isPurchaseSuccessful = false,
                             purchaseMessage = "Payment failed. Please try again or choose another payment method.",
+                            statusTimerEndsAtMillis = null,
                             paymentResolution = RechargePaymentResolution.Failed
                         )
                         statusPollingJob = null
                         return@launch
                     }
-                    RechargePaymentResolution.Pending,
+                    RechargePaymentResolution.Pending -> {
+                        if (pendingTimerEndsAtMillis == null) {
+                            pendingTimerEndsAtMillis = System.currentTimeMillis() + STATUS_POLL_TIMEOUT_MS
+                            deadline = pendingTimerEndsAtMillis
+                        }
+                        uiState = uiState.copy(
+                            isStatusPolling = true,
+                            isPurchaseSuccessful = false,
+                            purchaseMessage = "Payment is pending. We'll update your hearts once it is confirmed.",
+                            paymentResolution = RechargePaymentResolution.Pending,
+                            statusTimerEndsAtMillis = pendingTimerEndsAtMillis
+                        )
+                        delay(STATUS_POLL_INTERVAL_MS)
+                    }
+                    RechargePaymentResolution.InProgress -> {
+                        uiState = if (pendingTimerEndsAtMillis != null) {
+                            uiState.copy(
+                                isStatusPolling = true,
+                                isPurchaseSuccessful = false,
+                                purchaseMessage = "Payment is pending. We'll update your hearts once it is confirmed.",
+                                paymentResolution = RechargePaymentResolution.Pending,
+                                statusTimerEndsAtMillis = pendingTimerEndsAtMillis
+                            )
+                        } else {
+                            uiState.copy(
+                                paymentResolution = null,
+                                statusTimerEndsAtMillis = null,
+                                purchaseMessage = "Waiting for payment confirmation..."
+                            )
+                        }
+                        delay(STATUS_POLL_INTERVAL_MS)
+                    }
                     null -> {
+                        if (pendingTimerEndsAtMillis != null) {
+                            uiState = uiState.copy(
+                                isStatusPolling = true,
+                                isPurchaseSuccessful = false,
+                                purchaseMessage = "Payment is pending. We'll update your hearts once it is confirmed.",
+                                paymentResolution = RechargePaymentResolution.Pending,
+                                statusTimerEndsAtMillis = pendingTimerEndsAtMillis
+                            )
+                        }
                         delay(STATUS_POLL_INTERVAL_MS)
                     }
                 }
@@ -358,8 +426,9 @@ class RechargeViewModel(
             uiState = uiState.copy(
                 isStatusPolling = false,
                 isPurchaseSuccessful = false,
-                purchaseMessage = "Payment is pending. We'll notify you once it is confirmed.",
-                paymentResolution = RechargePaymentResolution.Pending
+                purchaseMessage = "If your payment was successful, your hearts will be added in a few minutes.",
+                paymentResolution = RechargePaymentResolution.InProgress,
+                statusTimerEndsAtMillis = null
             )
             statusPollingJob = null
         }
@@ -456,12 +525,12 @@ class RechargeViewModel(
             ?: body.paymentOrderId
     }
 
-    private fun parsePaymentResolution(body: RechargeOrderStatusResponse): RechargePaymentResolution {
+    private fun parsePaymentStatusResult(body: RechargeOrderStatusResponse): PaymentStatusResult {
         if (body.credited == true || body.data?.credited == true) {
-            return RechargePaymentResolution.Success
+            return PaymentStatusResult(RechargePaymentResolution.Success)
         }
 
-        val status = listOfNotNull(
+        val statuses = listOfNotNull(
             body.status,
             body.gatewayStatus,
             body.gateway_status,
@@ -484,22 +553,52 @@ class RechargeViewModel(
             body.data?.cashfree_status,
             body.data?.transactionStatus,
             body.data?.transaction_status
-        ).firstOrNull { it.isNotBlank() }?.uppercase() ?: return RechargePaymentResolution.Pending
-
-        return when (status) {
-            "PAID", "SUCCESS", "SUCCESSFUL", "COMPLETED", "CHARGED", "CAPTURED" ->
-                RechargePaymentResolution.Success
-            "FAILED", "FAILURE", "CANCELLED", "CANCELED", "EXPIRED", "VOID", "TERMINATED" ->
-                RechargePaymentResolution.Failed
-            "ACTIVE", "PENDING", "PAYMENT_PENDING", "PAYMENT_SESSION_CREATED", "CREATED" ->
-                RechargePaymentResolution.Pending
-            else -> RechargePaymentResolution.Pending
+        ).mapNotNull { status ->
+            status.takeIf { it.isNotBlank() }?.uppercase()
         }
+
+        val paymentStatus = body.paymentStatus ?: body.payment_status ?: body.data?.paymentStatus ?: body.data?.payment_status
+        val hasNullPaymentStatus = paymentStatus == null &&
+            statuses.any { it == "ACTIVE" } &&
+            statuses.any { it == "PAYMENT_SESSION_CREATED" }
+
+        val resolution = when {
+            statuses.isEmpty() -> RechargePaymentResolution.InProgress
+            statuses.any { it in SUCCESS_STATUSES } -> RechargePaymentResolution.Success
+            statuses.any { it in FAILED_STATUSES } -> RechargePaymentResolution.Failed
+            statuses.any { it in PENDING_STATUSES } -> RechargePaymentResolution.Pending
+            statuses.any { it in IN_PROGRESS_STATUSES } -> RechargePaymentResolution.InProgress
+            else -> RechargePaymentResolution.InProgress
+        }
+        return PaymentStatusResult(
+            resolution = resolution,
+            hasNullPaymentStatus = hasNullPaymentStatus
+        )
     }
+
+    private data class PaymentStatusResult(
+        val resolution: RechargePaymentResolution,
+        val hasNullPaymentStatus: Boolean = false
+    )
 
     private companion object {
         const val TAG = "RechargeViewModel"
         const val STATUS_POLL_INTERVAL_MS = 3_000L
-        const val STATUS_POLL_TIMEOUT_MS = 600_000L
+        const val STATUS_POLL_TIMEOUT_MS = 45_000L
+        const val NULL_PAYMENT_STATUS_MAX_POLLS = 3
+        val SUCCESS_STATUSES = setOf("PAID", "SUCCESS", "SUCCESSFUL", "COMPLETED", "CHARGED", "CAPTURED")
+        val FAILED_STATUSES = setOf(
+            "FAILED",
+            "FAILURE",
+            "CANCELLED",
+            "CANCELED",
+            "EXPIRED",
+            "VOID",
+            "TERMINATED",
+            "USER_DROPPED",
+            "DROPPED"
+        )
+        val PENDING_STATUSES = setOf("PENDING", "PAYMENT_PENDING")
+        val IN_PROGRESS_STATUSES = setOf("ACTIVE", "PAYMENT_SESSION_CREATED", "CREATED")
     }
 }
