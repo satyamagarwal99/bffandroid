@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -44,6 +45,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,6 +62,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -70,13 +73,15 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gobff.getfriends.data.model.RechargeOption
 import com.gobff.getfriends.data.model.RechargePaymentResolution
 import com.gobff.getfriends.data.model.RechargeUiState
 import com.gobff.getfriends.R
 import com.gobff.getfriends.payment.CashfreePaymentLauncher
-import com.gobff.getfriends.ui.component.HandDrawnCardShape
 import com.gobff.getfriends.ui.component.HeartChipShape
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.GaretFontFamily
@@ -86,6 +91,19 @@ private val RechargePink = Color(0xFFFF3F78)
 private val RechargeInk = Color(0xFF101010)
 private val RechargeMuted = Color(0xFF777777)
 private val RechargeProcessPurple = Color(0xFF4D13A5)
+private val RechargeButtonShape = GenericShape { size, _ ->
+    val corner = size.height * 0.30f
+    moveTo(corner * 1.12f, 1.2f)
+    cubicTo(size.width * 0.24f, -1.8f, size.width * 0.74f, -0.6f, size.width - corner * 1.08f, 1.2f)
+    cubicTo(size.width - corner * 0.34f, 1.8f, size.width - 1.2f, corner * 0.28f, size.width - 1.2f, corner * 0.92f)
+    lineTo(size.width - 1.0f, size.height - corner * 0.84f)
+    cubicTo(size.width - 1.8f, size.height - corner * 0.24f, size.width - corner * 0.40f, size.height - 1.2f, size.width - corner * 1.16f, size.height - 1.0f)
+    cubicTo(size.width * 0.72f, size.height + 1.8f, size.width * 0.27f, size.height + 1.2f, corner * 1.00f, size.height - 1.8f)
+    cubicTo(corner * 0.22f, size.height - 2.8f, 1.0f, size.height - corner * 0.52f, 1.0f, size.height - corner * 1.10f)
+    lineTo(1.0f, corner * 1.02f)
+    cubicTo(1.0f, corner * 0.32f, corner * 0.26f, 3.0f, corner * 1.12f, 1.2f)
+    close()
+}
 
 @Composable
 fun RechargeScreen(
@@ -108,8 +126,8 @@ fun RechargeScreen(
     var pendingCouponCode by remember { mutableStateOf("") }
     var availableUpiApps by remember { mutableStateOf(emptyList<CashfreePaymentLauncher.UpiPaymentApp>()) }
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val selectedPack = rechargePacks.firstOrNull { it.id == rechargeUiState.selectedOptionId }
-        ?: rechargePacks.firstOrNull()
 
     BackHandler {
         when (stage) {
@@ -141,6 +159,32 @@ fun RechargeScreen(
             RechargePaymentResolution.Pending,
             RechargePaymentResolution.InProgress -> stage = RechargeStage.PaymentStatus
             null -> Unit
+        }
+    }
+
+    DisposableEffect(
+        lifecycleOwner,
+        rechargeUiState.launchedCheckoutKey,
+        rechargeUiState.paymentResolution,
+        stage
+    ) {
+        val observer = LifecycleEventObserver { _, event ->
+            val shouldRefreshStatus = event == Lifecycle.Event.ON_RESUME &&
+                rechargeUiState.launchedCheckoutKey != null &&
+                stage in setOf(RechargeStage.Processing, RechargeStage.PaymentStatus) &&
+                rechargeUiState.paymentResolution !in setOf(
+                    RechargePaymentResolution.Success,
+                    RechargePaymentResolution.Failed,
+                    RechargePaymentResolution.InProgress
+                )
+
+            if (shouldRefreshStatus) {
+                rechargeViewModel.refreshActivePaymentStatus()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
@@ -398,13 +442,11 @@ private fun RechargeMainContent(
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             )
             Spacer(modifier = Modifier.height(42.dp))
-            selectedPack?.let { pack ->
-                RechargePayButton(
-                    pack = pack,
-                    modifier = Modifier.padding(horizontal = 24.dp),
-                    onClick = onPayClick
-                )
-            }
+            RechargePayButton(
+                pack = selectedPack,
+                modifier = Modifier.padding(horizontal = 18.dp),
+                onClick = onPayClick
+            )
         }
     }
 }
@@ -908,48 +950,55 @@ private fun PaymentMethodItem(
 
 @Composable
 private fun RechargePayButton(
-    pack: RechargePack,
+    pack: RechargePack?,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    val shape = HandDrawnCardShape
+    val isEnabled = pack != null
+    val shape = RechargeButtonShape
+    val buttonColor = if (isEnabled) RechargePurple else Color(0xFFD184C8)
+    val buttonText = pack?.let { "Add \u20B9${it.price} \u2022 ${it.hearts} Hearts" } ?: "Select a pack"
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(54.dp)
-            .clickable(onClick = onClick)
+            .height(64.dp)
+            .clickable(enabled = isEnabled, onClick = onClick)
     ) {
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .offset(x = 2.dp, y = 2.dp)
+                .offset(x = 3.dp, y = 4.dp)
                 .clip(shape)
                 .background(Color.Black)
         )
         Box(
             modifier = Modifier
-                .matchParentSize()
+                .fillMaxWidth()
+                .height(58.dp)
                 .clip(shape)
-                .background(Color(0xFFD184C8))
+                .background(buttonColor)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.align(Alignment.Center)
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
             ) {
                 Text(
-                    text = "Pay ₹${pack.price}",
+                    text = buttonText,
                     color = Color.White,
-                    fontSize = 14.sp,
+                    fontSize = 24.sp,
                     fontFamily = GaretFontFamily,
                     fontWeight = FontWeight.Bold
                 )
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(22.dp))
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = null,
                     tint = Color.White,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(38.dp)
                 )
             }
         }
@@ -1299,6 +1348,10 @@ private fun RechargePaymentStatusScreen(
     onBackToRecharge: () -> Unit
 ) {
     val isFailed = resolution == RechargePaymentResolution.Failed
+    if (!isFailed) {
+        KeepScreenOnEffect()
+    }
+
     if (resolution == RechargePaymentResolution.InProgress) {
         RechargeInProgressStatus(onBackToRecharge = onBackToRecharge)
         return
@@ -1350,6 +1403,18 @@ private fun RechargePaymentStatusScreen(
                 .align(Alignment.BottomCenter)
                 .padding(start = 36.dp, end = 36.dp, bottom = 56.dp)
         )
+    }
+}
+
+@Composable
+private fun KeepScreenOnEffect() {
+    val view = LocalView.current
+    DisposableEffect(view) {
+        val previousKeepScreenOn = view.keepScreenOn
+        view.keepScreenOn = true
+        onDispose {
+            view.keepScreenOn = previousKeepScreenOn
+        }
     }
 }
 

@@ -62,8 +62,7 @@ class RechargeViewModel(
                         isLoading = false,
                         options = options,
                         selectedOptionId = uiState.selectedOptionId
-                            ?.takeIf { selectedId -> options.any { it.id == selectedId } }
-                            ?: options.firstOrNull()?.id,
+                            ?.takeIf { selectedId -> options.any { it.id == selectedId } },
                         errorMessage = if (response.isSuccessful) null else body?.message ?: "Unable to load recharge options"
                     )
                 }
@@ -186,6 +185,16 @@ class RechargeViewModel(
                             "Purchase recharge failed status=${response.code()} errorBody=${errorBody.orEmpty()}"
                         )
                     }
+                    val checkout = responseBody?.takeIf { response.isSuccessful }?.let(::parseCashfreeCheckoutData)
+                    val orderId = responseBody?.takeIf { response.isSuccessful }?.let(::parseOrderId)
+                    if (response.isSuccessful) {
+                        Log.d(
+                            TAG,
+                            "Purchase recharge success httpStatus=${response.code()} orderId=${orderId.orEmpty()} " +
+                                "checkoutOrderId=${checkout?.orderId.orEmpty()} hasSession=${checkout?.hasCashfreeSession} " +
+                                "hasPaymentUrl=${!checkout?.paymentUrl.isNullOrBlank()}"
+                        )
+                    }
                     uiState = uiState.copy(
                         isPurchaseLoading = false,
                         isPurchaseSuccessful = response.isSuccessful,
@@ -194,11 +203,12 @@ class RechargeViewModel(
                         } else {
                             "Unable to start payment"
                         },
-                        checkout = responseBody?.takeIf { response.isSuccessful }?.let(::parseCashfreeCheckoutData),
-                        activeOrderId = responseBody?.takeIf { response.isSuccessful }?.let(::parseOrderId)
+                        checkout = checkout,
+                        activeOrderId = orderId
                     )
                 }
                 .onFailure { error ->
+                    Log.e(TAG, "Purchase recharge request failed", error)
                     uiState = uiState.copy(
                         isPurchaseLoading = false,
                         isPurchaseSuccessful = false,
@@ -214,9 +224,9 @@ class RechargeViewModel(
             launchedCheckoutKey = launchKey,
             purchaseMessage = "Complete your payment to add hearts."
         )
-        uiState.activeOrderId?.takeIf { it.isNotBlank() }?.let { orderId ->
-            Log.d(TAG, "Checkout launched; starting status polling for orderId=$orderId")
-            pollRechargeStatus(orderId)
+        resolveRechargeOrderId(null)?.takeIf { it.isNotBlank() }?.let { orderId ->
+            Log.d(TAG, "Checkout launched; starting status polling for orderId=$orderId launchKey=$launchKey")
+            pollRechargeStatus(orderId, trigger = "checkout_launched")
         }
     }
 
@@ -231,7 +241,15 @@ class RechargeViewModel(
     }
 
     fun markPaymentReturned(orderId: String?) {
+        if (isPaymentAttemptClosed()) {
+            Log.d(TAG, "Ignoring payment return callback because payment attempt is closed callbackOrderId=${orderId.orEmpty()}")
+            return
+        }
         val resolvedOrderId = resolveRechargeOrderId(orderId)
+        Log.d(
+            TAG,
+            "Payment return callback callbackOrderId=${orderId.orEmpty()} resolvedOrderId=${resolvedOrderId.orEmpty()}"
+        )
         if (resolvedOrderId.isNullOrBlank()) {
             uiState = uiState.copy(
                 purchaseMessage = "Confirming payment...",
@@ -240,33 +258,82 @@ class RechargeViewModel(
             )
             return
         }
-        pollRechargeStatus(resolvedOrderId)
+        pollRechargeStatus(resolvedOrderId, trigger = "payment_returned")
     }
 
     fun markPaymentReturnFailed(orderId: String?, message: String) {
-        val resolvedOrderId = resolveRechargeOrderId(orderId)
-        if (resolvedOrderId.isNullOrBlank()) {
-            uiState = uiState.copy(
-                isStatusPolling = false,
-                purchaseMessage = message,
-                statusTimerEndsAtMillis = null,
-                paymentResolution = RechargePaymentResolution.Failed
+        if (isPaymentAttemptClosed()) {
+            Log.d(
+                TAG,
+                "Ignoring payment failure callback because payment attempt is closed " +
+                    "callbackOrderId=${orderId.orEmpty()} message=$message"
             )
             return
         }
-        pollRechargeStatus(resolvedOrderId)
+        val resolvedOrderId = resolveRechargeOrderId(orderId)
+        Log.d(
+            TAG,
+            "Payment failure callback callbackOrderId=${orderId.orEmpty()} resolvedOrderId=${resolvedOrderId.orEmpty()} message=$message"
+        )
+        if (resolvedOrderId.isNullOrBlank()) {
+            uiState = uiState.copy(
+                isStatusPolling = false,
+                purchaseMessage = "If your payment was successful, your hearts will be added in a few minutes.",
+                statusTimerEndsAtMillis = null,
+                paymentResolution = RechargePaymentResolution.InProgress
+            )
+            return
+        }
+        pollRechargeStatus(resolvedOrderId, trigger = "payment_failure_callback")
+    }
+
+    fun refreshActivePaymentStatus() {
+        if (isPaymentAttemptClosed()) {
+            Log.d(TAG, "Ignoring active payment refresh because payment attempt is closed")
+            return
+        }
+        val resolvedOrderId = resolveRechargeOrderId(null)
+        Log.d(
+            TAG,
+            "Refreshing active payment status resolvedOrderId=${resolvedOrderId.orEmpty()} " +
+                "launchedCheckoutKey=${uiState.launchedCheckoutKey.orEmpty()} currentResolution=${uiState.paymentResolution}"
+        )
+        if (resolvedOrderId.isNullOrBlank()) {
+            uiState = uiState.copy(
+                purchaseMessage = "Confirming payment...",
+                statusTimerEndsAtMillis = null,
+                paymentResolution = RechargePaymentResolution.Pending
+            )
+            return
+        }
+        pollRechargeStatus(resolvedOrderId, trigger = "app_resumed")
+    }
+
+    private fun isPaymentAttemptClosed(): Boolean {
+        return !uiState.isStatusPolling &&
+            uiState.statusTimerEndsAtMillis == null &&
+            uiState.paymentResolution in setOf(
+                RechargePaymentResolution.Success,
+                RechargePaymentResolution.Failed,
+                RechargePaymentResolution.InProgress
+            )
     }
 
     private fun resolveRechargeOrderId(callbackOrderId: String?): String? {
         val activeOrderId = uiState.activeOrderId?.takeIf { it.isNotBlank() }
+        val checkoutOrderId = uiState.checkout?.orderId?.takeIf { it.isNotBlank() }
         val cashfreeOrderId = callbackOrderId?.takeIf { it.isNotBlank() }
         if (activeOrderId != null && cashfreeOrderId != null && activeOrderId != cashfreeOrderId) {
             Log.d(TAG, "Using recharge order id=$activeOrderId for status; Cashfree callback id=$cashfreeOrderId")
         }
-        return activeOrderId ?: cashfreeOrderId
+        if (checkoutOrderId != null && cashfreeOrderId != null && checkoutOrderId != cashfreeOrderId) {
+            Log.d(TAG, "Using checkout order id=$checkoutOrderId for status; Cashfree callback id=$cashfreeOrderId")
+        }
+        return activeOrderId ?: checkoutOrderId ?: cashfreeOrderId
     }
 
     fun clearQuoteState() {
+        Log.d(TAG, "Clearing recharge payment state activeOrderId=${uiState.activeOrderId.orEmpty()}")
         statusPollingJob?.cancel()
         statusPollingJob = null
         uiState = uiState.copy(
@@ -285,8 +352,9 @@ class RechargeViewModel(
         )
     }
 
-    private fun pollRechargeStatus(orderId: String) {
+    private fun pollRechargeStatus(orderId: String, trigger: String) {
         if (uiState.isStatusPolling && uiState.activeOrderId == orderId && statusPollingJob?.isActive == true) {
+            Log.d(TAG, "Status polling already active orderId=$orderId trigger=$trigger")
             return
         }
         statusPollingJob?.cancel()
@@ -294,6 +362,7 @@ class RechargeViewModel(
         statusPollingJob = viewModelScope.launch {
             val token = TokenUtils.getToken()
             if (token.isBlank()) {
+                Log.w(TAG, "Unable to poll recharge status because token is blank orderId=$orderId trigger=$trigger")
                 uiState = uiState.copy(
                     isStatusPolling = false,
                     purchaseMessage = "Login token missing",
@@ -313,47 +382,51 @@ class RechargeViewModel(
 
             var deadline = System.currentTimeMillis() + STATUS_POLL_TIMEOUT_MS
             var pendingTimerEndsAtMillis: Long? = null
-            var nullPaymentStatusPolls = 0
+            var attempt = 0
+            Log.d(TAG, "Starting recharge status polling orderId=$orderId trigger=$trigger timeoutMs=$STATUS_POLL_TIMEOUT_MS")
             while (System.currentTimeMillis() < deadline) {
+                attempt++
                 val statusResult = runCatching {
+                    Log.d(TAG, "Calling recharge status API orderId=$orderId trigger=$trigger attempt=$attempt")
                     val response = mainRepository.getRechargeOrderStatus(token, orderId)
                     if (!response.isSuccessful) {
-                        Log.w(TAG, "Recharge status failed orderId=$orderId status=${response.code()}")
+                        val errorBody = response.errorBody()?.string().orEmpty()
+                        Log.w(
+                            TAG,
+                            "Recharge status API failed orderId=$orderId trigger=$trigger attempt=$attempt " +
+                                "httpStatus=${response.code()} errorBody=$errorBody"
+                        )
                         null
                     } else {
                         val body = response.body()
+                        val parsed = body?.let(::parsePaymentStatusResult)
                         Log.d(
                             TAG,
-                            "Recharge status orderId=$orderId status=${body?.status} " +
-                                "gatewayStatus=${body?.gatewayStatus} paymentStatus=${body?.paymentStatus} " +
-                                "credited=${body?.credited}"
+                            "Recharge status API success orderId=$orderId trigger=$trigger attempt=$attempt " +
+                                "httpStatus=${response.code()} status=${body?.status} dataStatus=${body?.data?.status} " +
+                                "gatewayStatus=${body?.gatewayStatus ?: body?.gateway_status} " +
+                                "dataGatewayStatus=${body?.data?.gatewayStatus ?: body?.data?.gateway_status} " +
+                                "orderStatus=${body?.orderStatus ?: body?.order_status} " +
+                                "dataOrderStatus=${body?.data?.orderStatus ?: body?.data?.order_status} " +
+                                "paymentStatus=${body?.paymentStatus ?: body?.payment_status} " +
+                                "dataPaymentStatus=${body?.data?.paymentStatus ?: body?.data?.payment_status} " +
+                                "cashfreeStatus=${body?.cashfreeStatus ?: body?.cashfree_status} " +
+                                "dataCashfreeStatus=${body?.data?.cashfreeStatus ?: body?.data?.cashfree_status} " +
+                                "transactionStatus=${body?.transactionStatus ?: body?.transaction_status} " +
+                                "dataTransactionStatus=${body?.data?.transactionStatus ?: body?.data?.transaction_status} " +
+                                "credited=${body?.credited} dataCredited=${body?.data?.credited} " +
+                                "parsedResolution=${parsed?.resolution} parsedStatuses=${parsed?.statuses.orEmpty()}"
                         )
-                        body?.let(::parsePaymentStatusResult)
+                        parsed
                     }
                 }.getOrElse { error ->
-                    Log.e(TAG, "Recharge status request failed orderId=$orderId", error)
+                    Log.e(TAG, "Recharge status request failed orderId=$orderId trigger=$trigger attempt=$attempt", error)
                     null
-                }
-
-                if (statusResult?.hasNullPaymentStatus == true) {
-                    nullPaymentStatusPolls++
-                    if (nullPaymentStatusPolls >= NULL_PAYMENT_STATUS_MAX_POLLS) {
-                        uiState = uiState.copy(
-                            isStatusPolling = false,
-                            isPurchaseSuccessful = false,
-                            purchaseMessage = "Payment cancelled. No hearts were added.",
-                            statusTimerEndsAtMillis = null,
-                            paymentResolution = RechargePaymentResolution.Failed
-                        )
-                        statusPollingJob = null
-                        return@launch
-                    }
-                } else {
-                    nullPaymentStatusPolls = 0
                 }
 
                 when (statusResult?.resolution) {
                     RechargePaymentResolution.Success -> {
+                        Log.d(TAG, "Recharge status resolved SUCCESS orderId=$orderId trigger=$trigger attempt=$attempt")
                         uiState = uiState.copy(
                             isStatusPolling = false,
                             isPurchaseSuccessful = true,
@@ -366,6 +439,7 @@ class RechargeViewModel(
                         return@launch
                     }
                     RechargePaymentResolution.Failed -> {
+                        Log.d(TAG, "Recharge status resolved FAILED orderId=$orderId trigger=$trigger attempt=$attempt")
                         uiState = uiState.copy(
                             isStatusPolling = false,
                             isPurchaseSuccessful = false,
@@ -380,6 +454,11 @@ class RechargeViewModel(
                         if (pendingTimerEndsAtMillis == null) {
                             pendingTimerEndsAtMillis = System.currentTimeMillis() + STATUS_POLL_TIMEOUT_MS
                             deadline = pendingTimerEndsAtMillis
+                            Log.d(
+                                TAG,
+                                "Recharge status moved to PENDING orderId=$orderId trigger=$trigger " +
+                                    "attempt=$attempt pendingTimeoutMs=$STATUS_POLL_TIMEOUT_MS"
+                            )
                         }
                         uiState = uiState.copy(
                             isStatusPolling = true,
@@ -391,6 +470,7 @@ class RechargeViewModel(
                         delay(STATUS_POLL_INTERVAL_MS)
                     }
                     RechargePaymentResolution.InProgress -> {
+                        Log.d(TAG, "Recharge status still IN_PROGRESS orderId=$orderId trigger=$trigger attempt=$attempt")
                         uiState = if (pendingTimerEndsAtMillis != null) {
                             uiState.copy(
                                 isStatusPolling = true,
@@ -409,6 +489,7 @@ class RechargeViewModel(
                         delay(STATUS_POLL_INTERVAL_MS)
                     }
                     null -> {
+                        Log.d(TAG, "Recharge status unavailable; will retry orderId=$orderId trigger=$trigger attempt=$attempt")
                         if (pendingTimerEndsAtMillis != null) {
                             uiState = uiState.copy(
                                 isStatusPolling = true,
@@ -423,12 +504,14 @@ class RechargeViewModel(
                 }
             }
 
+            Log.d(TAG, "Recharge status polling timed out orderId=$orderId trigger=$trigger attempts=$attempt")
             uiState = uiState.copy(
                 isStatusPolling = false,
                 isPurchaseSuccessful = false,
                 purchaseMessage = "If your payment was successful, your hearts will be added in a few minutes.",
                 paymentResolution = RechargePaymentResolution.InProgress,
-                statusTimerEndsAtMillis = null
+                statusTimerEndsAtMillis = null,
+                launchedCheckoutKey = null
             )
             statusPollingJob = null
         }
@@ -527,11 +610,13 @@ class RechargeViewModel(
 
     private fun parsePaymentStatusResult(body: RechargeOrderStatusResponse): PaymentStatusResult {
         if (body.credited == true || body.data?.credited == true) {
-            return PaymentStatusResult(RechargePaymentResolution.Success)
+            return PaymentStatusResult(
+                resolution = RechargePaymentResolution.Success,
+                statuses = listOf("credited=true")
+            )
         }
 
         val statuses = listOfNotNull(
-            body.status,
             body.gatewayStatus,
             body.gateway_status,
             body.orderStatus,
@@ -542,7 +627,6 @@ class RechargeViewModel(
             body.cashfree_status,
             body.transactionStatus,
             body.transaction_status,
-            body.data?.status,
             body.data?.gatewayStatus,
             body.data?.gateway_status,
             body.data?.orderStatus,
@@ -557,11 +641,6 @@ class RechargeViewModel(
             status.takeIf { it.isNotBlank() }?.uppercase()
         }
 
-        val paymentStatus = body.paymentStatus ?: body.payment_status ?: body.data?.paymentStatus ?: body.data?.payment_status
-        val hasNullPaymentStatus = paymentStatus == null &&
-            statuses.any { it == "ACTIVE" } &&
-            statuses.any { it == "PAYMENT_SESSION_CREATED" }
-
         val resolution = when {
             statuses.isEmpty() -> RechargePaymentResolution.InProgress
             statuses.any { it in SUCCESS_STATUSES } -> RechargePaymentResolution.Success
@@ -572,20 +651,19 @@ class RechargeViewModel(
         }
         return PaymentStatusResult(
             resolution = resolution,
-            hasNullPaymentStatus = hasNullPaymentStatus
+            statuses = statuses
         )
     }
 
     private data class PaymentStatusResult(
         val resolution: RechargePaymentResolution,
-        val hasNullPaymentStatus: Boolean = false
+        val statuses: List<String> = emptyList()
     )
 
     private companion object {
         const val TAG = "RechargeViewModel"
         const val STATUS_POLL_INTERVAL_MS = 3_000L
         const val STATUS_POLL_TIMEOUT_MS = 45_000L
-        const val NULL_PAYMENT_STATUS_MAX_POLLS = 3
         val SUCCESS_STATUSES = setOf("PAID", "SUCCESS", "SUCCESSFUL", "COMPLETED", "CHARGED", "CAPTURED")
         val FAILED_STATUSES = setOf(
             "FAILED",

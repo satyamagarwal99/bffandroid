@@ -60,7 +60,13 @@ object CashfreePaymentLauncher {
         onReturn: (orderId: String) -> Unit,
         onFailure: (orderId: String?, message: String) -> Unit
     ): LaunchResult {
+        Log.d(
+            TAG,
+            "Launching Cashfree UPI intent orderId=${checkout.orderId.orEmpty()} " +
+                "selectedPackage=$selectedPackageName hasSession=${checkout.hasCashfreeSession}"
+        )
         if (!checkout.hasCashfreeSession) {
+            Log.d(TAG, "Cashfree session missing; using fallback checkout orderId=${checkout.orderId.orEmpty()}")
             return fallback(activity, checkout, onReturn, onFailure)
         }
 
@@ -78,6 +84,7 @@ object CashfreePaymentLauncher {
                 .build()
 
             CFPaymentGatewayService.getInstance().doPayment(activity, payment)
+            Log.d(TAG, "Cashfree UPI intent launched orderId=${checkout.orderId.orEmpty()}")
             LaunchResult.Launched
         }.getOrElse { error ->
             Log.e(TAG, "Unable to launch Cashfree UPI intent", error)
@@ -91,6 +98,11 @@ object CashfreePaymentLauncher {
         onReturn: (orderId: String) -> Unit,
         onFailure: (orderId: String?, message: String) -> Unit
     ): LaunchResult {
+        Log.d(
+            TAG,
+            "Launching Cashfree fallback orderId=${checkout.orderId.orEmpty()} " +
+                "hasSession=${checkout.hasCashfreeSession} hasPaymentUrl=${!checkout.paymentUrl.isNullOrBlank()}"
+        )
         if (checkout.hasCashfreeSession) {
             runCatching {
                 initialize(activity, onReturn, onFailure)
@@ -99,6 +111,7 @@ object CashfreePaymentLauncher {
                     .build()
 
                 CFPaymentGatewayService.getInstance().doPayment(activity, payment)
+                Log.d(TAG, "Cashfree web checkout launched orderId=${checkout.orderId.orEmpty()}")
                 return LaunchResult.Launched
             }.onFailure { error ->
                 Log.e(TAG, "Unable to launch Cashfree web checkout", error)
@@ -107,6 +120,7 @@ object CashfreePaymentLauncher {
 
         checkout.paymentUrl?.takeIf { it.isNotBlank() }?.let { paymentUrl ->
             return try {
+                Log.d(TAG, "Opening external payment URL orderId=${checkout.orderId.orEmpty()}")
                 activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(paymentUrl)))
                 LaunchResult.Launched
             } catch (error: ActivityNotFoundException) {
@@ -127,11 +141,14 @@ object CashfreePaymentLauncher {
         CFPaymentGatewayService.getInstance().setCheckoutCallback(
             object : CFCheckoutResponseCallback {
                 override fun onPaymentVerify(orderID: String) {
+                    Log.d(TAG, "Cashfree verify callback orderId=$orderID")
                     onReturn(orderID)
                 }
 
                 override fun onPaymentFailure(cfErrorResponse: CFErrorResponse, orderID: String) {
-                    onFailure(orderID, cfErrorResponse.message ?: "Payment could not be completed")
+                    val message = cfErrorResponse.message ?: "Payment could not be completed"
+                    Log.d(TAG, "Cashfree failure callback orderId=$orderID message=$message")
+                    onFailure(orderID, message)
                 }
             }
         )
