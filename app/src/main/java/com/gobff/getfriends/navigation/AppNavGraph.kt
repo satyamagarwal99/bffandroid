@@ -32,9 +32,11 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.NotificationsActive
@@ -56,6 +58,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -86,6 +89,7 @@ import com.gobff.getfriends.screens.HomeScreen2
 import com.gobff.getfriends.screens.IncomingCallScreen
 import com.gobff.getfriends.screens.LiveScreen
 import com.gobff.getfriends.screens.LoginScreen
+import com.gobff.getfriends.screens.OnlineFlowScreen
 import com.gobff.getfriends.screens.PersonalChatScreen
 import com.gobff.getfriends.screens.ProfileScreen
 import com.gobff.getfriends.screens.RechargeScreen
@@ -105,7 +109,10 @@ import com.gobff.getfriends.utils.NotificationPermissionState.findActivity
 import com.gobff.getfriends.utils.NotificationPermissionUiState
 import com.gobff.getfriends.utils.PresenceHeartbeat
 import com.gobff.getfriends.utils.TokenUtils
+import com.gobff.getfriends.utils.AvatarGender
+import com.gobff.getfriends.utils.toAvatarGender
 import com.gobff.getfriends.viewmodel.MainViewModel
+import com.gobff.getfriends.viewmodel.FriendsListViewModel
 import com.gobff.getfriends.viewmodel.UserProfileViewModel
 import com.gobff.getfriends.viewmodel.WalletViewModel
 import kotlinx.coroutines.delay
@@ -113,6 +120,7 @@ import kotlinx.coroutines.launch
 
 private const val SPLASH_DURATION_MS = 2_000L
 private const val TAG = "AppNavGraph"
+private const val FEMALE_ONLINE_ONBOARDING_TAG = "FemaleOnlineOnboarding"
 private val MIN_BOTTOM_BAR_CONTENT_PADDING = 0.dp
 private val MAX_BOTTOM_BAR_CONTENT_PADDING = 0.dp
 
@@ -132,6 +140,7 @@ fun AppNavGraph(
     val activity = context.findActivity()
     val walletViewModel: WalletViewModel = viewModel()
     val userProfileViewModel: UserProfileViewModel = viewModel()
+    val friendsListViewModel: FriendsListViewModel = viewModel()
     val coroutineScope = rememberCoroutineScope()
     val walletHearts = walletViewModel.uiState.hearts
     val currentUserProfile = userProfileViewModel.uiState
@@ -143,11 +152,17 @@ fun AppNavGraph(
     var activeChatName by remember { mutableStateOf("Anshu") }
     var activeChatAvatar by remember { mutableStateOf(R.drawable.women_avatar1) }
     var initialAppOpenDispatched by remember { mutableStateOf(false) }
+    var femaleOnlineOnboardingStep by remember { mutableStateOf<String?>(null) }
+    val femaleOnlineOnboardingActive = femaleOnlineOnboardingStep != null
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
     val selectedBottomTab = currentRoute.toMainBottomTab()
     val adaptiveBottomPadding = (configuration.screenHeightDp.dp * 0.035f)
         .coerceIn(MIN_BOTTOM_BAR_CONTENT_PADDING, MAX_BOTTOM_BAR_CONTENT_PADDING)
     val appBottomBarContentPadding = if (selectedBottomTab == null) 0.dp else adaptiveBottomPadding
+    val showWaitingForCallBanner =
+        mainViewModel.userAvailableForCalls &&
+            AppSession.getBoolean(Constant.ONLINE_FLOW_COMPLETED_KEY) &&
+            currentRoute.shouldShowWaitingForCallBanner()
     var lastHomeBackPressAt by remember { mutableStateOf(0L) }
     var notificationPermissionUiState by remember {
         mutableStateOf(NotificationPermissionState.currentUiState(context, activity))
@@ -164,6 +179,15 @@ fun AppNavGraph(
         },
         animationSpec = tween(NOTIFICATION_BANNER_ANIMATION_DURATION_MS),
         label = "notificationBannerTopPadding"
+    )
+    val waitingForCallBannerTopPadding by animateDpAsState(
+        targetValue = if (showWaitingForCallBanner) {
+            WAITING_FOR_CALL_BANNER_CONTENT_HEIGHT
+        } else {
+            0.dp
+        },
+        animationSpec = tween(NOTIFICATION_BANNER_ANIMATION_DURATION_MS),
+        label = "waitingForCallBannerTopPadding"
     )
 
     fun refreshNotificationPermissionState() {
@@ -285,6 +309,25 @@ fun AppNavGraph(
         }
     }
 
+    LaunchedEffect(currentRoute) {
+        val pending = AppSession.isFemaleOnlineOnboardingPending()
+        Log.d(
+            FEMALE_ONLINE_ONBOARDING_TAG,
+            "routeCheck route=$currentRoute pending=$pending currentStep=$femaleOnlineOnboardingStep"
+        )
+        if (pending) {
+            if (femaleOnlineOnboardingStep == null && currentRoute == AppRoute.Home2.route) {
+                femaleOnlineOnboardingStep = "home"
+                Log.d(FEMALE_ONLINE_ONBOARDING_TAG, "showHomeStep")
+            }
+        } else {
+            if (femaleOnlineOnboardingStep != null) {
+                Log.d(FEMALE_ONLINE_ONBOARDING_TAG, "clearStepBecauseNotPending")
+            }
+            femaleOnlineOnboardingStep = null
+        }
+    }
+
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -341,7 +384,7 @@ fun AppNavGraph(
                 .fillMaxSize()
                 .navigationBarsPadding()
                 .padding(
-                    top = notificationBannerTopPadding,
+                    top = notificationBannerTopPadding + waitingForCallBannerTopPadding,
                     bottom = appBottomBarContentPadding
                 )
         ) {
@@ -425,7 +468,21 @@ fun AppNavGraph(
         composable(AppRoute.Audio.route) {
             AudioScreen(
                 onBack = { navController.navigateSingleTop(AppRoute.Gender) },
-                onDone = { navController.navigateHome() }
+                onDone = {
+                    val gender = userProfileViewModel.uiState.gender
+                    Log.d(
+                        FEMALE_ONLINE_ONBOARDING_TAG,
+                        "audioDone gender=$gender"
+                    )
+                    if (gender.toAvatarGender() == AvatarGender.Female) {
+                        Log.d(
+                            FEMALE_ONLINE_ONBOARDING_TAG,
+                            "audioDone female: marking pending fallback"
+                        )
+                        AppSession.markFemaleOnlineOnboardingPending()
+                    }
+                    navController.navigateHome()
+                }
             )
         }
 
@@ -487,6 +544,12 @@ fun AppNavGraph(
                 onChatSelected = { navController.navigateSingleTop(AppRoute.Chat) },
                 onHistorySelected = { navController.navigateBottomTab(AppRoute.History) },
                 onProfileRequested = { navController.navigateSingleTop(AppRoute.Profile) },
+                showOpenProfileOnboarding = femaleOnlineOnboardingStep == "home",
+                onOpenProfileOnboardingNext = {
+                    Log.d(FEMALE_ONLINE_ONBOARDING_TAG, "homeNext clicked: navigateProfile")
+                    femaleOnlineOnboardingStep = "profile"
+                    navController.navigateSingleTop(AppRoute.Profile)
+                },
                 onRechargeRequested = { navController.navigateSingleTop(AppRoute.Recharge) },
                 onLiveSelected = { navController.navigateBottomTab(AppRoute.Live) },
                 onFriendsListSelected = { navController.navigateSingleTop(AppRoute.Friends) },
@@ -502,12 +565,34 @@ fun AppNavGraph(
                 onWalletRequested = { navController.navigateSingleTop(AppRoute.Wallet) },
                 onRechargeRequested = { navController.navigateSingleTop(AppRoute.Recharge) },
                 onSettingsRequested = { navController.navigateSingleTop(AppRoute.Settings) },
+                onFriendsListRequested = { navController.navigateSingleTop(AppRoute.Friends) },
+                showGoOnlineOnboarding = femaleOnlineOnboardingStep == "profile",
+                onGoOnlineOnboardingGotIt = {
+                    Log.d(FEMALE_ONLINE_ONBOARDING_TAG, "profileGotIt clicked: complete")
+                    AppSession.completeFemaleOnlineOnboarding()
+                    femaleOnlineOnboardingStep = null
+                },
                 isAvailableForCalls = mainViewModel.userAvailableForCalls,
                 onAvailabilityChanged = mainViewModel::updateUserAvailableForCalls,
+                showOnlineFlowBeforeEnable = !AppSession.getBoolean(Constant.ONLINE_FLOW_COMPLETED_KEY),
+                onOnlineFlowRequested = { navController.navigateSingleTop(AppRoute.OnlineFlow) },
                 onNotificationAccessRequested = { onAccessReady ->
                     requestNotificationAccess(onAccessReady)
                 },
-                userProfileViewModel = userProfileViewModel
+                userProfileViewModel = userProfileViewModel,
+                friendsListViewModel = friendsListViewModel
+            )
+        }
+
+        composable(AppRoute.OnlineFlow.route) {
+            OnlineFlowScreen(
+                onBack = { navController.navigateUp() },
+                onCompleted = {
+                    AppSession.putBoolean(Constant.ONLINE_FLOW_COMPLETED_KEY, true)
+                    requestNotificationAccess {
+                        mainViewModel.updateUserAvailableForCalls(true)
+                    }
+                }
             )
         }
 
@@ -621,7 +706,8 @@ fun AppNavGraph(
             FriendsListScreen(
                 walletHearts = walletHearts,
                 onBack = navController::navigateUp,
-                onRechargeRequested = { navController.navigateSingleTop(AppRoute.Recharge) }
+                onRechargeRequested = { navController.navigateSingleTop(AppRoute.Recharge) },
+                friendsListViewModel = friendsListViewModel
             )
         }
 
@@ -695,6 +781,7 @@ fun AppNavGraph(
             BffBottomBar(
                 selectedTab = selectedTab,
                 onTabSelected = { tab ->
+                    if (femaleOnlineOnboardingActive) return@BffBottomBar
                     if (tab != selectedTab) {
                         when (tab) {
                             MainBottomTab.Home -> navController.navigateHome()
@@ -720,6 +807,15 @@ fun AppNavGraph(
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .statusBarsPadding()
+        )
+
+        GlobalWaitingForCallBanner(
+            visible = showWaitingForCallBanner,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(top = notificationBannerTopPadding)
         )
     }
 }
@@ -779,6 +875,61 @@ private fun GlobalNotificationPermissionBanner(
                         .padding(horizontal = 12.dp, vertical = 7.dp)
                 )
                 Spacer(modifier = Modifier.width(2.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun GlobalWaitingForCallBanner(
+    visible: Boolean,
+    modifier: Modifier = Modifier
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = slideInVertically(
+            animationSpec = tween(NOTIFICATION_BANNER_ANIMATION_DURATION_MS),
+            initialOffsetY = { fullHeight -> -fullHeight }
+        ) + fadeIn(animationSpec = tween(NOTIFICATION_BANNER_FADE_DURATION_MS)),
+        exit = slideOutVertically(
+            animationSpec = tween(NOTIFICATION_BANNER_ANIMATION_DURATION_MS),
+            targetOffsetY = { fullHeight -> -fullHeight }
+        ) + fadeOut(animationSpec = tween(NOTIFICATION_BANNER_FADE_DURATION_MS)),
+        modifier = modifier
+    ) {
+        Surface(
+            color = Color(0xFFE2F7EE),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = WAITING_FOR_CALL_BANNER_CONTENT_HEIGHT)
+                    .padding(horizontal = 20.dp, vertical = 2.dp)
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF00C36F))
+                ) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.waiting_for_call),
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(15.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Text(
+                    text = "Waiting for a call...",
+                    color = Color.Black,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
     }
@@ -917,6 +1068,17 @@ private fun String?.isSecondaryBottomTabRoute(): Boolean =
         this == AppRoute.History.route ||
         this == AppRoute.Live.route
 
+private fun String?.shouldShowWaitingForCallBanner(): Boolean =
+    this != null &&
+        this != AppRoute.Splash.route &&
+        this != AppRoute.UpdateApp.route &&
+        this != AppRoute.Login.route &&
+        this != AppRoute.Gender.route &&
+        this != AppRoute.Audio.route &&
+        this != AppRoute.OnlineFlow.route &&
+        this != AppRoute.Call.route &&
+        this != AppRoute.IncomingCall.route
+
 private fun resolvePostAuthRoute(
     hasProfile: Boolean,
     requiresVoiceVerification: Boolean
@@ -958,3 +1120,4 @@ private const val NAVIGATION_SCALE_OUT = 0.99f
 private const val NOTIFICATION_BANNER_ANIMATION_DURATION_MS = 240
 private const val NOTIFICATION_BANNER_FADE_DURATION_MS = 160
 private val NOTIFICATION_BANNER_CONTENT_HEIGHT = 44.dp
+private val WAITING_FOR_CALL_BANNER_CONTENT_HEIGHT = 48.dp

@@ -142,6 +142,8 @@ fun HomeScreen2(
     onRechargeRequested: () -> Unit = {},
     onHomeSelected: () -> Unit = {},
     onProfileRequested: () -> Unit = {},
+    showOpenProfileOnboarding: Boolean = false,
+    onOpenProfileOnboardingNext: () -> Unit = {},
     onFriendsListSelected: () -> Unit = {},
     onTruthDareSelected: () -> Unit = {},
     friendsListViewModel: FriendsListViewModel = viewModel(),
@@ -186,6 +188,13 @@ fun HomeScreen2(
             onLiveSelected = onLiveSelected,
             onTruthDareSelected = onTruthDareSelected
         )
+        if (showOpenProfileOnboarding) {
+            OpenProfileOnboardingOverlay(
+                avatarUrl = avatarUrl,
+                gender = gender,
+                onNext = onOpenProfileOnboardingNext
+            )
+        }
     }
 }
 
@@ -289,6 +298,133 @@ private fun HomeScreen2Content(
 }
 
 @Composable
+private fun OpenProfileOnboardingOverlay(
+    avatarUrl: String?,
+    gender: String?,
+    onNext: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.62f))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {}
+            )
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .offset(x = 20.dp, y = 48.dp)
+                .size(58.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.28f))
+                .border(1.dp, Color.White.copy(alpha = 0.72f), CircleShape)
+        ) {
+            CachedAvatarImage(
+                avatarUrl = avatarUrl,
+                gender = gender,
+                fallbackRes = gender.toHomeScreen2FallbackAvatarRes(),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+        }
+        Text(
+            text = "↖",
+            color = Color.White,
+            fontSize = 32.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 104.dp, top = 88.dp)
+                .graphicsLayer { rotationZ = -18f }
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 154.dp)
+                .width(276.dp)
+                .height(92.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color.White)
+                .border(1.dp, Color.Black, RoundedCornerShape(16.dp))
+                .padding(horizontal = 16.dp, vertical = 14.dp)
+        ) {
+            Text(
+                text = "Open your profile to go Online.",
+                color = Color.Black,
+                fontSize = 14.sp,
+                lineHeight = 18.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.TopStart)
+            )
+            HomeOnboardingButton(
+                text = "Next",
+                onClick = onNext,
+                modifier = Modifier.align(Alignment.BottomEnd)
+            )
+        }
+    }
+}
+
+@Composable
+private fun HomeOnboardingButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = HandDrawnCardShape
+    Box(
+        modifier = modifier
+            .size(width = 88.dp, height = 36.dp)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+    ) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(x = 2.dp, y = 2.dp)
+                .clip(shape)
+                .background(Color.Black)
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(HomeScreen2Purple)
+                .padding(horizontal = 10.dp)
+        ) {
+            Text(
+                text = text,
+                color = Color.White,
+                fontSize = 11.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(
+                imageVector = Icons.Default.ArrowForward,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(15.dp)
+            )
+        }
+    }
+}
+
+@Composable
 private fun HomeScreen2TopSection(
     walletHearts: Int,
     displayName: String?,
@@ -360,7 +496,7 @@ private fun HomeScreen2TopSection(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "What do you want to do today?",
+                text = "Let’s talk to a new Friend today",
                 color = Color(0xFF404040),
                 fontSize = 17.sp,
                 fontFamily = GaretFontFamily,
@@ -628,7 +764,7 @@ private fun HomeScreen2StarFriendCard(
             Spacer(modifier = Modifier.height(8.dp))
 
             HomeScreen2PillButton(
-                text = "Call expert",
+                text = "Call",
                 icon = Icons.Default.Call,
                 modifier = Modifier.fillMaxWidth()
             )

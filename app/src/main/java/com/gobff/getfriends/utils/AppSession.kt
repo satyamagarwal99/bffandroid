@@ -13,10 +13,12 @@ object AppSession {
     private const val TAG = "AuthSessionStore"
     private const val PREFS_NAME = "bff_auth_session"
     private const val BACKUP_PREFS_NAME = "bff_auth_session_backup"
+    private const val PERSISTENT_PREFS_NAME = "bff_persistent_state"
 
     private val lock = Any()
     private var sharedPref: SharedPreferences? = null
     private var backupPref: SharedPreferences? = null
+    private var persistentPref: SharedPreferences? = null
     private var appContext: Context? = null
     private var isInitialized = false
     private var initializationFailed = false
@@ -33,6 +35,7 @@ object AppSession {
 
             appContext = context.applicationContext
             backupPref = appContext!!.getSharedPreferences(BACKUP_PREFS_NAME, MODE_PRIVATE)
+            persistentPref = appContext!!.getSharedPreferences(PERSISTENT_PREFS_NAME, MODE_PRIVATE)
 
             try {
                 val masterKey = MasterKey.Builder(appContext!!)
@@ -112,6 +115,45 @@ object AppSession {
     fun getBoolean(key: String): Boolean {
         ensureInitialized()
         return sharedPref!!.getBoolean(key, false)
+    }
+
+    fun getBoolean(key: String, defaultValue: Boolean): Boolean {
+        ensureInitialized()
+        return sharedPref!!.getBoolean(key, defaultValue)
+    }
+
+    fun markFemaleOnlineOnboardingPending() {
+        ensureInitialized()
+        val completed = persistentPref!!.getBoolean(Constant.FEMALE_ONLINE_ONBOARDING_COMPLETED_KEY, false)
+        if (completed) {
+            Log.d(ONLINE_ONBOARDING_TAG, "markPending skipped: already completed")
+            return
+        }
+        persistentPref!!.edit(commit = true) {
+            putBoolean(Constant.FEMALE_ONLINE_ONBOARDING_PENDING_KEY, true)
+        }
+        Log.d(ONLINE_ONBOARDING_TAG, "markPending saved pending=true completed=false")
+    }
+
+    fun isFemaleOnlineOnboardingPending(): Boolean {
+        ensureInitialized()
+        val pending = persistentPref!!.getBoolean(Constant.FEMALE_ONLINE_ONBOARDING_PENDING_KEY, false)
+        val completed = persistentPref!!.getBoolean(Constant.FEMALE_ONLINE_ONBOARDING_COMPLETED_KEY, false)
+        val shouldShow = pending && !completed
+        Log.d(
+            ONLINE_ONBOARDING_TAG,
+            "isPending pending=$pending completed=$completed shouldShow=$shouldShow"
+        )
+        return shouldShow
+    }
+
+    fun completeFemaleOnlineOnboarding() {
+        ensureInitialized()
+        persistentPref!!.edit(commit = true) {
+            putBoolean(Constant.FEMALE_ONLINE_ONBOARDING_PENDING_KEY, false)
+            putBoolean(Constant.FEMALE_ONLINE_ONBOARDING_COMPLETED_KEY, true)
+        }
+        Log.d(ONLINE_ONBOARDING_TAG, "complete saved pending=false completed=true")
     }
 
 
@@ -260,6 +302,8 @@ object AppSession {
         key == Constant.REFRESH_TOKEN_EXPIRES_AT_KEY ||
         key == Constant.USER_ID_KEY ||
         key == Constant.INSTALLATION_ID_KEY
+
+    private const val ONLINE_ONBOARDING_TAG = "FemaleOnlineOnboarding"
 
     private fun redactedValue(value: String?): String {
         if (value.isNullOrBlank()) return "missing"

@@ -28,7 +28,9 @@ class MainViewModel(
     private val mainRepository = MainRepository()
     private val otpDeviceProvider = OtpDeviceProvider(application.applicationContext)
     private var presenceJob: Job? = null
-    var userAvailableForCalls by mutableStateOf(!AppSession.getBoolean(Constant.USER_UNAVAILABLE_FOR_CALLS_KEY))
+    var userAvailableForCalls by mutableStateOf(
+        !AppSession.getBoolean(Constant.USER_UNAVAILABLE_FOR_CALLS_KEY, defaultValue = true)
+    )
         private set
 
     fun onAppOpen() {

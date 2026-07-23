@@ -1060,7 +1060,7 @@ private fun EmptyConnectState(
         )
         Spacer(modifier = Modifier.height(28.dp))
         Text(
-            text = "No hosts available right now",
+            text = "No friends available right now",
             color = Color.White,
             fontSize = 23.sp,
             lineHeight = 27.sp,
@@ -1070,7 +1070,7 @@ private fun EmptyConnectState(
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            text = "All our hosts are busy at the moment.\nPlease try again in a few minutes!",
+            text = "All our friends are busy at the moment.\nPlease try again in a few minutes!",
             color = Color.White.copy(alpha = 0.82f),
             fontSize = 16.sp,
             lineHeight = 27.sp,
@@ -1124,7 +1124,7 @@ private fun NotifyWhenHostAvailableCard(
         }
         Spacer(modifier = Modifier.width(16.dp))
         Text(
-            text = "We'll notify you when\na host becomes available.",
+            text = "We'll notify you when\na friend is available.",
             color = Color.White,
             fontSize = 14.sp,
             lineHeight = 19.sp,

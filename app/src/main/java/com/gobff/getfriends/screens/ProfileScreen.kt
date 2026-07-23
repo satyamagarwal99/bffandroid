@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -34,6 +35,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Check
@@ -89,6 +91,7 @@ import com.gobff.getfriends.ui.theme.GaretFontFamily
 import com.gobff.getfriends.utils.AvatarCache
 import com.gobff.getfriends.utils.AvatarGender
 import com.gobff.getfriends.utils.toAvatarGender
+import com.gobff.getfriends.viewmodel.FriendsListViewModel
 import com.gobff.getfriends.viewmodel.HomeOptionsUiState
 import com.gobff.getfriends.viewmodel.HomeOptionsViewModel
 import com.gobff.getfriends.viewmodel.UserProfileViewModel
@@ -105,32 +108,51 @@ fun ProfileScreen(
     onWalletRequested: () -> Unit = {},
     onRechargeRequested: () -> Unit = {},
     onSettingsRequested: () -> Unit = {},
+    onFriendsListRequested: () -> Unit = {},
+    showGoOnlineOnboarding: Boolean = false,
+    onGoOnlineOnboardingGotIt: () -> Unit = {},
     isAvailableForCalls: Boolean = true,
     onAvailabilityChanged: (Boolean) -> Unit = {},
+    showOnlineFlowBeforeEnable: Boolean = false,
+    onOnlineFlowRequested: () -> Unit = {},
     onNotificationAccessRequested: (onAccessReady: () -> Unit) -> Unit = { onAccessReady -> onAccessReady() },
     homeOptionsViewModel: HomeOptionsViewModel = viewModel(),
-    userProfileViewModel: UserProfileViewModel = viewModel()
+    userProfileViewModel: UserProfileViewModel = viewModel(),
+    friendsListViewModel: FriendsListViewModel = viewModel()
 ) {
     val homeOptionsState = homeOptionsViewModel.uiState
     val userProfileState = userProfileViewModel.uiState
+    val friendsListState = friendsListViewModel.uiState
 
     LaunchedEffect(Unit) {
         homeOptionsViewModel.loadHomeOptions()
         userProfileViewModel.loadProfile()
     }
 
+    LaunchedEffect(userProfileState.gender) {
+        if (userProfileState.gender.toAvatarGender() == AvatarGender.Male) {
+            friendsListViewModel.loadFriends()
+        }
+    }
+
     ProfileScreenContent(
         modifier = modifier,
         walletHearts = walletHearts,
         userProfileState = userProfileState,
+        friendSquadCount = friendsListState.friends.size,
         homeOptionsState = homeOptionsState,
         onBack = onBack,
         onGiftVibeRequested = onGiftVibeRequested,
         onWalletRequested = onWalletRequested,
         onRechargeRequested = onRechargeRequested,
         onSettingsRequested = onSettingsRequested,
+        onFriendsListRequested = onFriendsListRequested,
+        showGoOnlineOnboarding = showGoOnlineOnboarding,
+        onGoOnlineOnboardingGotIt = onGoOnlineOnboardingGotIt,
         isAvailableForCalls = isAvailableForCalls,
         onAvailabilityChanged = onAvailabilityChanged,
+        showOnlineFlowBeforeEnable = showOnlineFlowBeforeEnable,
+        onOnlineFlowRequested = onOnlineFlowRequested,
         onNotificationAccessRequested = onNotificationAccessRequested,
         onSaveLanguages = { languages, onComplete ->
             userProfileViewModel.saveLanguages(languages, onComplete)
@@ -152,14 +174,20 @@ private fun ProfileScreenContent(
     modifier: Modifier = Modifier,
     walletHearts: Int = 0,
     userProfileState: UserProfileUiState = UserProfileUiState(),
+    friendSquadCount: Int = 0,
     homeOptionsState: HomeOptionsUiState = HomeOptionsUiState(),
     onBack: () -> Unit = {},
     onGiftVibeRequested: () -> Unit = {},
     onWalletRequested: () -> Unit = {},
     onRechargeRequested: () -> Unit = {},
     onSettingsRequested: () -> Unit = {},
+    onFriendsListRequested: () -> Unit = {},
+    showGoOnlineOnboarding: Boolean = false,
+    onGoOnlineOnboardingGotIt: () -> Unit = {},
     isAvailableForCalls: Boolean = true,
     onAvailabilityChanged: (Boolean) -> Unit = {},
+    showOnlineFlowBeforeEnable: Boolean = false,
+    onOnlineFlowRequested: () -> Unit = {},
     onNotificationAccessRequested: (onAccessReady: () -> Unit) -> Unit = { onAccessReady -> onAccessReady() },
     onSaveLanguages: (Set<String>, () -> Unit) -> Unit = { _, onComplete -> onComplete() },
     onSaveVibes: (Set<String>, () -> Unit) -> Unit = { _, onComplete -> onComplete() },
@@ -180,6 +208,7 @@ private fun ProfileScreenContent(
     var starHostVideoMessage by remember { mutableStateOf<String?>(null) }
     var isOnline by remember { mutableStateOf(isAvailableForCalls) }
     var notificationPermissionMessage by remember { mutableStateOf<String?>(null) }
+    val isMaleProfile = userProfileState.gender.toAvatarGender() == AvatarGender.Male
 
     fun toggleAvailability() {
         if (isOnline) {
@@ -190,6 +219,10 @@ private fun ProfileScreenContent(
         }
 
         notificationPermissionMessage = null
+        if (showOnlineFlowBeforeEnable) {
+            onOnlineFlowRequested()
+            return
+        }
         onNotificationAccessRequested {
             notificationPermissionMessage = null
             isOnline = true
@@ -370,8 +403,11 @@ private fun ProfileScreenContent(
                 gender = userProfileState.gender,
                 avatarUrl = userProfileState.avatarUrl,
                 isOnline = isOnline,
+                showAvailabilityToggle = !isMaleProfile,
+                friendSquadCount = friendSquadCount,
                 notificationPermissionMessage = notificationPermissionMessage,
                 onToggleAvailability = ::toggleAvailability,
+                onFriendsSquadClick = onFriendsListRequested,
                 onAvatarEditClick = {
                     editingAvatarUrl = AvatarCache.normalizeAvatarValue(userProfileState.avatarUrl)
                         ?: AvatarCache.avatarValue(1)
@@ -385,6 +421,7 @@ private fun ProfileScreenContent(
             )
             Spacer(modifier = Modifier.height(18.dp))
             ProfileContentCard(
+                showHostSections = !isMaleProfile,
                 onStarHostClick = { starHostScreen = StarHostScreen.Progress },
                 onLanguageClick = { openSheet = ProfileSheet.Language },
                 onInterestClick = { openSheet = ProfileSheet.Interests },
@@ -476,6 +513,116 @@ private fun ProfileScreenContent(
             )
 
             null -> Unit
+        }
+
+        if (showGoOnlineOnboarding) {
+            GoOnlineOnboardingOverlay(
+                onGotIt = onGoOnlineOnboardingGotIt,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+    }
+}
+
+@Composable
+private fun GoOnlineOnboardingOverlay(
+    onGotIt: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .background(Color.Black.copy(alpha = 0.62f))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {}
+            )
+    ) {
+        Text(
+            text = "↗",
+            color = Color.White,
+            fontSize = 32.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 334.dp)
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 382.dp)
+                .width(318.dp)
+                .height(104.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color.White)
+                .border(1.dp, Color.Black, RoundedCornerShape(16.dp))
+                .padding(horizontal = 22.dp, vertical = 16.dp)
+        ) {
+            Text(
+                text = "Swipe the toggle to go Online and\nstart receiving calls.",
+                color = Color.Black,
+                fontSize = 14.sp,
+                lineHeight = 19.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
+            ProfileOnboardingButton(
+                text = "Got it",
+                onClick = onGotIt,
+                modifier = Modifier.align(Alignment.BottomEnd)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProfileOnboardingButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = HandDrawnCardShape
+    Box(
+        modifier = modifier
+            .size(width = 88.dp, height = 36.dp)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+    ) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(x = 2.dp, y = 2.dp)
+                .clip(shape)
+                .background(Color.Black)
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(Color(0xFF7B35EF))
+        ) {
+            Text(
+                text = text,
+                color = Color.White,
+                fontSize = 11.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(15.dp)
+            )
         }
     }
 }
@@ -615,8 +762,11 @@ private fun ProfileIdentity(
     gender: String?,
     avatarUrl: String?,
     isOnline: Boolean,
+    showAvailabilityToggle: Boolean,
+    friendSquadCount: Int,
     notificationPermissionMessage: String?,
     onToggleAvailability: () -> Unit,
+    onFriendsSquadClick: () -> Unit,
     onAvatarEditClick: () -> Unit,
     onNameEditClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -694,34 +844,41 @@ private fun ProfileIdentity(
                 )
             }
         }
-        Spacer(modifier = Modifier.height(16.dp))
-        ProfileAvailabilityToggle(
-            isOnline = isOnline,
-            onToggle = onToggleAvailability
-        )
-        Spacer(modifier = Modifier.height(14.dp))
-        Text(
-            text = if (isOnline) {
-                "Available to take calls right now"
-            } else {
-                "You're currently unavailable for calls"
-            },
-            color = Color(0xFF7D7D7D),
-            fontSize = 14.sp,
-            fontFamily = GaretFontFamily,
-            fontWeight = FontWeight.Bold
-        )
-        notificationPermissionMessage?.let { message ->
-            Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(12.dp))
+        if (showAvailabilityToggle) {
+            ProfileAvailabilityToggle(
+                isOnline = isOnline,
+                onToggle = onToggleAvailability
+            )
+            Spacer(modifier = Modifier.height(14.dp))
             Text(
-                text = message,
+                text = if (isOnline) {
+                    "Available to take calls right now"
+                } else {
+                    "You're currently unavailable for calls"
+                },
                 color = Color(0xFF7D7D7D),
-                fontSize = 12.sp,
+                fontSize = 14.sp,
                 fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                lineHeight = 16.sp,
-                modifier = Modifier.padding(horizontal = 24.dp)
+                fontWeight = FontWeight.Bold
+            )
+            notificationPermissionMessage?.let { message ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = message,
+                    color = Color(0xFF7D7D7D),
+                    fontSize = 12.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 16.sp,
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                )
+            }
+        } else {
+            ProfileFriendsSquadCard(
+                count = friendSquadCount,
+                onClick = onFriendsSquadClick
             )
         }
     }
@@ -763,6 +920,63 @@ private fun String?.toProfileFallbackAvatarRes(): Int {
         AvatarGender.Female -> R.drawable.women_avatar1
         AvatarGender.Male -> R.drawable.man_avatar1
         null -> R.drawable.women_avatar1
+    }
+}
+
+@Composable
+private fun ProfileFriendsSquadCard(
+    count: Int,
+    onClick: () -> Unit
+) {
+    val shape = HandDrawnCardShape
+    Box(
+        modifier = Modifier
+            .size(width = 220.dp, height = 40.dp)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+    ) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(x = 1.5.dp, y = 2.dp)
+                .clip(shape)
+                .background(Color.Black)
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier
+                .matchParentSize()
+                .clip(shape)
+                .background(Color.White)
+                .border(1.2.dp, Color.Black, shape)
+                .padding(horizontal = 12.dp)
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.profile_screen_friend_sqaud),
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                contentScale = ContentScale.Fit
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Friends squad : ",
+                color = Color(0xFF2B2B2B),
+                fontSize = 14.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = count.toString(),
+                color = Color(0xFFFF5A64),
+                fontSize = 14.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 
@@ -817,6 +1031,7 @@ private fun ProfileAvailabilityToggle(
 
 @Composable
 private fun ProfileContentCard(
+    showHostSections: Boolean,
     onStarHostClick: () -> Unit,
     onLanguageClick: () -> Unit,
     onInterestClick: () -> Unit,
@@ -828,6 +1043,7 @@ private fun ProfileContentCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
+            .heightIn(min = if (showHostSections) 0.dp else 560.dp)
             .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .background(ProfileCoral)
     ) {
@@ -841,18 +1057,22 @@ private fun ProfileContentCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp)
-                .padding(top = 26.dp, bottom = 0.dp)
+                .padding(top = if (showHostSections) 26.dp else 38.dp, bottom = 0.dp)
         ) {
-            BecomeStarHostCard(onClick = onStarHostClick)
-            Spacer(modifier = Modifier.height(24.dp))
+            if (showHostSections) {
+                BecomeStarHostCard(onClick = onStarHostClick)
+                Spacer(modifier = Modifier.height(24.dp))
+            }
             ProfileInfoGrid(
                 onLanguageClick = onLanguageClick,
                 onInterestClick = onInterestClick,
                 onVibeClick = onVibeClick,
                 onGameStatsClick = onGameStatsClick
             )
-            Spacer(modifier = Modifier.height(24.dp))
-            GiftReceivedCard(onViewAll = onGiftVibeRequested)
+            if (showHostSections) {
+                Spacer(modifier = Modifier.height(24.dp))
+                GiftReceivedCard(onViewAll = onGiftVibeRequested)
+            }
             Spacer(modifier = Modifier.height(24.dp))
 
         }
@@ -2205,119 +2425,33 @@ private fun GiftReceivedCard(onViewAll: () -> Unit) {
                     )
                 )
             }
-            Spacer(modifier = Modifier.height(14.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
             ) {
-                ProfileGiftItem(
-                    title = "Garam chai",
-                    resId = R.drawable.gift_chai,
-                    count = "x40",
-                    modifier = Modifier.weight(1f)
-                )
-
-                ProfileGiftItem(
-                    title = "Ice cream",
-                    resId = R.drawable.gift_icecream,
-                    count = "x12",
-                    modifier = Modifier.weight(1f)
-                )
-
-                ProfileGiftItem(
-                    title = "Maggie",
-                    resId = R.drawable.gift_maggie,
-                    count = "x23",
-                    modifier = Modifier.weight(1f)
-                )
-
-                ProfileGiftItem(
-                    title = "Yellow rose",
-                    resId = R.drawable.gift_yellow_rose,
-                    count = "x32",
-                    modifier = Modifier.weight(1f)
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "No gifts yet!",
+                        color = Color(0xFF5B5B5B),
+                        fontSize = 16.sp,
+                        fontFamily = GaretFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Be the amazing host, friends will send\nyou surprises soon.",
+                        color = Color(0xFF5B5B5B),
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp,
+                        fontFamily = GaretFontFamily,
+                        fontWeight = FontWeight.Normal,
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
-        }
-    }
-}
-
-@Composable
-private fun ProfileGiftItem(
-    title: String,
-    resId: Int,
-    count: String,
-    modifier: Modifier = Modifier
-) {
-    val shape = RoundedCornerShape(9.dp)
-
-    Box(
-        modifier = modifier
-            .aspectRatio(70f / 72f)
-    ) {
-
-        // shadow
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .offset(x = 2.dp, y = 2.dp)
-                .clip(shape)
-                .background(Color.Black)
-        )
-
-        // card
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .clip(shape)
-                .background(Color.White)
-                .border(1.dp, Color.Black, shape)
-        ) {
-
-            Image(
-                painter = painterResource(id = resId),
-                contentDescription = null,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 8.dp)
-                    .size(width = 44.dp, height = 34.dp),
-                contentScale = ContentScale.Fit
-            )
-
-            Text(
-                text = title,
-                color = Color.Black,
-                fontSize = 7.5.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(horizontal = 4.dp, vertical = 7.dp)
-            )
-        }
-
-
-        // count badge
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .offset(x = 5.dp, y = (-5).dp)
-                .size(width = 21.dp, height = 14.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(Color(0xFFFF5A9C))
-        ) {
-            Text(
-                text = count,
-                color = Color.White,
-                fontSize = 8.sp,
-                lineHeight = 8.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.offset(y = (-0.5f).dp)
-            )
         }
     }
 }
@@ -3003,9 +3137,11 @@ private fun ProfileScreenPreview() {
             userProfileState = UserProfileUiState(
                 displayName = "Badal",
                 avatarUrl = "man_avatar1",
+                gender = "MALE",
                 languages = setOf("HINDI", "ENGLISH"),
                 vibes = setOf("GAMING", "DEEP_TALK")
-            )
+            ),
+            friendSquadCount = 28
         )
     }
 }

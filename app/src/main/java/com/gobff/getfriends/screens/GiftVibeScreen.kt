@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -68,7 +69,7 @@ fun GiftVibeScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             GiftVibeHeader(onBack = onBack)
-            GiftVibeGiftSection()
+            GiftVibeGiftSection(gifts = emptyList())
         }
     }
 }
@@ -121,18 +122,22 @@ private fun GiftVibeHeader(onBack: () -> Unit) {
                 .padding(horizontal = 24.dp)
                 .padding(bottom = 42.dp)
         ) {
-            GiftVibeStatCard("Total Gifts", "123", Color(0xFFFF5F21), Modifier.weight(1f))
-            GiftVibeStatCard("Hearts Earned", "6,720", Color(0xFFFF4D92), Modifier.weight(1f))
-            GiftVibeStatCard("Unique Gifts", "42", Color(0xFFFFA90F), Modifier.weight(1f))
+            GiftVibeStatCard("Total Gifts", "0", Color(0xFFFF5F21), Modifier.weight(1f))
+            GiftVibeStatCard("Coins Earned", "0", Color(0xFFFF4D92), Modifier.weight(1f))
+            GiftVibeStatCard("Unique Gifts", "0", Color(0xFFFFA90F), Modifier.weight(1f))
         }
     }
 }
 
 @Composable
-private fun GiftVibeGiftSection(modifier: Modifier = Modifier) {
+private fun GiftVibeGiftSection(
+    gifts: List<GiftVibeItem>,
+    modifier: Modifier = Modifier
+) {
     Box(
         modifier = modifier
             .fillMaxWidth()
+            .height(520.dp)
             .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .background(GiftVibeCoral)
     ) {
@@ -143,20 +148,26 @@ private fun GiftVibeGiftSection(modifier: Modifier = Modifier) {
             contentScale = ContentScale.FillBounds
         )
         Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 40.dp, bottom = 28.dp)
+                .padding(top = 40.dp, bottom = 44.dp)
         ) {
-            GiftVibeSearchBar(
-                modifier = Modifier
-                    .padding(horizontal = 24.dp)
-                    .fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(34.dp))
-            GiftVibeGrid(
-                modifier = Modifier
-                    .padding(horizontal = 24.dp)
-            )
+            if (gifts.isEmpty()) {
+                GiftVibeEmptyState()
+            } else {
+                GiftVibeSearchBar(
+                    modifier = Modifier
+                        .padding(horizontal = 24.dp)
+                        .fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(34.dp))
+                GiftVibeGrid(
+                    gifts = gifts,
+                    modifier = Modifier
+                        .padding(horizontal = 24.dp)
+                )
+            }
         }
     }
 }
@@ -250,19 +261,46 @@ private fun GiftVibeSearchBar(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun GiftVibeGrid(modifier: Modifier = Modifier) {
-    val gifts = listOf(
-        GiftVibeItem("Garam chai", R.drawable.gift_chai, "20", "x40"),
-        GiftVibeItem("Ice cream", R.drawable.gift_icecream, "25", "x12"),
-        GiftVibeItem("Maggie", R.drawable.gift_maggie, "30", "x24"),
-        GiftVibeItem("Momo", R.drawable.gift_momo, "40", "x32"),
-        GiftVibeItem("Coffee", R.drawable.gift_coffee, "50", "x08"),
-        GiftVibeItem("Pizza", R.drawable.gift_pizza, "100", "x14"),
-        GiftVibeItem("Biriyani", R.drawable.gift_biryani, "100", "x32"),
-        GiftVibeItem("Yellow Rose", R.drawable.gift_yellow_rose, "5", "x122"),
-        GiftVibeItem("Red Rose", R.drawable.gift_red_rose, "10", "x123")
-    )
+private fun GiftVibeEmptyState() {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp)
+    ) {
+        Spacer(modifier = Modifier.height(102.dp))
+        Image(
+            painter = painterResource(id = R.drawable.no_gift),
+            contentDescription = null,
+            modifier = Modifier.size(width = 315.dp, height = 144.dp),
+            contentScale = ContentScale.Fit
+        )
+        Spacer(modifier = Modifier.height(28.dp))
+        Text(
+            text = "No gifts yet!",
+            color = Color.Black,
+            fontSize = 18.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+        Text(
+            text = "Be the amazing host,\nfriends will send you surprises soon.",
+            color = Color.Black,
+            fontSize = 14.sp,
+            lineHeight = 23.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center
+        )
+    }
+}
 
+@Composable
+private fun GiftVibeGrid(
+    gifts: List<GiftVibeItem>,
+    modifier: Modifier = Modifier
+) {
     Column(
         verticalArrangement = Arrangement.spacedBy(18.dp),
         modifier = modifier.fillMaxWidth()

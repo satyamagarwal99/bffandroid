@@ -171,7 +171,7 @@ fun GameScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 28.dp, bottom = 120.dp)
+                        .padding(start = 32.dp, top = 38.dp, end = 12.dp, bottom = 120.dp)
                 ) {
                     GameCard(
                         title = "TRUTH\nOR DARE",
@@ -179,9 +179,9 @@ fun GameScreen(
                         price = "35",
                         imageRes = R.drawable.game_screen_truth_dare,
                         imageWidth = 146.dp,
-                        imageHeight = 156.dp,
-                        imageOffsetX = 187.dp,
-                        imageOffsetY = (-20).dp,
+                        imageHeight = 150.dp,
+                        imageOffsetX = 4.dp,
+                        imageOffsetY = (-12).dp,
                         gradient = Brush.linearGradient(
                             colors = listOf(Color(0xFFFC9071), Color(0xFFFD8461))
                         ),
@@ -197,7 +197,7 @@ fun GameScreen(
                         imageRes = R.drawable.game_screen_tictactoe,
                         imageWidth = 168.dp,
                         imageHeight = 142.dp,
-                        imageOffsetX = 178.dp,
+                        imageOffsetX = 17.dp,
                         imageOffsetY = (-8).dp,
                         gradient = Brush.linearGradient(
                             colors = listOf(Color(0xFFF97AB9), Color(0xFFF15AA3))
@@ -212,8 +212,8 @@ fun GameScreen(
                         imageRes = R.drawable.game_screen_uno,
                         imageWidth = 198.dp,
                         imageHeight = 148.dp,
-                        imageOffsetX = 150.dp,
-                        imageOffsetY = (-16).dp,
+                        imageOffsetX = 19.dp,
+                        imageOffsetY = (-14).dp,
                         gradient = Brush.linearGradient(
                             colors = listOf(Color(0xFFB892EE), Color(0xFF9678F4))
                         ),
@@ -227,7 +227,7 @@ fun GameScreen(
                         imageRes = R.drawable.game_screen_ludo,
                         imageWidth = 197.dp,
                         imageHeight = 158.dp,
-                        imageOffsetX = 152.dp,
+                        imageOffsetX = 20.dp,
                         imageOffsetY = (-4).dp,
                         gradient = Brush.linearGradient(
                             colors = listOf(Color(0xFF82B5F2), Color(0xFF6398EF))
@@ -309,9 +309,11 @@ private fun GameCard(
     onClick: (() -> Unit)? = null
 ) {
     val shape = RoundedCornerShape(28.dp)
+    val imageOverflowSpace = 20.dp
     Box(
         modifier = modifier
-            .size(width = 329.dp, height = 164.dp)
+            .fillMaxWidth()
+            .height(164.dp)
             .then(
                 if (onClick != null) {
                     Modifier.clickable(
@@ -327,8 +329,9 @@ private fun GameCard(
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 8.dp)
-                .size(width = 329.dp, height = 148.dp)
+                .padding(top = 8.dp, end = imageOverflowSpace)
+                .fillMaxWidth()
+                .height(148.dp)
                 .shadow(
                     elevation = 8.dp,
                     shape = shape,
@@ -369,8 +372,9 @@ private fun GameCard(
             painter = painterResource(id = imageRes),
             contentDescription = null,
             modifier = Modifier
-                .align(Alignment.TopStart)
-                .offset(x = imageOffsetX, y = imageOffsetY)
+                .align(Alignment.TopEnd)
+                .padding(end = imageOverflowSpace - imageOffsetX)
+                .offset(y = imageOffsetY)
                 .size(
                     width = imageWidth,
                     height = imageHeight

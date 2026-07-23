@@ -509,7 +509,7 @@ private fun OtpTopContent(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .offset(y = 246.dp)
-                .size(width = 210.dp, height = 24.dp)
+                .size(width = 296.5.dp, height = 24.dp)
         ) {
             Text(
                 text = "Didn't get the OTP?",

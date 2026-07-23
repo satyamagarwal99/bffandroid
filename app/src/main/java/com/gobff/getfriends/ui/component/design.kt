@@ -603,7 +603,6 @@ fun BffHeartChip(
                 .background(Color.White)
                 .border(1.2.dp, Color.Black, shape)
                 .padding(horizontal = 9.dp)
-                .offset(y = 1.5.dp)
         ) {
             Image(
                 painter = painterResource(id = R.drawable.single_heart),

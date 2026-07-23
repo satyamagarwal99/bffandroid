@@ -140,6 +140,7 @@ fun CallScreen(
     var showGameSheet by remember { mutableStateOf(false) }
     var showChatSheet by remember { mutableStateOf(false) }
     var showSafetySheet by remember { mutableStateOf(false) }
+    var showEndCallConfirmation by remember { mutableStateOf(false) }
     var showFeedbackPopup by remember { mutableStateOf(false) }
     var showVideoUpgradeRequestSheet by remember { mutableStateOf(false) }
     var remoteCallEndMessage by remember { mutableStateOf<String?>(null) }
@@ -247,6 +248,7 @@ fun CallScreen(
 
     BackHandler {
         when {
+            showEndCallConfirmation -> showEndCallConfirmation = false
             showVideoUpgradeRequestSheet -> showVideoUpgradeRequestSheet = false
             showVideoUpgradePrompt -> callViewModel.declineVideoUpgrade()
             showChatSheet -> showChatSheet = false
@@ -256,7 +258,7 @@ fun CallScreen(
             showAddTimeSheet -> showAddTimeSheet = false
             showFeedbackPopup -> closeEndedCallScreen()
             remoteCallEndMessage != null -> closeEndedCallScreen()
-            else -> leaveAndClose()
+            else -> showEndCallConfirmation = true
         }
     }
 
@@ -650,6 +652,28 @@ fun CallScreen(
             )
         }
 
+        if (showEndCallConfirmation) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.48f))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        showEndCallConfirmation = false
+                    }
+            )
+            EndCallConfirmationDialog(
+                onEndCall = {
+                    showEndCallConfirmation = false
+                    leaveAndClose()
+                },
+                onCancel = { showEndCallConfirmation = false },
+                modifier = Modifier.align(Alignment.Center)
+            )
+        }
+
         sendingGift?.let { gift ->
             GiftDeliveryOverlay(
                 gift = gift,
@@ -682,6 +706,105 @@ fun CallScreen(
                 modifier = Modifier.align(Alignment.Center)
             )
         }
+    }
+}
+
+@Composable
+private fun EndCallConfirmationDialog(
+    onEndCall: () -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .padding(horizontal = 28.dp)
+            .fillMaxWidth()
+    ) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(x = 4.dp, y = 5.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .background(Color.Black)
+        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(22.dp))
+                .background(Color.White)
+                .padding(horizontal = 22.dp, vertical = 24.dp)
+        ) {
+            Text(
+                text = "End this call?",
+                color = Color.Black,
+                fontSize = 22.sp,
+                lineHeight = 26.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = "Are you sure you want to end the call?",
+                color = Color(0xFF4A4A4A),
+                fontSize = 15.sp,
+                lineHeight = 21.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                EndCallDialogButton(
+                    text = "Cancle",
+                    background = Color(0xFFF0F0F0),
+                    textColor = Color.Black,
+                    onClick = onCancel,
+                    modifier = Modifier.weight(1f)
+                )
+                EndCallDialogButton(
+                    text = "End Call",
+                    background = Color(0xFFFF4B65),
+                    textColor = Color.White,
+                    onClick = onEndCall,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EndCallDialogButton(
+    text: String,
+    background: Color,
+    textColor: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .height(48.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(background)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+    ) {
+        Text(
+            text = text,
+            color = textColor,
+            fontSize = 15.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
@@ -4189,43 +4312,43 @@ private fun CallAvatar(
 }
 
 @Preview(showBackground = true, widthDp = 393, heightDp = 625)
-//@Composable
-//private fun CallScreenPreview() {
-//    BffAndroidTheme {
-//        CallScreen(
-//            personName = "Anshu",
-//            onBack = {}
-//        )
-//    }
-//}
 @Composable
-private fun CallChatBottomSheetPreview() {
-    CallChatBottomSheet(
-        messages = listOf(
-            RoomMessageResponse(
-                messageId = "preview-1",
-                roomId = "room",
-                senderUserId = "other-user",
-                senderDisplayName = "Anshu",
-                senderAvatarUrl = "women_avatar1",
-                body = "How that is spelled, can you type here ?",
-                createdAt = "2026-07-09T06:27:40Z"
-            ),
-            RoomMessageResponse(
-                messageId = "preview-2",
-                roomId = "room",
-                senderUserId = "me",
-                senderDisplayName = "Badal",
-                senderAvatarUrl = "man_avatar1",
-                body = "It spelled \"Isabella\"",
-                createdAt = "2026-07-09T06:28:40Z"
-            )
-        ),
-        isLoading = false,
-        isSending = false,
-        errorMessage = null,
-        currentUserId = "me",
-        onLoadMessages = {},
-        onSendMessage = {}
-    )
+private fun CallScreenPreview() {
+    BffAndroidTheme {
+        CallScreen(
+            personName = "Anshu",
+            onBack = {}
+        )
+    }
 }
+//@Composable
+//private fun CallChatBottomSheetPreview() {
+//    CallChatBottomSheet(
+//        messages = listOf(
+//            RoomMessageResponse(
+//                messageId = "preview-1",
+//                roomId = "room",
+//                senderUserId = "other-user",
+//                senderDisplayName = "Anshu",
+//                senderAvatarUrl = "women_avatar1",
+//                body = "How that is spelled, can you type here ?",
+//                createdAt = "2026-07-09T06:27:40Z"
+//            ),
+//            RoomMessageResponse(
+//                messageId = "preview-2",
+//                roomId = "room",
+//                senderUserId = "me",
+//                senderDisplayName = "Badal",
+//                senderAvatarUrl = "man_avatar1",
+//                body = "It spelled \"Isabella\"",
+//                createdAt = "2026-07-09T06:28:40Z"
+//            )
+//        ),
+//        isLoading = false,
+//        isSending = false,
+//        errorMessage = null,
+//        currentUserId = "me",
+//        onLoadMessages = {},
+//        onSendMessage = {}
+//    )
+//}

@@ -3,7 +3,6 @@ package com.gobff.getfriends.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -11,7 +10,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,39 +20,28 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.CallEnd
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gobff.getfriends.R
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.GaretFontFamily
-import kotlin.math.roundToInt
 
 private val IncomingCallYellow = Color(0xFFFFB91D)
-private const val ACCEPT_SWIPE_THRESHOLD = -96f
 
 @Composable
 fun IncomingCallScreen(
@@ -70,29 +57,41 @@ fun IncomingCallScreen(
         modifier = modifier
             .fillMaxSize()
             .background(IncomingCallYellow)
-            .padding(horizontal = 28.dp, vertical = 46.dp)
     ) {
+        Image(
+            painter = painterResource(id = R.drawable.incoming_call_bg_vector),
+            contentDescription = null,
+            contentScale = ContentScale.FillBounds,
+            modifier = Modifier.fillMaxSize()
+        )
+
+        IncomingCallHeader(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 128.dp)
+        )
+
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .align(Alignment.Center)
-                .offset(y = (-78).dp)
+                .offset(y = 34.dp)
         ) {
             PulsingCallerAvatar(avatarRes = callerAvatarUrl.toIncomingAvatarRes())
-            Spacer(modifier = Modifier.height(22.dp))
+            Spacer(modifier = Modifier.height(26.dp))
             Text(
                 text = callerName,
                 color = Color.Black,
-                fontSize = 25.sp,
+                fontSize = 20.sp,
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Incoming BFF call",
-                color = Color.Black.copy(alpha = 0.42f),
-                fontSize = 15.sp,
+                text = "Calling....",
+                color = Color(0xFF8F6A16),
+                fontSize = 16.sp,
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Bold
             )
@@ -105,13 +104,11 @@ fun IncomingCallScreen(
         ) {
             IncomingCallActionButton(
                 label = "Decline",
-                color = Color(0xFFFF4C58),
                 onClick = onDecline,
                 isAccept = false
             )
             IncomingCallActionButton(
                 label = "Accept",
-                color = Color(0xFF25C76A),
                 onClick = onAccept,
                 isAccept = true
             )
@@ -133,20 +130,32 @@ fun DialingCallScreen(
         modifier = modifier
             .fillMaxSize()
             .background(IncomingCallYellow)
-            .padding(horizontal = 28.dp, vertical = 46.dp)
     ) {
+        Image(
+            painter = painterResource(id = R.drawable.incoming_call_bg_vector),
+            contentDescription = null,
+            contentScale = ContentScale.FillBounds,
+            modifier = Modifier.fillMaxSize()
+        )
+
+        IncomingCallHeader(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 128.dp)
+        )
+
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .align(Alignment.Center)
-                .offset(y = (-68).dp)
+                .offset(y = 34.dp)
         ) {
             PulsingCallerAvatar(avatarRes = callerAvatarUrl.toIncomingAvatarRes())
-            Spacer(modifier = Modifier.height(22.dp))
+            Spacer(modifier = Modifier.height(26.dp))
             Text(
                 text = callerName,
                 color = Color.Black,
-                fontSize = 25.sp,
+                fontSize = 20.sp,
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
@@ -164,11 +173,64 @@ fun DialingCallScreen(
 
         IncomingCallActionButton(
             label = "Cancel",
-            color = Color(0xFFFF4C58),
             onClick = onCancel,
             isAccept = false,
             modifier = Modifier.align(Alignment.BottomCenter)
         )
+    }
+}
+
+@Composable
+private fun IncomingCallHeader(modifier: Modifier = Modifier) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+    ) {
+        Text(
+            text = "Audio call",
+            color = Color.Black,
+            fontSize = 20.sp,
+            lineHeight = 24.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(18.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier
+                .clip(RoundedCornerShape(100.dp))
+                .background(Color.White.copy(alpha = 0.72f))
+                .padding(horizontal = 22.dp, vertical = 9.dp)
+        ) {
+            Text(
+                text = "You will earn",
+                color = Color.Black,
+                fontSize = 16.sp,
+                lineHeight = 20.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.size(6.dp))
+            Image(
+                painter = painterResource(id = R.drawable.call_reward_heart),
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.size(22.dp)
+            )
+            Spacer(modifier = Modifier.size(4.dp))
+            Text(
+                text = "1 / min",
+                color = Color.Black,
+                fontSize = 16.sp,
+                lineHeight = 20.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
 
@@ -236,117 +298,29 @@ private fun PulsingCallerAvatar(
 @Composable
 private fun IncomingCallActionButton(
     label: String,
-    color: Color,
     onClick: () -> Unit,
     isAccept: Boolean,
     modifier: Modifier = Modifier
 ) {
-    var dragOffset by remember { mutableFloatStateOf(0f) }
-    val settledOffset by animateFloatAsState(
-        targetValue = dragOffset,
-        animationSpec = tween(180),
-        label = "accept-offset"
-    )
-    val arrowTransition = rememberInfiniteTransition(label = "accept-arrow")
-    val arrowOffset by arrowTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = -12f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 780),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "arrow-offset"
-    )
-    val arrowAlpha by arrowTransition.animateFloat(
-        initialValue = 0.2f,
-        targetValue = 0.82f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 780),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "arrow-alpha"
-    )
-    val pulseScale by arrowTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.34f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 980),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "button-pulse-scale"
-    )
-    val pulseAlpha by arrowTransition.animateFloat(
-        initialValue = 0.34f,
-        targetValue = 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 980),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "button-pulse-alpha"
-    )
-
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier
-            .pointerInput(Unit) {
-                detectVerticalDragGestures(
-                    onVerticalDrag = { change, dragAmount ->
-                        change.consume()
-                        dragOffset = (dragOffset + dragAmount).coerceIn(-128f, 0f)
-                    },
-                    onDragEnd = {
-                        if (dragOffset <= ACCEPT_SWIPE_THRESHOLD) {
-                            onClick()
-                        }
-                        dragOffset = 0f
-                    },
-                    onDragCancel = { dragOffset = 0f }
-                )
-            }
+        modifier = modifier.padding(bottom = 52.dp)
     ) {
-        Icon(
-            imageVector = Icons.Default.KeyboardArrowUp,
-            contentDescription = null,
-            tint = Color.White.copy(alpha = arrowAlpha),
-            modifier = Modifier.offset(y = arrowOffset.dp)
-        )
-        Spacer(modifier = Modifier.height(2.dp))
-        Box(
-            contentAlignment = Alignment.Center,
+        Image(
+            painter = painterResource(
+                id = if (isAccept) R.drawable.call_pickup else R.drawable.call_reject
+            ),
+            contentDescription = label,
+            contentScale = ContentScale.Fit,
             modifier = Modifier
-                .offset { IntOffset(0, settledOffset.roundToInt()) }
-                .size(68.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .graphicsLayer {
-                        scaleX = pulseScale
-                        scaleY = pulseScale
-                        alpha = pulseAlpha
-                    }
-                    .clip(CircleShape)
-                    .background(color)
-            )
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .clip(CircleShape)
-                    .background(color)
-                    .border(2.dp, Color.Black.copy(alpha = 0.42f), CircleShape)
-            )
-            Icon(
-                imageVector = if (isAccept) Icons.Default.Call else Icons.Default.CallEnd,
-                contentDescription = label,
-                tint = Color.White,
-                modifier = Modifier.size(30.dp)
-            )
-        }
-        Spacer(modifier = Modifier.height(10.dp))
+                .size(width = 100.dp, height = 56.dp)
+                .clickable(onClick = onClick)
+        )
+        Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = label,
             color = Color.Black,
-            fontSize = 13.sp,
+            fontSize = 16.sp,
             fontFamily = GaretFontFamily,
             fontWeight = FontWeight.Bold
         )
