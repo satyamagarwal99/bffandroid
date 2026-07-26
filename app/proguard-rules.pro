@@ -1,14 +1,16 @@
 # Keep metadata and annotations used by Retrofit, Gson, and Kotlin-reflective libraries.
--keepattributes Signature
--keepattributes RuntimeVisibleAnnotations
--keepattributes RuntimeVisibleParameterAnnotations
--keepattributes AnnotationDefault
--keepattributes InnerClasses
--keepattributes EnclosingMethod
+# Retrofit reads generic return types such as Response<OtpRequestResponse> at runtime.
+# If R8 strips Signature from release builds, Retrofit fails before the API call with:
+# java.lang.Class cannot be cast to java.lang.reflect.ParameterizedType
+-keepattributes Signature,RuntimeVisibleAnnotations,RuntimeVisibleParameterAnnotations,AnnotationDefault,InnerClasses,EnclosingMethod
 
 # Retrofit service interfaces use method and parameter annotations at runtime.
 -keep interface com.gobff.getfriends.data.ApiService { *; }
 -keep class retrofit2.** { *; }
+-keep,allowobfuscation,allowshrinking class retrofit2.Response
+-keep,allowobfuscation,allowshrinking interface retrofit2.Call
+-keep,allowobfuscation,allowshrinking class kotlin.coroutines.Continuation
+-keep class kotlin.Metadata { *; }
 -dontwarn retrofit2.**
 -dontwarn okhttp3.**
 -dontwarn okio.**

@@ -18,6 +18,7 @@ import com.gobff.getfriends.data.model.RechargePurchaseResponse
 import com.gobff.getfriends.data.model.RechargeQuoteBody
 import com.gobff.getfriends.data.model.RechargeUiState
 import com.gobff.getfriends.utils.TokenUtils
+import com.gobff.getfriends.utils.userFacingMessage
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -71,7 +72,7 @@ class RechargeViewModel(
                         isLoading = false,
                         options = emptyList(),
                         selectedOptionId = null,
-                        errorMessage = error.message ?: "Unable to load recharge options"
+                        errorMessage = error.userFacingMessage("Unable to load recharge options")
                     )
                 }
         }
@@ -128,7 +129,7 @@ class RechargeViewModel(
                     uiState = uiState.copy(
                         isQuoteLoading = false,
                         isQuoteSuccessful = false,
-                        quoteMessage = error.message ?: "Unable to create recharge quote"
+                        quoteMessage = error.userFacingMessage("Unable to create recharge quote")
                     )
                 }
         }
@@ -212,7 +213,7 @@ class RechargeViewModel(
                     uiState = uiState.copy(
                         isPurchaseLoading = false,
                         isPurchaseSuccessful = false,
-                        purchaseMessage = error.message ?: "Unable to start payment",
+                        purchaseMessage = error.userFacingMessage("Unable to start payment"),
                         checkout = null
                     )
                 }

@@ -135,7 +135,6 @@ fun HomeScreen2(
     onBack: () -> Unit = {},
     onLogout: () -> Unit = {},
     onConnectSelected: () -> Unit = {},
-    onGamesSelected: () -> Unit = {},
     onChatSelected: () -> Unit = {},
     onHistorySelected: () -> Unit = {},
     onLiveSelected: () -> Unit = {},
@@ -145,7 +144,7 @@ fun HomeScreen2(
     showOpenProfileOnboarding: Boolean = false,
     onOpenProfileOnboardingNext: () -> Unit = {},
     onFriendsListSelected: () -> Unit = {},
-    onTruthDareSelected: () -> Unit = {},
+    onCallRequested: (HomeProfile) -> Unit = {},
     friendsListViewModel: FriendsListViewModel = viewModel(),
     homeScreenViewModel: HomeScreenViewModel = viewModel()
 
@@ -182,11 +181,10 @@ fun HomeScreen2(
             onChatSelected = onChatSelected,
             onProfileRequested = onProfileRequested,
             onRechargeRequested = onRechargeRequested,
-            onGamesSelected = onGamesSelected,
             onExploreFriendsSelected = onConnectSelected,
             onFriendsListSelected = onFriendsListSelected,
             onLiveSelected = onLiveSelected,
-            onTruthDareSelected = onTruthDareSelected
+            onCallRequested = onCallRequested
         )
         if (showOpenProfileOnboarding) {
             OpenProfileOnboardingOverlay(
@@ -208,13 +206,12 @@ private fun HomeScreen2Content(
     starFriends: List<FriendListUserResponse> = emptyList(),
     onlineFriends: List<ConnectUserResponse> = emptyList(),
     onChatSelected: () -> Unit = {},
-    onGamesSelected: () -> Unit = {},
     onRechargeRequested: () -> Unit = {},
     onProfileRequested: () -> Unit = {},
     onExploreFriendsSelected: () -> Unit = {},
     onFriendsListSelected: () -> Unit = {},
     onLiveSelected: () -> Unit = {},
-    onTruthDareSelected: () -> Unit = {}
+    onCallRequested: (HomeProfile) -> Unit = {}
 ) {
     Box(
         modifier = modifier
@@ -272,7 +269,8 @@ private fun HomeScreen2Content(
                     Spacer(modifier = Modifier.height(18.dp))
                     HomeScreen2FriendRow(
                         friends = onlineFriends,
-                        onMakeFriendSelected = onExploreFriendsSelected
+                        onMakeFriendSelected = onExploreFriendsSelected,
+                        onCallRequested = onCallRequested
                     )
 
                     Spacer(modifier = Modifier.height(30.dp))
@@ -282,14 +280,6 @@ private fun HomeScreen2Content(
                     )
                     Spacer(modifier = Modifier.height(18.dp))
                     HomeScreen2LiveRow()
-
-                    Spacer(modifier = Modifier.height(30.dp))
-                    HomeScreen2SectionHeader(
-                        title = "Games Center",
-                        onViewAllClick = onGamesSelected
-                    )
-                    Spacer(modifier = Modifier.height(18.dp))
-                    HomeScreen2GameRow(onTruthDareSelected = onTruthDareSelected)
                 }
                 }
         }
@@ -496,7 +486,7 @@ private fun HomeScreen2TopSection(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Let’s talk to a new Friend today",
+                text = "Let's talk to a new Friend",
                 color = Color(0xFF404040),
                 fontSize = 17.sp,
                 fontFamily = GaretFontFamily,
@@ -837,7 +827,8 @@ private fun HomeScreen2StarFriendCard(
 @Composable
 private fun HomeScreen2FriendRow(
     friends: List<ConnectUserResponse>,
-    onMakeFriendSelected: () -> Unit
+    onMakeFriendSelected: () -> Unit,
+    onCallRequested: (HomeProfile) -> Unit
 ) {
     if (friends.isEmpty()) {
         HomeScreen2EmptyCard(
@@ -861,6 +852,7 @@ private fun HomeScreen2FriendRow(
                 name = friend.displayNameForHome(),
                 avatarRes = friend.avatarUrl.toHomeFriendAvatarRes(friend.identitySeedForHome()),
                 showOnline = friend.online != false,
+                onCallClick = { onCallRequested(friend.toHomeProfile()) },
                 delayMillis = 260 + index * 60
             )
         }
@@ -872,6 +864,7 @@ private fun HomeScreen2FriendCard(
     name: String,
     avatarRes: Int,
     showOnline: Boolean,
+    onCallClick: () -> Unit,
     delayMillis: Int = 0
 ) {
     val shape = HandDrawnCardShape
@@ -930,7 +923,8 @@ private fun HomeScreen2FriendCard(
             HomeScreen2PillButton(
                 text = "Call",
                 icon = Icons.Filled.Call,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onCallClick
             )
         }
     }
@@ -1123,75 +1117,6 @@ private fun HomeScreen2EmptyActionButton(
     }
 }
 
-@Composable
-private fun HomeScreen2GameRow(
-    onTruthDareSelected: () -> Unit
-) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(20.dp),
-        modifier = Modifier
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp)
-    ) {
-        HomeScreen2GameCard(
-            imageRes = R.drawable.game_screen_truth_dare,
-            background = Color(0xFFEBDDFF),
-            onPlayClick = onTruthDareSelected,
-            delayMillis = 440
-        )
-        HomeScreen2GameCard(
-            imageRes = R.drawable.game_screen_tictactoe,
-            background = Color(0xFFFFEEF4),
-            delayMillis = 500
-        )
-    }
-}
-
-@Composable
-private fun HomeScreen2GameCard(
-    imageRes: Int,
-    background: Color,
-    onPlayClick: () -> Unit = {},
-    delayMillis: Int = 0
-) {
-    val shape = HandDrawnCardShape
-    Box(
-        modifier = Modifier
-            .size(width = 130.dp, height = 138.dp)
-            .enterMotion(delayMillis = delayMillis, slideY = 30f)
-    ) {
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .offset(x = 1.5.dp, y = 2.dp)
-                .clip(shape)
-                .background(Color.Black)
-        )
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier
-                .matchParentSize()
-                .clip(shape)
-                .background(background)
-                .border(1.dp, Color.White, shape)
-                .padding(top = 12.dp, start = 18.dp, end = 18.dp, bottom = 10.dp)
-        ) {
-            Image(
-                painter = painterResource(id = imageRes),
-                contentDescription = null,
-                modifier = Modifier.size(74.dp),
-                contentScale = ContentScale.Fit
-            )
-            HomeScreen2PillButton(
-                text = "Play",
-                modifier = Modifier.fillMaxWidth(),
-                onClick = onPlayClick
-            )
-        }
-    }
-}
-
 private fun FriendListUserResponse.displayNameForHome(): String =
     displayName?.takeIf { it.isNotBlank() }
         ?: name?.takeIf { it.isNotBlank() }
@@ -1208,6 +1133,17 @@ private fun FriendListUserResponse.identitySeedForHome(): String =
 
 private fun ConnectUserResponse.displayNameForHome(): String =
     displayName?.takeIf { it.isNotBlank() } ?: "Someone"
+
+private fun ConnectUserResponse.toHomeProfile(): HomeProfile =
+    HomeProfile(
+        userId = userId.orEmpty(),
+        name = displayNameForHome(),
+        avatarRes = avatarUrl.toHomeFriendAvatarRes(identitySeedForHome()),
+        headerColor = Color(0xFFFCC02E),
+        languages = emptyList(),
+        tags = emptyList(),
+        prompt = ""
+    )
 
 private fun ConnectUserResponse.identitySeedForHome(): String =
     userId ?: displayName ?: avatarUrl.orEmpty()

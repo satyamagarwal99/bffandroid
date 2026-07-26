@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.gobff.getfriends.data.MainRepository
 import com.gobff.getfriends.data.model.GiftCatalogResponse
 import com.gobff.getfriends.utils.TokenUtils
+import com.gobff.getfriends.utils.userFacingMessage
 import kotlinx.coroutines.launch
 
 data class GiftCatalogUiState(
@@ -59,7 +60,7 @@ class GiftCatalogViewModel(
                     uiState = uiState.copy(
                         isLoading = false,
                         hasLoaded = true,
-                        errorMessage = error.message ?: "Unable to load gifts"
+                        errorMessage = error.userFacingMessage("Unable to load gifts")
                     )
                 }
         }

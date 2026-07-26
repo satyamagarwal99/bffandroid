@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.gobff.getfriends.data.MainRepository
 import com.gobff.getfriends.data.model.GameCatalogItemDto
 import com.gobff.getfriends.utils.TokenUtils
+import com.gobff.getfriends.utils.userFacingMessage
 import kotlinx.coroutines.launch
 
 data class GameCatalogUiState(
@@ -55,7 +56,7 @@ class GameCatalogViewModel(
                     uiState = uiState.copy(
                         isLoading = false,
                         hasLoaded = true,
-                        errorMessage = error.message ?: "Unable to load games"
+                        errorMessage = error.userFacingMessage("Unable to load games")
                     )
                 }
         }

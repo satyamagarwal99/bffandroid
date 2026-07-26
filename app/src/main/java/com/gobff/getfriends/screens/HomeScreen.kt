@@ -1124,7 +1124,7 @@ private fun NotifyWhenHostAvailableCard(
         }
         Spacer(modifier = Modifier.width(16.dp))
         Text(
-            text = "We'll notify you when\na friend is available.",
+            text = "We'll notify you when\na host becomes available.",
             color = Color.White,
             fontSize = 14.sp,
             lineHeight = 19.sp,

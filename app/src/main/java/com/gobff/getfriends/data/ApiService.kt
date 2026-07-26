@@ -118,6 +118,11 @@ interface ApiService {
         @Header("Authorization") bearerToken: String
     ): Response<WalletBalanceResponse>
 
+    @GET("coin/summary")
+    suspend fun getCoinSummary(
+        @Header("Authorization") bearerToken: String
+    ): Response<WalletBalanceResponse>
+
     @GET("wallet/recharge/options")
     suspend fun getRechargeOptions(
         @Header("Authorization") bearerToken: String

@@ -83,6 +83,7 @@ private val ChatBlue = Color(0xFF335FAA)
 private val PersonalChatBlue = Color(0xFF335FAA)
 private val PersonalChatChromeBlue = Color(0xFF4C7FD0)
 private val ChatYellow = Color(0xFFFDCE4E)
+private const val ChatComingSoon = true
 
 
 @Composable
@@ -130,6 +131,7 @@ fun ChatScreen(
                 onSearchChange = { searchQuery = it },
                 messages = filteredMessages,
                 onChatSelected = onChatSelected,
+                isComingSoon = ChatComingSoon,
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 636.dp)
@@ -238,6 +240,7 @@ private fun ChatContentCard(
     onSearchChange: (String) -> Unit,
     messages: List<ChatMessage>,
     onChatSelected: (String, Int) -> Unit,
+    isComingSoon: Boolean,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -271,10 +274,22 @@ private fun ChatContentCard(
                 Spacer(modifier = Modifier.height(42.dp))
                 ChatMessageList(
                     messages = messages,
-                    onChatSelected = onChatSelected,
+                    onChatSelected = if (isComingSoon) {
+                        { _, _ -> }
+                    } else {
+                        onChatSelected
+                    },
+                    isEnabled = !isComingSoon,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
+        }
+        if (isComingSoon) {
+            ChatComingSoonNotice(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = 42.dp)
+            )
         }
     }
 }
@@ -415,6 +430,7 @@ private fun QuestionSparkle(modifier: Modifier = Modifier) {
 private fun ChatMessageList(
     messages: List<ChatMessage>,
     onChatSelected: (String, Int) -> Unit,
+    isEnabled: Boolean,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
@@ -430,7 +446,8 @@ private fun ChatMessageList(
             messages.forEach { message ->
                 ChatMessageRow(
                     message = message,
-                    onClick = { onChatSelected(message.name, message.avatarRes) }
+                    onClick = { onChatSelected(message.name, message.avatarRes) },
+                    isEnabled = isEnabled
                 )
             }
         }
@@ -440,13 +457,15 @@ private fun ChatMessageList(
 @Composable
 private fun ChatMessageRow(
     message: ChatMessage,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    isEnabled: Boolean
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
             .clickable(
+                enabled = isEnabled,
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick
@@ -535,6 +554,47 @@ private fun ChatMessageRow(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ChatComingSoonNotice(modifier: Modifier = Modifier) {
+    Box(modifier = modifier.fillMaxWidth()) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .offset(x = 4.dp, y = 5.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(Color.Black.copy(alpha = 0.25f))
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(Color.White.copy(alpha = 0.96f))
+                .border(1.5.dp, ChatYellow, RoundedCornerShape(18.dp))
+                .padding(horizontal = 18.dp, vertical = 16.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.ChatBubbleOutline,
+                contentDescription = null,
+                tint = ChatBlue,
+                modifier = Modifier.size(22.dp)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = "Coming soon",
+                color = ChatBlue,
+                fontSize = 20.sp,
+                lineHeight = 22.sp,
+                fontFamily = FreedokaFontFamily,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
         }
     }
 }

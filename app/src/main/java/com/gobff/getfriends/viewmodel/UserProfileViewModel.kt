@@ -13,6 +13,7 @@ import com.gobff.getfriends.data.model.UserProfileUiState
 import com.gobff.getfriends.utils.AppSession
 import com.gobff.getfriends.utils.Constant
 import com.gobff.getfriends.utils.TokenUtils
+import com.gobff.getfriends.utils.userFacingMessage
 import kotlinx.coroutines.launch
 
 class UserProfileViewModel(
@@ -53,7 +54,7 @@ class UserProfileViewModel(
                 onFailure = { error ->
                     uiState = uiState.copy(
                         isLoading = false,
-                        errorMessage = error.message ?: "Unable to load profile"
+                        errorMessage = error.userFacingMessage("Unable to load profile")
                     )
                     false
                 }
@@ -165,7 +166,7 @@ class UserProfileViewModel(
                 .onFailure { error ->
                     uiState = uiState.copy(
                         isSaving = false,
-                        errorMessage = error.message ?: "Unable to update profile"
+                        errorMessage = error.userFacingMessage("Unable to update profile")
                     )
                 }
         }

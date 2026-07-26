@@ -32,8 +32,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.foundation.shape.CircleShape
@@ -142,6 +142,7 @@ fun AppNavGraph(
     val userProfileViewModel: UserProfileViewModel = viewModel()
     val friendsListViewModel: FriendsListViewModel = viewModel()
     val coroutineScope = rememberCoroutineScope()
+    val walletCoins = walletViewModel.uiState.coins
     val walletHearts = walletViewModel.uiState.hearts
     val currentUserProfile = userProfileViewModel.uiState
     var activeCallName by remember { mutableStateOf("Anshu") }
@@ -540,7 +541,6 @@ fun AppNavGraph(
                 },
                 onHomeSelected = { navController.navigateHome() },
                 onConnectSelected = { navController.navigateBottomTab(AppRoute.Home) },
-                onGamesSelected = { navController.navigateBottomTab(AppRoute.Games) },
                 onChatSelected = { navController.navigateSingleTop(AppRoute.Chat) },
                 onHistorySelected = { navController.navigateBottomTab(AppRoute.History) },
                 onProfileRequested = { navController.navigateSingleTop(AppRoute.Profile) },
@@ -553,12 +553,20 @@ fun AppNavGraph(
                 onRechargeRequested = { navController.navigateSingleTop(AppRoute.Recharge) },
                 onLiveSelected = { navController.navigateBottomTab(AppRoute.Live) },
                 onFriendsListSelected = { navController.navigateSingleTop(AppRoute.Friends) },
-                onTruthDareSelected = { navController.navigateSingleTop(AppRoute.TruthDare) }
+                onCallRequested = { profile ->
+                    activeCallName = profile.name
+                    activeCallInvitedUserId = profile.userId.takeIf { it.isNotBlank() }
+                    incomingCallRoomId = null
+                    incomingCallRequestedRole = "SPEAKER"
+                    incomingCallAvatarUrl = null
+                    navController.navigateSingleTop(AppRoute.Call)
+                }
             )
         }
 
         composable(AppRoute.Profile.route) {
             ProfileScreen(
+                walletCoins = walletCoins,
                 walletHearts = walletHearts,
                 onBack = navController::navigateUp,
                 onGiftVibeRequested = { navController.navigateSingleTop(AppRoute.GiftVibe) },
@@ -678,11 +686,14 @@ fun AppNavGraph(
         composable(AppRoute.Live.route) {
             LiveScreen(
                 walletHearts = walletHearts,
+                currentUserAvatarUrl = currentUserProfile.avatarUrl,
+                currentUserGender = currentUserProfile.gender,
                 hasNotificationAccess = NotificationPermissionState.hasNotificationAccess(context),
                 onNotificationAccessRequested = { onAccessReady ->
                     requestNotificationAccess(onAccessReady)
                 },
-                onRechargeRequested = { navController.navigateSingleTop(AppRoute.Recharge) }
+                onRechargeRequested = { navController.navigateSingleTop(AppRoute.Recharge) },
+                onProfileRequested = { navController.navigateSingleTop(AppRoute.Profile) }
             )
         }
 

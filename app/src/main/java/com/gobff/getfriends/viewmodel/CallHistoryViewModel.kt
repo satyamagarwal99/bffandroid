@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.gobff.getfriends.data.MainRepository
 import com.gobff.getfriends.data.model.CallHistoryItemResponse
 import com.gobff.getfriends.utils.TokenUtils
+import com.gobff.getfriends.utils.userFacingMessage
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
@@ -61,7 +62,7 @@ class CallHistoryViewModel(
                         isLoading = false,
                         calls = emptyList(),
                         hasLoaded = true,
-                        errorMessage = error.message ?: "Unable to load call history"
+                        errorMessage = error.userFacingMessage("Unable to load call history")
                     )
                 }
         }

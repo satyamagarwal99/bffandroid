@@ -175,8 +175,7 @@ fun GameScreen(
                 ) {
                     GameCard(
                         title = "TRUTH\nOR DARE",
-                        cta = "Just",
-                        price = "35",
+                        cta = "Coming soon",
                         imageRes = R.drawable.game_screen_truth_dare,
                         imageWidth = 146.dp,
                         imageHeight = 150.dp,
@@ -185,15 +184,13 @@ fun GameScreen(
                         gradient = Brush.linearGradient(
                             colors = listOf(Color(0xFFFC9071), Color(0xFFFD8461))
                         ),
-                        onClick = onTruthDareSelected,
                         modifier = Modifier.screenEnterMotion(index = 2)
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 
                     GameCard(
                         title = "TIC TAC\nTOE",
-                        cta = "Just",
-                        price = "25",
+                        cta = "Coming soon",
                         imageRes = R.drawable.game_screen_tictactoe,
                         imageWidth = 168.dp,
                         imageHeight = 142.dp,

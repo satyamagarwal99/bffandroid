@@ -82,7 +82,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.core.content.ContextCompat
 import com.gobff.getfriends.CallEndedPush
 import com.gobff.getfriends.R
-import com.gobff.getfriends.data.model.GameCatalogItemDto
 import com.gobff.getfriends.data.model.GiftCatalogResponse
 import com.gobff.getfriends.data.model.GiftCategoryDto
 import com.gobff.getfriends.data.model.GiftItemDto
@@ -97,8 +96,6 @@ import com.gobff.getfriends.utils.AvatarGender
 import com.gobff.getfriends.utils.toAvatarGender
 import com.gobff.getfriends.utils.TokenUtils
 import com.gobff.getfriends.viewmodel.CallViewModel
-import com.gobff.getfriends.viewmodel.GameCatalogUiState
-import com.gobff.getfriends.viewmodel.GameCatalogViewModel
 import com.gobff.getfriends.viewmodel.GiftCatalogUiState
 import com.gobff.getfriends.viewmodel.GiftCatalogViewModel
 import io.agora.base.internal.SurfaceViewRenderer
@@ -127,8 +124,7 @@ fun CallScreen(
     callEndedPush: CallEndedPush? = null,
     onCallEndedPushHandled: () -> Unit = {},
     callViewModel: CallViewModel = viewModel(),
-    giftCatalogViewModel: GiftCatalogViewModel = viewModel(),
-    gameCatalogViewModel: GameCatalogViewModel = viewModel()
+    giftCatalogViewModel: GiftCatalogViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val uiState = callViewModel.uiState
@@ -137,7 +133,6 @@ fun CallScreen(
     val isConnected = uiState.isRtcJoined
     var showAddTimeSheet by remember { mutableStateOf(false) }
     var showGiftSheet by remember { mutableStateOf(false) }
-    var showGameSheet by remember { mutableStateOf(false) }
     var showChatSheet by remember { mutableStateOf(false) }
     var showSafetySheet by remember { mutableStateOf(false) }
     var showEndCallConfirmation by remember { mutableStateOf(false) }
@@ -161,7 +156,6 @@ fun CallScreen(
     var pendingVideoAction by remember { mutableStateOf<VideoPendingAction?>(null) }
     var shouldEndBackendOnDispose by remember { mutableStateOf(true) }
     val giftCatalogUiState = giftCatalogViewModel.uiState
-    val gameCatalogUiState = gameCatalogViewModel.uiState
     val isOutgoingCall = incomingRoomId.isNullOrBlank()
     val hasRemoteUserJoined = uiState.remoteAudioUserIds.isNotEmpty()
     val shouldShowDialingScreen = isOutgoingCall && !hasRemoteUserJoined
@@ -252,7 +246,6 @@ fun CallScreen(
             showVideoUpgradeRequestSheet -> showVideoUpgradeRequestSheet = false
             showVideoUpgradePrompt -> callViewModel.declineVideoUpgrade()
             showChatSheet -> showChatSheet = false
-            showGameSheet -> showGameSheet = false
             showGiftSheet -> showGiftSheet = false
             showSafetySheet -> showSafetySheet = false
             showAddTimeSheet -> showAddTimeSheet = false
@@ -320,7 +313,6 @@ fun CallScreen(
         remoteCallDeclined = wasDeclined
         showAddTimeSheet = false
         showGiftSheet = false
-        showGameSheet = false
         showSafetySheet = false
         showVideoUpgradeRequestSheet = false
         showFeedbackPopup = !wasDeclined
@@ -376,12 +368,6 @@ fun CallScreen(
     LaunchedEffect(showGiftSheet) {
         if (showGiftSheet) {
             giftCatalogViewModel.loadGiftCatalog(forceRefresh = giftCatalogUiState.catalog == null)
-        }
-    }
-
-    LaunchedEffect(showGameSheet) {
-        if (showGameSheet) {
-            gameCatalogViewModel.loadGameCatalog(forceRefresh = gameCatalogUiState.games.isEmpty())
         }
     }
 
@@ -468,7 +454,6 @@ fun CallScreen(
                     onTimerClick = { showAddTimeSheet = true },
                     onChatClick = { showChatSheet = true },
                     onGiftClick = { showGiftSheet = true },
-                    onGameClick = { showGameSheet = true },
                     onSafetyClick = { showSafetySheet = true },
                     isMuted = uiState.isMuted,
                     isSpeakerEnabled = uiState.isSpeakerEnabled,
@@ -622,19 +607,6 @@ fun CallScreen(
                         roomId = incomingRoomId ?: uiState.room?.id
                     )
                 },
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
-        }
-
-        if (showGameSheet) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.42f))
-                    .clickable { showGameSheet = false }
-            )
-            GameBottomSheet(
-                gameCatalogUiState = gameCatalogUiState,
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
@@ -1170,7 +1142,6 @@ private fun ActiveCallContent(
     onTimerClick: () -> Unit,
     onChatClick: () -> Unit,
     onGiftClick: () -> Unit,
-    onGameClick: () -> Unit,
     onSafetyClick: () -> Unit,
     isMuted: Boolean,
     isSpeakerEnabled: Boolean,
@@ -1253,10 +1224,6 @@ private fun ActiveCallContent(
             CallActionBubble(
                 iconRes = R.drawable.call_screen_gift,
                 onClick = onGiftClick
-            )
-            CallActionBubble(
-                iconRes = R.drawable.call_screen_games,
-                onClick = onGameClick
             )
         }
 
@@ -1382,7 +1349,6 @@ private fun VideoCallContent(
         VideoQuickActions(
             onChatClick = onChatClick,
             onGiftClick = onGiftClick,
-            onGameClick = { },
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 100.dp)
@@ -1905,157 +1871,6 @@ private fun AddTimeOptionRow(
             fontFamily = GaretFontFamily,
             fontWeight = FontWeight.Normal
         )
-    }
-}
-
-@Composable
-private fun GameBottomSheet(
-    gameCatalogUiState: GameCatalogUiState,
-    modifier: Modifier = Modifier
-) {
-    val games = gameCatalogUiState.games.toGameCatalogItems()
-    val sheetHeight = if (games.size > 3) 430.dp else 330.dp
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier
-            .fillMaxWidth()
-            .height(sheetHeight)
-            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-            .background(Color.White)
-            .padding(horizontal = 30.dp)
-            .padding(top = 12.dp, bottom = 28.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(width = 74.dp, height = 5.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFFD6D6D6))
-        )
-        Spacer(modifier = Modifier.height(28.dp))
-        Text(
-            text = "Choose a game",
-            color = Color.Black,
-            fontSize = 18.sp,
-            fontFamily = GaretFontFamily,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(10.dp))
-        Text(
-            text = "Add some fun to your call",
-            color = Color(0xFF7B7B7B),
-            fontSize = 14.sp,
-            fontFamily = GaretFontFamily,
-            fontWeight = FontWeight.Normal,
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(34.dp))
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(26.dp),
-            verticalAlignment = Alignment.Top,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            games.take(3).forEach { game ->
-                GameOptionCard(
-                    iconRes = game.iconRes,
-                    title = game.title,
-                    comingSoon = !game.isAvailable,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            repeat(3 - games.take(3).size) {
-                Spacer(modifier = Modifier.weight(1f))
-            }
-        }
-        if (games.size > 3) {
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(26.dp),
-                verticalAlignment = Alignment.Top,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                games.drop(3).take(3).forEach { game ->
-                    GameOptionCard(
-                        iconRes = game.iconRes,
-                        title = game.title,
-                        comingSoon = !game.isAvailable,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                repeat(3 - games.drop(3).take(3).size) {
-                    Spacer(modifier = Modifier.weight(1f))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun GameOptionCard(
-    iconRes: Int,
-    title: String,
-    comingSoon: Boolean,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier
-            .alpha(if (comingSoon) 0.5f else 1f)
-    ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(width = 92.dp, height = 108.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .offset(x = 3.dp, y = 3.dp)
-                    .clip(RoundedCornerShape(9.dp))
-                    .background(Color(0xFF7B7B7B))
-            )
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .clip(RoundedCornerShape(9.dp))
-                    .background(Color.White)
-                    .border(1.2.dp, Color.Black, RoundedCornerShape(9.dp))
-            ) {
-                Image(
-                    painter = painterResource(id = iconRes),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = 14.dp)
-                        .size(58.dp),
-                    contentScale = ContentScale.Fit
-                )
-                Text(
-                    text = title,
-                    color = if (comingSoon) Color(0xFF777777) else Color.Black,
-                    fontSize = 14.sp,
-                    fontFamily = GaretFontFamily,
-                    fontWeight = FontWeight.Normal,
-                    textAlign = TextAlign.Center,
-                    maxLines = 2,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 9.dp)
-                )
-            }
-        }
-        if (comingSoon) {
-            Spacer(modifier = Modifier.height(9.dp))
-            Text(
-                text = "Coming soon",
-                color = Color(0xFFFF2A1E),
-                fontSize = 11.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Normal,
-                textAlign = TextAlign.Center,
-                maxLines = 1
-            )
-        }
     }
 }
 
@@ -3724,7 +3539,6 @@ private fun CallActionBubble(
 private fun VideoQuickActions(
     onChatClick: () -> Unit,
     onGiftClick: () -> Unit,
-    onGameClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -3734,7 +3548,6 @@ private fun VideoQuickActions(
     ) {
         CallActionBubble(iconRes = R.drawable.call_screen_chats, onClick = onChatClick)
         CallActionBubble(iconRes = R.drawable.call_screen_gift, onClick = onGiftClick)
-        CallActionBubble(iconRes = R.drawable.call_screen_games, onClick = onGameClick)
     }
 }
 
@@ -3899,16 +3712,6 @@ private data class SelectedGiftItem(
     val quantity: Int
 )
 
-private data class GameCatalogItem(
-    val code: String,
-    val title: String,
-    val iconRes: Int,
-    val description: String?,
-    val minPlayers: Int?,
-    val maxPlayers: Int?,
-    val isAvailable: Boolean
-)
-
 private val GiftItem.deliveryLabel: String
     get() = name.lowercase()
 
@@ -3954,76 +3757,6 @@ private val AddTimeOptions = listOf(
     AddTimeOption(minutes = 15, hearts = 150),
     AddTimeOption(minutes = 30, hearts = 300)
 )
-
-private val DefaultGameCatalogItems = listOf(
-    GameCatalogItem(
-        code = "TRUTH_OR_DARE",
-        title = "Truth/Dare",
-        iconRes = R.drawable.game_truth_dare,
-        description = null,
-        minPlayers = 2,
-        maxPlayers = 2,
-        isAvailable = true
-    ),
-    GameCatalogItem(
-        code = "TIC_TAC_TOE",
-        title = "Tic Tac Toe",
-        iconRes = R.drawable.game_screen_tictactoe,
-        description = null,
-        minPlayers = 2,
-        maxPlayers = 2,
-        isAvailable = true
-    ),
-    GameCatalogItem(
-        code = "UNO",
-        title = "Uno",
-        iconRes = R.drawable.game_uno,
-        description = null,
-        minPlayers = null,
-        maxPlayers = null,
-        isAvailable = false
-    ),
-    GameCatalogItem(
-        code = "LUDO",
-        title = "Ludo",
-        iconRes = R.drawable.game_ludo,
-        description = null,
-        minPlayers = null,
-        maxPlayers = null,
-        isAvailable = false
-    )
-)
-
-private fun List<GameCatalogItemDto>.toGameCatalogItems(): List<GameCatalogItem> {
-    if (isEmpty()) return DefaultGameCatalogItems
-
-    return mapNotNull { it.toGameCatalogItem() }
-        .ifEmpty { DefaultGameCatalogItems }
-}
-
-private fun GameCatalogItemDto.toGameCatalogItem(): GameCatalogItem? {
-    val gameCode = code ?: return null
-    val gameTitle = title ?: return null
-
-    return GameCatalogItem(
-        code = gameCode,
-        title = gameTitle,
-        iconRes = iconKey.toGameDrawableRes(gameCode),
-        description = description,
-        minPlayers = minPlayers,
-        maxPlayers = maxPlayers,
-        isAvailable = true
-    )
-}
-
-private fun String?.toGameDrawableRes(gameCode: String): Int =
-    when (this ?: gameCode) {
-        "game_truth_dare", "TRUTH_OR_DARE" -> R.drawable.game_truth_dare
-        "game_tic_tac_toe", "TIC_TAC_TOE" -> R.drawable.game_screen_tictactoe
-        "game_uno", "UNO" -> R.drawable.game_uno
-        "game_ludo", "LUDO" -> R.drawable.game_ludo
-        else -> R.drawable.call_screen_games
-    }
 
 private val KissGiftItem = GiftItem(
     code = "KISS",

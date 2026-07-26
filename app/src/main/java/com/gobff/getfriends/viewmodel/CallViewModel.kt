@@ -19,6 +19,7 @@ import com.gobff.getfriends.data.model.RoomResponse
 import com.gobff.getfriends.data.model.RtcTokenBody
 import com.gobff.getfriends.data.model.RtcTokenResponse
 import com.gobff.getfriends.utils.TokenUtils
+import com.gobff.getfriends.utils.userFacingMessage
 import io.agora.rtc2.ChannelMediaOptions
 import io.agora.rtc2.Constants
 import io.agora.rtc2.IRtcEngineEventHandler
@@ -242,7 +243,7 @@ class CallViewModel(
                 .onFailure { error ->
                     uiState = uiState.copy(
                         isVideoUpgradeActionLoading = false,
-                        errorMessage = error.message ?: "Unable to request video upgrade"
+                        errorMessage = error.userFacingMessage("Unable to request video upgrade")
                     )
                 }
         }
@@ -328,7 +329,7 @@ class CallViewModel(
             }.onFailure { error ->
                 uiState = uiState.copy(
                     isSubmittingFeedback = false,
-                    feedbackErrorMessage = error.message ?: "Unable to submit feedback"
+                    feedbackErrorMessage = error.userFacingMessage("Unable to submit feedback")
                 )
             }
         }
@@ -374,7 +375,7 @@ class CallViewModel(
                     onFailure(body?.message ?: "Unable to send gift")
                 }
             }.onFailure { error ->
-                onFailure(error.message ?: "Unable to send gift")
+                onFailure(error.userFacingMessage("Unable to send gift"))
             }
         }
     }
@@ -432,7 +433,7 @@ class CallViewModel(
                 .onFailure { error ->
                     uiState = uiState.copy(
                         isLoadingRoomMessages = false,
-                        roomMessageErrorMessage = error.message ?: "Unable to load messages"
+                        roomMessageErrorMessage = error.userFacingMessage("Unable to load messages")
                     )
                 }
         }
@@ -480,7 +481,7 @@ class CallViewModel(
             }.onFailure { error ->
                 uiState = uiState.copy(
                     isSendingRoomMessage = false,
-                    roomMessageErrorMessage = error.message ?: "Unable to send message"
+                    roomMessageErrorMessage = error.userFacingMessage("Unable to send message")
                 )
             }
         }
@@ -514,7 +515,7 @@ class CallViewModel(
                 .onFailure { error ->
                     uiState = uiState.copy(
                         isVideoUpgradeActionLoading = false,
-                        errorMessage = error.message ?: "Unable to respond to video request"
+                        errorMessage = error.userFacingMessage("Unable to respond to video request")
                     )
                 }
         }
@@ -586,7 +587,7 @@ class CallViewModel(
                     }
                 }
                 .onFailure { error ->
-                    val message = error.message ?: "Unable to create room"
+                    val message = error.userFacingMessage("Unable to create room")
                     onFailure(message)
                     uiState = uiState.copy(
                         isCreatingRoom = false,
@@ -654,7 +655,7 @@ class CallViewModel(
                 .onFailure { error ->
                     uiState = uiState.copy(
                         isJoiningRoom = false,
-                        errorMessage = error.message ?: "Unable to join room"
+                        errorMessage = error.userFacingMessage("Unable to join room")
                     )
                 }
         }
@@ -704,7 +705,7 @@ class CallViewModel(
             }.onFailure { error ->
                 uiState = uiState.copy(
                     isFetchingRtcToken = false,
-                    errorMessage = error.message ?: "Unable to fetch RTC token"
+                    errorMessage = error.userFacingMessage("Unable to fetch RTC token")
                 )
             }
         }
@@ -751,7 +752,7 @@ class CallViewModel(
         }.onFailure { error ->
             uiState = uiState.copy(
                 isJoiningRtc = false,
-                errorMessage = error.message ?: "Unable to join Agora audio channel"
+                errorMessage = error.userFacingMessage("Unable to join Agora audio channel")
             )
         }
     }

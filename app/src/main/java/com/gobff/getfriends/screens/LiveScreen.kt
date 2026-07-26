@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gobff.getfriends.R
 import com.gobff.getfriends.ui.component.BffHeartChip
+import com.gobff.getfriends.ui.component.CachedAvatarImage
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.FreedokaFontFamily
 import com.gobff.getfriends.ui.theme.GaretFontFamily
@@ -56,9 +57,12 @@ import com.gobff.getfriends.ui.theme.GaretFontFamily
 fun LiveScreen(
     modifier: Modifier = Modifier,
     walletHearts: Int = 0,
+    currentUserAvatarUrl: String? = null,
+    currentUserGender: String? = null,
     hasNotificationAccess: Boolean = false,
     onNotificationAccessRequested: (onAccessReady: () -> Unit) -> Unit = {},
-    onRechargeRequested: () -> Unit = {}
+    onRechargeRequested: () -> Unit = {},
+    onProfileRequested: () -> Unit = {}
 ) {
     var notifyEnabled by remember { mutableStateOf(false) }
 
@@ -91,6 +95,9 @@ fun LiveScreen(
     ) {
         LiveTopBar(
             walletHearts = walletHearts,
+            currentUserAvatarUrl = currentUserAvatarUrl,
+            currentUserGender = currentUserGender,
+            onProfileRequested = onProfileRequested,
             onRechargeRequested = onRechargeRequested
         )
         Spacer(modifier = Modifier.height(40.dp))
@@ -107,6 +114,9 @@ fun LiveScreen(
 @Composable
 private fun LiveTopBar(
     walletHearts: Int,
+    currentUserAvatarUrl: String?,
+    currentUserGender: String?,
+    onProfileRequested: () -> Unit,
     onRechargeRequested: () -> Unit
 ) {
     Box(
@@ -118,24 +128,38 @@ private fun LiveTopBar(
             hearts = walletHearts,
             onClick = onRechargeRequested,
             modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(start = 20.dp, top = 48.dp)
-        )
-
-        Image(
-            painter = painterResource(id = R.drawable.game_screen_question),
-            contentDescription = "Help",
-            contentScale = ContentScale.Fit,
-            modifier = Modifier
                 .align(Alignment.TopEnd)
                 .padding(top = 48.dp, end = 20.dp)
-                .size(36.dp)
+        )
+
+        CachedAvatarImage(
+            avatarUrl = currentUserAvatarUrl,
+            gender = currentUserGender,
+            fallbackRes = currentUserGender.toLiveFallbackAvatarRes(),
+            contentDescription = "Profile",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .offset(
+                    x = 20.dp,
+                    y = 48.dp
+                )
+                .size(44.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color.White)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
-                    onClick = {}
+                    onClick = onProfileRequested
                 )
         )
+    }
+}
+
+private fun String?.toLiveFallbackAvatarRes(): Int {
+    return when (this?.trim()?.lowercase()) {
+        "female", "woman", "women", "girl" -> R.drawable.women_avatar1
+        "male", "man", "boy" -> R.drawable.man_avatar1
+        else -> R.drawable.home_screen_avatar
     }
 }
 

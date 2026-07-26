@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.gobff.getfriends.data.MainRepository
 import com.gobff.getfriends.data.model.FriendListUserResponse
 import com.gobff.getfriends.utils.TokenUtils
+import com.gobff.getfriends.utils.userFacingMessage
 import kotlinx.coroutines.launch
 
 data class FriendsListUiState(
@@ -59,7 +60,7 @@ class FriendsListViewModel(
                         isLoading = false,
                         friends = emptyList(),
                         hasLoaded = true,
-                        errorMessage = error.message ?: "Unable to load friends"
+                        errorMessage = error.userFacingMessage("Unable to load friends")
                     )
                 }
         }

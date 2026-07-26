@@ -199,14 +199,14 @@ private fun WalletHeader(
                 .padding(horizontal = 12.dp, vertical = 5.dp)
         ) {
             Image(
-                painter = painterResource(id = R.drawable.single_heart),
+                painter = painterResource(id = R.drawable.coin_icon),
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
                 contentScale = ContentScale.Fit
             )
             Spacer(modifier = Modifier.width(4.dp))
             Text(
-                text = "1 Heart = ₹0.90",
+                text = "1 Coin = ₹0.90",
                 color = Color.Black,
                 fontSize = 11.sp,
                 fontFamily = GaretFontFamily,
@@ -441,7 +441,7 @@ private fun WalletTransactionHistory(hasTransactions: Boolean) {
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Start making friends, earn hearts, and cash out\nyour rewards.",
+                    text = "Start making friends, earn coins, and cash out\nyour rewards.",
                     color = Color(0xFF999999),
                     fontSize = 11.sp,
                     lineHeight = 16.sp,

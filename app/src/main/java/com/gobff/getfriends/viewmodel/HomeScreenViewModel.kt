@@ -11,6 +11,7 @@ import com.gobff.getfriends.data.MainRepository
 import com.gobff.getfriends.data.model.ConnectUserResponse
 import com.gobff.getfriends.data.model.PresenceRequestBody
 import com.gobff.getfriends.utils.TokenUtils
+import com.gobff.getfriends.utils.userFacingMessage
 import kotlinx.coroutines.launch
 
 data class ConnectUsersUiState(
@@ -81,7 +82,7 @@ class HomeScreenViewModel(
                         isLoading = false,
                         users = emptyList(),
                         hasLoaded = true,
-                        errorMessage = error.message ?: "Unable to load connect users"
+                        errorMessage = error.userFacingMessage("Unable to load connect users")
                     )
                 }
         }

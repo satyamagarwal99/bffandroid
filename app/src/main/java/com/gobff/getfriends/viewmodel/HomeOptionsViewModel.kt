@@ -14,6 +14,7 @@ import com.gobff.getfriends.data.model.defaultVibeOptions
 import com.gobff.getfriends.data.model.toLanguageOption
 import com.gobff.getfriends.data.model.toVibeOption
 import com.gobff.getfriends.utils.TokenUtils
+import com.gobff.getfriends.utils.userFacingMessage
 import kotlinx.coroutines.launch
 
 data class HomeOptionsUiState(
@@ -73,7 +74,7 @@ class HomeOptionsViewModel(
                     uiState = uiState.copy(
                         isLoading = false,
                         hasLoaded = true,
-                        errorMessage = error.message ?: "Unable to load home options"
+                        errorMessage = error.userFacingMessage("Unable to load home options")
                     )
                 }
         }

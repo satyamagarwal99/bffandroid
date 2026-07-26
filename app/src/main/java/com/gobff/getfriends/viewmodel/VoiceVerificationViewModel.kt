@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.gobff.getfriends.data.MainRepository
 import com.gobff.getfriends.data.model.VoiceVerificationUiState
 import com.gobff.getfriends.utils.TokenUtils
+import com.gobff.getfriends.utils.userFacingMessage
 import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
@@ -60,7 +61,7 @@ class VoiceVerificationViewModel(
                 .onFailure { error ->
                     uiState = uiState.copy(
                         isStatusLoading = false,
-                        errorMessage = error.message ?: "Unable to load voice status"
+                        errorMessage = error.userFacingMessage("Unable to load voice status")
                     )
                 }
         }
@@ -122,7 +123,7 @@ class VoiceVerificationViewModel(
                 .onFailure { error ->
                     uiState = uiState.copy(
                         isSubmitting = false,
-                        errorMessage = error.message ?: "Unable to submit voice"
+                        errorMessage = error.userFacingMessage("Unable to submit voice")
                     )
                     onResult(false)
                 }

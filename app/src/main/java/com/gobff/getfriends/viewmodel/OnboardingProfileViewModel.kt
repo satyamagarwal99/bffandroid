@@ -13,6 +13,7 @@ import com.gobff.getfriends.data.model.UpdateProfileUiState
 import com.gobff.getfriends.utils.AppSession
 import com.gobff.getfriends.utils.Constant
 import com.gobff.getfriends.utils.TokenUtils
+import com.gobff.getfriends.utils.userFacingMessage
 import kotlinx.coroutines.launch
 
 class OnboardingProfileViewModel(
@@ -77,7 +78,7 @@ class OnboardingProfileViewModel(
                 .onFailure { error ->
                     uiState = uiState.copy(
                         isLoading = false,
-                        errorMessage = error.message ?: "Unable to update profile"
+                        errorMessage = error.userFacingMessage("Unable to update profile")
                     )
                 }
         }

@@ -102,6 +102,7 @@ private val ProfileCoral = Color(0xFFFF7171)
 @Composable
 fun ProfileScreen(
     modifier: Modifier = Modifier,
+    walletCoins: Int = 0,
     walletHearts: Int = 0,
     onBack: () -> Unit = {},
     onGiftVibeRequested: () -> Unit = {},
@@ -137,6 +138,7 @@ fun ProfileScreen(
 
     ProfileScreenContent(
         modifier = modifier,
+        walletCoins = walletCoins,
         walletHearts = walletHearts,
         userProfileState = userProfileState,
         friendSquadCount = friendsListState.friends.size,
@@ -172,6 +174,7 @@ fun ProfileScreen(
 @Composable
 private fun ProfileScreenContent(
     modifier: Modifier = Modifier,
+    walletCoins: Int = 0,
     walletHearts: Int = 0,
     userProfileState: UserProfileUiState = UserProfileUiState(),
     friendSquadCount: Int = 0,
@@ -387,7 +390,7 @@ private fun ProfileScreenContent(
         ) {
             ProfileTopBar(
                 onBack = onBack,
-                walletBalance = 0,
+                walletBalance = walletCoins,
                 walletHearts = walletHearts,
                 onWalletRequested = onWalletRequested,
                 onRechargeRequested = onRechargeRequested,
@@ -655,9 +658,9 @@ private fun ProfileTopBar(
         )
         Spacer(modifier = Modifier.weight(1f))
         ProfileTopChip(
-            width = 61.dp,
+            width = 76.dp,
             iconRes = R.drawable.profile_screen_wallet,
-            text = "₹$walletBalance",
+            text = walletBalance.toString(),
             onClick = onWalletRequested
         )
         Spacer(modifier = Modifier.width(12.dp))

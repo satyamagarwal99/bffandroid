@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -66,6 +67,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
@@ -726,7 +728,7 @@ private fun RechargePackCard(
             Text(
                 text = pack.hearts.toString(),
                 color = Color.Black,
-                fontSize = 16.sp,
+                fontSize = 14.sp,
                 lineHeight = 11.sp,
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Medium
@@ -961,7 +963,7 @@ private fun RechargePayButton(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(64.dp)
+            .height(60.dp)
             .clickable(enabled = isEnabled, onClick = onClick)
     ) {
         Box(
@@ -974,32 +976,42 @@ private fun RechargePayButton(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(58.dp)
+                .height(54.dp)
                 .clip(shape)
                 .background(buttonColor)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
+            BoxWithConstraints(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.matchParentSize()
             ) {
-                Text(
-                    text = buttonText,
-                    color = Color.White,
-                    fontSize = 24.sp,
-                    fontFamily = GaretFontFamily,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.width(22.dp))
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(38.dp)
-                )
+                val compact = maxWidth < 300.dp
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = if (compact) 12.dp else 16.dp)
+                ) {
+                    Text(
+                        text = buttonText,
+                        color = Color.White,
+                        fontSize = if (compact) 18.sp else 20.sp,
+                        lineHeight = if (compact) 20.sp else 22.sp,
+                        fontFamily = GaretFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (!compact) {
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(30.dp)
+                        )
+                    }
+                }
             }
         }
     }

@@ -89,6 +89,9 @@ class MainRepository(
     suspend fun getWalletBalance(bearerToken: String): Response<WalletBalanceResponse> =
         apiService.getWalletBalance(bearerToken)
 
+    suspend fun getCoinSummary(bearerToken: String): Response<WalletBalanceResponse> =
+        apiService.getCoinSummary(bearerToken)
+
     suspend fun getRechargeOptions(bearerToken: String): Response<RechargeOptionsResponse> =
         apiService.getRechargeOptions(bearerToken)
 

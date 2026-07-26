@@ -22,6 +22,7 @@ import com.gobff.getfriends.utils.AppSession
 import com.gobff.getfriends.utils.Constant
 import com.gobff.getfriends.utils.OtpDeviceProvider
 import com.gobff.getfriends.utils.TokenUtils
+import com.gobff.getfriends.utils.userFacingMessage
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.launch
@@ -156,7 +157,7 @@ class LoginViewModel(
                     uiState = uiState.copy(
                         isOtpRequestLoading = false,
                         showOtp = false,
-                        authStatusText = error.message ?: "Unable to request OTP"
+                        authStatusText = error.userFacingMessage("Unable to request OTP")
                     )
                 }
         }
@@ -234,7 +235,7 @@ class LoginViewModel(
                     uiState = uiState.copy(
                         isOtpVerifyLoading = false,
                         isAuthenticated = false,
-                        authStatusText = error.message ?: "OTP verification failed"
+                        authStatusText = error.userFacingMessage("OTP verification failed")
                     )
                 }
         }
@@ -300,7 +301,7 @@ class LoginViewModel(
                     uiState = uiState.copy(
                         isGoogleAuthLoading = false,
                         isAuthenticated = false,
-                        authStatusText = error.message ?: "Google sign-in failed"
+                        authStatusText = error.userFacingMessage("Google sign-in failed")
                     )
                 }
         }
