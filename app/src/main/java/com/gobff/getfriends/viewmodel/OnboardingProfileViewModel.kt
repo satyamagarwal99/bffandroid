@@ -59,7 +59,7 @@ class OnboardingProfileViewModel(
                             ONLINE_ONBOARDING_TAG,
                             "profileUpdateSuccess gender=$gender markOffline=true"
                         )
-                        AppSession.putBoolean(Constant.USER_UNAVAILABLE_FOR_CALLS_KEY, true)
+                        AppSession.putUserPersistentBoolean(Constant.USER_UNAVAILABLE_FOR_CALLS_KEY, true)
                         if (gender.equals("FEMALE", ignoreCase = true)) {
                             Log.d(ONLINE_ONBOARDING_TAG, "female profile created: marking pending")
                             AppSession.markFemaleOnlineOnboardingPending()

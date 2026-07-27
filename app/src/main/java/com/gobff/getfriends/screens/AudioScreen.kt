@@ -101,7 +101,9 @@ fun AudioScreen(
         elapsedSeconds = durationSeconds.coerceAtMost(MAX_RECORDING_SECONDS)
         if (durationSeconds < MIN_SUCCESS_SECONDS) {
             audioStage = AudioStage.Retry
-            statusMessage = null
+            statusMessage = SHORT_RECORDING_MESSAGE
+            outputFile?.delete()
+            outputFile = null
             return
         }
 
@@ -224,7 +226,27 @@ fun AudioScreen(
             contentScale = ContentScale.FillBounds
         )
 
-        AudioTopCopy(audioStage = audioStage, modifier = Modifier.align(Alignment.TopCenter))
+        AudioTopCopy(
+            audioStage = audioStage,
+            statusMessage = statusMessage,
+            modifier = Modifier.align(Alignment.TopCenter)
+        )
+
+        if (statusMessage == SHORT_RECORDING_MESSAGE) {
+            Text(
+                text = SHORT_RECORDING_MESSAGE,
+                color = Color.White,
+                fontSize = 15.sp,
+                lineHeight = 18.sp,
+                textAlign = TextAlign.Center,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(horizontal = 44.dp)
+                    .offset(y = 218.dp)
+            )
+        }
 
         if (audioStage != AudioStage.Success) {
             AudioSpeechBubble(
@@ -312,7 +334,7 @@ fun AudioScreen(
             }
         }
 
-        val messageText = voiceUiState.errorMessage ?: statusMessage
+        val messageText = voiceUiState.errorMessage ?: statusMessage.takeUnless { it == SHORT_RECORDING_MESSAGE }
         if (!messageText.isNullOrBlank()) {
             Text(
                 text = messageText,
@@ -332,10 +354,19 @@ fun AudioScreen(
 }
 
 @Composable
-private fun AudioTopCopy(audioStage: AudioStage, modifier: Modifier = Modifier) {
+private fun AudioTopCopy(
+    audioStage: AudioStage,
+    statusMessage: String?,
+    modifier: Modifier = Modifier
+) {
+    val isShortRecordingFailure = statusMessage == SHORT_RECORDING_MESSAGE
     val title = when (audioStage) {
         AudioStage.Prompt, AudioStage.Recording -> "Let's hear your voice"
-        AudioStage.Retry -> "We couldn't recognize\nyour voice :("
+        AudioStage.Retry -> if (isShortRecordingFailure) {
+            "Voice verification failed."
+        } else {
+            "We couldn't recognize\nyour voice :("
+        }
         AudioStage.Success -> "Voice verified"
     }
     val subtitle = when (audioStage) {
@@ -617,6 +648,7 @@ private enum class AudioStage {
 
 private const val MIN_SUCCESS_SECONDS = 3
 private const val MAX_RECORDING_SECONDS = 6
+private const val SHORT_RECORDING_MESSAGE = "Please record for at least 3 seconds and try again"
 private val AudioBackground = Color(0xFFFF7171)
 
 @Preview(showBackground = true, widthDp = 393, heightDp = 852)

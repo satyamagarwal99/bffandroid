@@ -76,6 +76,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gobff.getfriends.R
 import com.gobff.getfriends.utils.PresenceHeartbeat
+import com.gobff.getfriends.utils.AvatarGender
+import com.gobff.getfriends.utils.toAvatarGender
 import com.gobff.getfriends.ui.component.HandDrawnCardShape
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.FreedokaFontFamily
@@ -117,6 +119,7 @@ fun SettingsScreen(
     onNotificationAccessRequested: (onAccessReady: () -> Unit) -> Unit = { onAccessReady -> onAccessReady() },
     onLogout: () -> Unit = {},
     onDeleteAccount: () -> Unit = {},
+    currentUserGender: String? = null,
     logoutViewModel: LogoutViewModel = viewModel(),
     deleteAccountViewModel: DeleteAccountViewModel = viewModel()
 ) {
@@ -146,6 +149,7 @@ fun SettingsScreen(
             onAlwaysOnlineChanged = onAlwaysOnlineChanged,
             onNotificationAccessRequested = onNotificationAccessRequested,
             onLogout = { logoutViewModel.logout(onLogout) },
+            currentUserGender = currentUserGender,
             modifier = modifier
         )
 
@@ -215,14 +219,16 @@ private fun SettingsHomeContent(
     onAlwaysOnlineChanged: (Boolean) -> Unit,
     onNotificationAccessRequested: (onAccessReady: () -> Unit) -> Unit,
     onLogout: () -> Unit,
+    currentUserGender: String?,
     modifier: Modifier = Modifier
 ) {
     var alwaysOnline by remember { mutableStateOf(PresenceHeartbeat.isAlwaysOnlineEnabled()) }
     var audioEffects by remember { mutableStateOf(true) }
     val stayOnlineEnabled = alwaysOnline && hasNotificationAccess
+    val showStayOnlineForCalls = currentUserGender.toAvatarGender() == AvatarGender.Female
 
     LaunchedEffect(hasNotificationAccess) {
-        if (!hasNotificationAccess && alwaysOnline) {
+        if ((!hasNotificationAccess || !showStayOnlineForCalls) && alwaysOnline) {
             alwaysOnline = false
             PresenceHeartbeat.setAlwaysOnlineEnabled(false)
             onAlwaysOnlineChanged(false)
@@ -285,25 +291,27 @@ private fun SettingsHomeContent(
                             onClick = { audioEffects = !audioEffects },
                             trailing = { SettingsToggle(checked = audioEffects) }
                         )
-                        SettingsDivider()
-                        SettingsRow(
-                            title = "Stay Online for Calls",
-                            iconRes = R.drawable.setting_notification,
-                            iconBackground = Color(0xFFF1EDFC),
-                            showArrow = false,
-                            onClick = ::toggleAlwaysOnline,
-                            trailing = {
-                                Box(
-                                    modifier = Modifier.clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                        onClick = ::toggleAlwaysOnline
-                                    )
-                                ) {
-                                    SettingsToggle(checked = stayOnlineEnabled)
+                        if (showStayOnlineForCalls) {
+                            SettingsDivider()
+                            SettingsRow(
+                                title = "Stay Online for Calls",
+                                iconRes = R.drawable.setting_notification,
+                                iconBackground = Color(0xFFF1EDFC),
+                                showArrow = false,
+                                onClick = ::toggleAlwaysOnline,
+                                trailing = {
+                                    Box(
+                                        modifier = Modifier.clickable(
+                                            interactionSource = remember { MutableInteractionSource() },
+                                            indication = null,
+                                            onClick = ::toggleAlwaysOnline
+                                        )
+                                    ) {
+                                        SettingsToggle(checked = stayOnlineEnabled)
+                                    }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
 
                     SettingsGroupCard {

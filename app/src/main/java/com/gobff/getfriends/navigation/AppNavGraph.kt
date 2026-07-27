@@ -90,6 +90,7 @@ import com.gobff.getfriends.screens.IncomingCallScreen
 import com.gobff.getfriends.screens.LiveScreen
 import com.gobff.getfriends.screens.LoginScreen
 import com.gobff.getfriends.screens.OnlineFlowScreen
+import com.gobff.getfriends.screens.OnlineWaitingScreen
 import com.gobff.getfriends.screens.PersonalChatScreen
 import com.gobff.getfriends.screens.ProfileScreen
 import com.gobff.getfriends.screens.RechargeScreen
@@ -162,7 +163,7 @@ fun AppNavGraph(
     val appBottomBarContentPadding = if (selectedBottomTab == null) 0.dp else adaptiveBottomPadding
     val showWaitingForCallBanner =
         mainViewModel.userAvailableForCalls &&
-            AppSession.getBoolean(Constant.ONLINE_FLOW_COMPLETED_KEY) &&
+            AppSession.getUserPersistentBoolean(Constant.ONLINE_FLOW_COMPLETED_KEY) &&
             currentRoute.shouldShowWaitingForCallBanner()
     var lastHomeBackPressAt by remember { mutableStateOf(0L) }
     var notificationPermissionUiState by remember {
@@ -245,7 +246,7 @@ fun AppNavGraph(
     fun clearUserStateAndNavigateToLogin() {
         PresenceHeartbeat.setAlwaysOnlineEnabled(false)
         PresenceForegroundService.stop(context.applicationContext)
-        mainViewModel.stopForegroundHeartbeat(markOffline = true)
+        mainViewModel.stopForegroundHeartbeat(markOffline = false)
         AppSession.clear()
         navController.navigate(AppRoute.Login.route) {
             popUpTo(0)
@@ -414,6 +415,8 @@ fun AppNavGraph(
                 val hasSessionAfterSplash = TokenUtils.hasStoredSession()
                 val nextRoute = if (hasSessionAfterSplash) {
                     val hasProfile = userProfileViewModel.refreshProfile()
+                    mainViewModel.refreshAvailabilityFromSession()
+                    mainViewModel.onAppOpen()
                     Log.d(TAG, "Splash profile refresh result=$hasProfile")
                     resolvePostAuthRoute(
                         hasProfile = hasProfile,
@@ -441,6 +444,8 @@ fun AppNavGraph(
                 onAuthenticated = {
                     coroutineScope.launch {
                         val hasProfile = userProfileViewModel.refreshProfile()
+                        mainViewModel.refreshAvailabilityFromSession()
+                        mainViewModel.onAppOpen()
                         val nextRoute = resolvePostAuthRoute(
                             hasProfile = hasProfile,
                             requiresVoiceVerification = userProfileViewModel.shouldCompleteVoiceVerification()
@@ -515,6 +520,7 @@ fun AppNavGraph(
             LaunchedEffect(Unit) {
                 walletViewModel.loadWalletBalance()
                 val hasProfile = userProfileViewModel.refreshProfile()
+                mainViewModel.refreshAvailabilityFromSession()
                 val nextRoute = resolvePostAuthRoute(
                     hasProfile = hasProfile,
                     requiresVoiceVerification = userProfileViewModel.shouldCompleteVoiceVerification()
@@ -582,7 +588,7 @@ fun AppNavGraph(
                 },
                 isAvailableForCalls = mainViewModel.userAvailableForCalls,
                 onAvailabilityChanged = mainViewModel::updateUserAvailableForCalls,
-                showOnlineFlowBeforeEnable = !AppSession.getBoolean(Constant.ONLINE_FLOW_COMPLETED_KEY),
+                showOnlineFlowBeforeEnable = !AppSession.getUserPersistentBoolean(Constant.ONLINE_FLOW_COMPLETED_KEY),
                 onOnlineFlowRequested = { navController.navigateSingleTop(AppRoute.OnlineFlow) },
                 onNotificationAccessRequested = { onAccessReady ->
                     requestNotificationAccess(onAccessReady)
@@ -596,11 +602,17 @@ fun AppNavGraph(
             OnlineFlowScreen(
                 onBack = { navController.navigateUp() },
                 onCompleted = {
-                    AppSession.putBoolean(Constant.ONLINE_FLOW_COMPLETED_KEY, true)
+                    AppSession.putUserPersistentBoolean(Constant.ONLINE_FLOW_COMPLETED_KEY, true)
                     requestNotificationAccess {
                         mainViewModel.updateUserAvailableForCalls(true)
                     }
                 }
+            )
+        }
+
+        composable(AppRoute.OnlineWaiting.route) {
+            OnlineWaitingScreen(
+                onBack = { navController.navigateUp() }
             )
         }
 
@@ -622,7 +634,8 @@ fun AppNavGraph(
                     requestNotificationAccess(it)
                 },
                 onLogout = { clearUserStateAndNavigateToLogin() },
-                onDeleteAccount = { clearUserStateAndNavigateToLogin() }
+                onDeleteAccount = { clearUserStateAndNavigateToLogin() },
+                currentUserGender = currentUserProfile.gender
             )
         }
 
@@ -822,6 +835,7 @@ fun AppNavGraph(
 
         GlobalWaitingForCallBanner(
             visible = showWaitingForCallBanner,
+            onClick = { navController.navigateSingleTop(AppRoute.OnlineWaiting) },
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
@@ -894,6 +908,7 @@ private fun GlobalNotificationPermissionBanner(
 @Composable
 private fun GlobalWaitingForCallBanner(
     visible: Boolean,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     AnimatedVisibility(
@@ -910,7 +925,9 @@ private fun GlobalWaitingForCallBanner(
     ) {
         Surface(
             color = Color(0xFFE2F7EE),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -1046,20 +1063,21 @@ private fun String?.navigationOrderIndex(): Int? =
         AppRoute.Live.route -> 4
         AppRoute.Chat.route -> 5
         AppRoute.Profile.route -> 6
-        AppRoute.Settings.route -> 7
-        AppRoute.GiftVibe.route -> 8
-        AppRoute.Wallet.route -> 9
-        AppRoute.Recharge.route -> 10
-        AppRoute.Friends.route -> 11
-        AppRoute.PersonalChat.route -> 12
-        AppRoute.TruthDare.route -> 13
-        AppRoute.IncomingCall.route -> 14
-        AppRoute.Call.route -> 15
-        AppRoute.Gender.route -> 16
-        AppRoute.Audio.route -> 17
-        AppRoute.Login.route -> 18
-        AppRoute.UpdateApp.route -> 19
-        AppRoute.Splash.route -> 20
+        AppRoute.OnlineWaiting.route -> 7
+        AppRoute.Settings.route -> 8
+        AppRoute.GiftVibe.route -> 9
+        AppRoute.Wallet.route -> 10
+        AppRoute.Recharge.route -> 11
+        AppRoute.Friends.route -> 12
+        AppRoute.PersonalChat.route -> 13
+        AppRoute.TruthDare.route -> 14
+        AppRoute.IncomingCall.route -> 15
+        AppRoute.Call.route -> 16
+        AppRoute.Gender.route -> 17
+        AppRoute.Audio.route -> 18
+        AppRoute.Login.route -> 19
+        AppRoute.UpdateApp.route -> 20
+        AppRoute.Splash.route -> 21
         else -> null
     }
 
@@ -1087,6 +1105,7 @@ private fun String?.shouldShowWaitingForCallBanner(): Boolean =
         this != AppRoute.Gender.route &&
         this != AppRoute.Audio.route &&
         this != AppRoute.OnlineFlow.route &&
+        this != AppRoute.OnlineWaiting.route &&
         this != AppRoute.Call.route &&
         this != AppRoute.IncomingCall.route
 

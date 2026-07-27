@@ -303,7 +303,7 @@ private fun OnlineFlowButton(
 }
 
 @Composable
-private fun OnlineWaitingScreen(
+fun OnlineWaitingScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -946,8 +946,8 @@ private fun OnlineSafetyReportButton(
 private fun OnlineFlowScreenPreview() {
     BffAndroidTheme {
         OnlineFlowScreen()
-//        OnlineWaitingScreen(
-//            onBack = {}
-//        )
+        OnlineWaitingScreen(
+            onBack = {}
+        )
     }
 }

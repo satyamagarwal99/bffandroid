@@ -54,6 +54,7 @@ data class GoogleAuthBody(
 )
 
 data class GoogleAuthResponse(
+    @SerializedName("userId") val userId: String?,
     @SerializedName("success") val success: Boolean?,
     @SerializedName("verified") val verified: Boolean?,
     @SerializedName("message") val message: String?,

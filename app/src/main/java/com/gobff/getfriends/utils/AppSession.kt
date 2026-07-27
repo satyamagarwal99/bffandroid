@@ -122,6 +122,19 @@ object AppSession {
         return sharedPref!!.getBoolean(key, defaultValue)
     }
 
+    fun putUserPersistentBoolean(key: String, value: Boolean) {
+        ensureInitialized()
+        val scopedKey = userPersistentKey(key)
+        persistentPref!!.edit(commit = true) { putBoolean(scopedKey, value) }
+        Log.d(TAG, "putUserPersistentBoolean key=$scopedKey value=$value")
+    }
+
+    fun getUserPersistentBoolean(key: String, defaultValue: Boolean = false): Boolean {
+        ensureInitialized()
+        val scopedKey = userPersistentKey(key)
+        return persistentPref!!.getBoolean(scopedKey, defaultValue)
+    }
+
     fun markFemaleOnlineOnboardingPending() {
         ensureInitialized()
         val completed = persistentPref!!.getBoolean(Constant.FEMALE_ONLINE_ONBOARDING_COMPLETED_KEY, false)
@@ -302,6 +315,17 @@ object AppSession {
         key == Constant.REFRESH_TOKEN_EXPIRES_AT_KEY ||
         key == Constant.USER_ID_KEY ||
         key == Constant.INSTALLATION_ID_KEY
+
+    private fun userPersistentKey(key: String): String {
+        val userId = sharedPref!!.getString(Constant.USER_ID_KEY, null)
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+        val installationId = sharedPref!!.getString(Constant.INSTALLATION_ID_KEY, null)
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+        val scope = userId ?: "installation_${installationId.orEmpty().ifBlank { "unknown" }}"
+        return "user_${scope}_$key"
+    }
 
     private const val ONLINE_ONBOARDING_TAG = "FemaleOnlineOnboarding"
 

@@ -29,9 +29,15 @@ class MainViewModel(
     private val otpDeviceProvider = OtpDeviceProvider(application.applicationContext)
     private var presenceJob: Job? = null
     var userAvailableForCalls by mutableStateOf(
-        !AppSession.getBoolean(Constant.USER_UNAVAILABLE_FOR_CALLS_KEY, defaultValue = true)
+        !AppSession.getUserPersistentBoolean(Constant.USER_UNAVAILABLE_FOR_CALLS_KEY, defaultValue = true)
     )
         private set
+
+    fun refreshAvailabilityFromSession() {
+        userAvailableForCalls =
+            !AppSession.getUserPersistentBoolean(Constant.USER_UNAVAILABLE_FOR_CALLS_KEY, defaultValue = true)
+        Log.d(TAG, "Availability refreshed from persistent state available=$userAvailableForCalls")
+    }
 
     fun onAppOpen() {
         AppSession.logSnapshot("MainViewModel.onAppOpen")
@@ -74,7 +80,7 @@ class MainViewModel(
 
     fun updateUserAvailableForCalls(available: Boolean) {
         userAvailableForCalls = available
-        AppSession.putBoolean(Constant.USER_UNAVAILABLE_FOR_CALLS_KEY, !available)
+        AppSession.putUserPersistentBoolean(Constant.USER_UNAVAILABLE_FOR_CALLS_KEY, !available)
         if (!TokenUtils.hasStoredSession()) {
             Log.d(TAG, "Availability changed locally only: no stored session available=$available")
             return

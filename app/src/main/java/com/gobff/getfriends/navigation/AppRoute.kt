@@ -10,6 +10,7 @@ sealed class AppRoute(val route: String) {
     data object Home2 : AppRoute("home2")
     data object Profile : AppRoute("profile")
     data object OnlineFlow : AppRoute("online_flow")
+    data object OnlineWaiting : AppRoute("online_waiting")
     data object Settings : AppRoute("settings")
     data object GiftVibe : AppRoute("gift_vibe")
     data object Wallet : AppRoute("wallet")

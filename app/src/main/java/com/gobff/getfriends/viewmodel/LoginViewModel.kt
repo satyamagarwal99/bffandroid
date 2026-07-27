@@ -282,7 +282,8 @@ class LoginViewModel(
                             refreshToken = responseBody?.refreshToken,
                             accessTokenExpiresAt = responseBody?.accessTokenExpiresAt,
                             refreshTokenExpiresAt = responseBody?.refreshTokenExpiresAt,
-                            installationId = installationId
+                            installationId = installationId,
+                            userId = responseBody?.userId
                         )
                         syncFcmTokenAfterLogin(responseBody?.accessToken, fcmToken)
                         AppSession.logSnapshot("LoginViewModel.google.success")

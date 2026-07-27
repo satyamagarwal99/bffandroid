@@ -194,7 +194,7 @@ class UserProfileViewModel(
     }
 
     fun shouldCompleteVoiceVerification(): Boolean {
-        return uiState.voiceVerificationRequired && uiState.voiceVerificationStatus.isVoiceVerificationPending()
+        return uiState.voiceVerificationRequired && !uiState.voiceVerificationStatus.isVoiceVerificationSuccessful()
     }
 
     private fun hasRequiredProfileData(): Boolean {
@@ -202,8 +202,16 @@ class UserProfileViewModel(
     }
 }
 
-private fun String?.isVoiceVerificationPending(): Boolean {
-    return this?.trim()?.uppercase() == "PENDING"
+private fun String?.isVoiceVerificationSuccessful(): Boolean {
+    return when (this?.trim()?.uppercase()) {
+        "SUCCESS",
+        "SUCCESSFUL",
+        "COMPLETED",
+        "COMPLETE",
+        "PASSED",
+        "VERIFIED" -> true
+        else -> false
+    }
 }
 
 private fun List<String>.normalizedSet(): Set<String> {
