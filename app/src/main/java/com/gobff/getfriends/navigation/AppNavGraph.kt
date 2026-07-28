@@ -638,7 +638,10 @@ fun AppNavGraph(
                 showOnlineFlowBeforeEnable = !AppSession.getUserPersistentBoolean(Constant.ONLINE_FLOW_COMPLETED_KEY),
                 onOnlineFlowRequested = { navController.navigateSingleTop(AppRoute.OnlineFlow) },
                 onNotificationAccessRequested = { onAccessReady ->
-                    requestNotificationAccess(onAccessReady)
+                    requestNotificationAccess {
+                        PresenceHeartbeat.setAlwaysOnlineEnabled(true)
+                        onAccessReady()
+                    }
                 },
                 userProfileViewModel = userProfileViewModel,
                 friendsListViewModel = friendsListViewModel
@@ -651,6 +654,7 @@ fun AppNavGraph(
                 onCompleted = {
                     AppSession.putUserPersistentBoolean(Constant.ONLINE_FLOW_COMPLETED_KEY, true)
                     requestNotificationAccess {
+                        PresenceHeartbeat.setAlwaysOnlineEnabled(true)
                         mainViewModel.updateUserAvailableForCalls(true)
                     }
                 }
@@ -667,22 +671,8 @@ fun AppNavGraph(
             SettingsScreen(
                 walletHearts = walletHearts,
                 onBack = navController::navigateUp,
-                hasNotificationAccess = NotificationPermissionState.hasNotificationAccess(context),
-                onAlwaysOnlineChanged = { enabled ->
-                    if (enabled) {
-                        mainViewModel.stopForegroundHeartbeat()
-                        PresenceForegroundService.start(context.applicationContext)
-                    } else {
-                        PresenceForegroundService.stop(context.applicationContext)
-                        mainViewModel.onAppOpen()
-                    }
-                },
-                onNotificationAccessRequested = {
-                    requestNotificationAccess(it)
-                },
                 onLogout = { clearUserStateAndNavigateToLogin() },
-                onDeleteAccount = { clearUserStateAndNavigateToLogin() },
-                currentUserGender = currentUserProfile.gender
+                onDeleteAccount = { clearUserStateAndNavigateToLogin() }
             )
         }
 

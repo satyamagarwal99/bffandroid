@@ -75,9 +75,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gobff.getfriends.R
-import com.gobff.getfriends.utils.PresenceHeartbeat
-import com.gobff.getfriends.utils.AvatarGender
-import com.gobff.getfriends.utils.toAvatarGender
 import com.gobff.getfriends.ui.component.HandDrawnCardShape
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.FreedokaFontFamily
@@ -114,12 +111,8 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     walletHearts: Int = 0,
     onBack: () -> Unit = {},
-    hasNotificationAccess: Boolean = true,
-    onAlwaysOnlineChanged: (Boolean) -> Unit = {},
-    onNotificationAccessRequested: (onAccessReady: () -> Unit) -> Unit = { onAccessReady -> onAccessReady() },
     onLogout: () -> Unit = {},
     onDeleteAccount: () -> Unit = {},
-    currentUserGender: String? = null,
     logoutViewModel: LogoutViewModel = viewModel(),
     deleteAccountViewModel: DeleteAccountViewModel = viewModel()
 ) {
@@ -145,11 +138,7 @@ fun SettingsScreen(
             onTermsAndConditions = { page = SettingsPage.TermsAndConditions },
             onRefundCancellations = { page = SettingsPage.RefundCancellations },
             onPrivacyPolicy = { page = SettingsPage.PrivacyPolicy },
-            hasNotificationAccess = hasNotificationAccess,
-            onAlwaysOnlineChanged = onAlwaysOnlineChanged,
-            onNotificationAccessRequested = onNotificationAccessRequested,
             onLogout = { logoutViewModel.logout(onLogout) },
-            currentUserGender = currentUserGender,
             modifier = modifier
         )
 
@@ -215,40 +204,10 @@ private fun SettingsHomeContent(
     onTermsAndConditions: () -> Unit,
     onRefundCancellations: () -> Unit,
     onPrivacyPolicy: () -> Unit,
-    hasNotificationAccess: Boolean,
-    onAlwaysOnlineChanged: (Boolean) -> Unit,
-    onNotificationAccessRequested: (onAccessReady: () -> Unit) -> Unit,
     onLogout: () -> Unit,
-    currentUserGender: String?,
     modifier: Modifier = Modifier
 ) {
-    var alwaysOnline by remember { mutableStateOf(PresenceHeartbeat.isAlwaysOnlineEnabled()) }
     var audioEffects by remember { mutableStateOf(true) }
-    val stayOnlineEnabled = alwaysOnline && hasNotificationAccess
-    val showStayOnlineForCalls = currentUserGender.toAvatarGender() == AvatarGender.Female
-
-    LaunchedEffect(hasNotificationAccess) {
-        if ((!hasNotificationAccess || !showStayOnlineForCalls) && alwaysOnline) {
-            alwaysOnline = false
-            PresenceHeartbeat.setAlwaysOnlineEnabled(false)
-            onAlwaysOnlineChanged(false)
-        }
-    }
-
-    fun toggleAlwaysOnline() {
-        val enabled = !stayOnlineEnabled
-        if (enabled) {
-            onNotificationAccessRequested {
-                alwaysOnline = true
-                PresenceHeartbeat.setAlwaysOnlineEnabled(true)
-                onAlwaysOnlineChanged(true)
-            }
-        } else {
-            alwaysOnline = false
-            PresenceHeartbeat.setAlwaysOnlineEnabled(false)
-            onAlwaysOnlineChanged(false)
-        }
-    }
 
     SettingsBackground(modifier = modifier) {
         Column(
@@ -291,27 +250,6 @@ private fun SettingsHomeContent(
                             onClick = { audioEffects = !audioEffects },
                             trailing = { SettingsToggle(checked = audioEffects) }
                         )
-                        if (showStayOnlineForCalls) {
-                            SettingsDivider()
-                            SettingsRow(
-                                title = "Stay Online for Calls",
-                                iconRes = R.drawable.setting_notification,
-                                iconBackground = Color(0xFFF1EDFC),
-                                showArrow = false,
-                                onClick = ::toggleAlwaysOnline,
-                                trailing = {
-                                    Box(
-                                        modifier = Modifier.clickable(
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            indication = null,
-                                            onClick = ::toggleAlwaysOnline
-                                        )
-                                    ) {
-                                        SettingsToggle(checked = stayOnlineEnabled)
-                                    }
-                                }
-                            )
-                        }
                     }
 
                     SettingsGroupCard {

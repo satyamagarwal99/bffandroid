@@ -36,6 +36,7 @@ class MainViewModel(
     fun refreshAvailabilityFromSession() {
         userAvailableForCalls =
             !AppSession.getUserPersistentBoolean(Constant.USER_UNAVAILABLE_FOR_CALLS_KEY, defaultValue = true)
+        PresenceHeartbeat.setAlwaysOnlineEnabled(userAvailableForCalls)
         Log.d(TAG, "Availability refreshed from persistent state available=$userAvailableForCalls")
     }
 
@@ -98,6 +99,8 @@ class MainViewModel(
                 startForegroundHeartbeat()
             }
         } else {
+            PresenceHeartbeat.setAlwaysOnlineEnabled(false)
+            PresenceForegroundService.stop(appContext)
             stopForegroundHeartbeat()
             viewModelScope.launch {
                 PresenceHeartbeat.updateOnline(mainRepository, online = false, tag = TAG)
