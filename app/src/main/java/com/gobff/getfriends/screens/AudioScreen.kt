@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Mic
@@ -69,6 +70,7 @@ import java.io.File
 fun AudioScreen(
     modifier: Modifier = Modifier,
     onBack: () -> Unit = {},
+    onBackToLogin: () -> Unit = {},
     onDone: () -> Unit = {},
     voiceVerificationViewModel: VoiceVerificationViewModel = viewModel()
 ) {
@@ -245,6 +247,30 @@ fun AudioScreen(
                     .align(Alignment.TopCenter)
                     .padding(horizontal = 44.dp)
                     .offset(y = 218.dp)
+            )
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 18.dp, top = 42.dp)
+                .clickable(enabled = !voiceUiState.isSubmitting, onClick = onBackToLogin)
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(22.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "Login",
+                color = Color.White,
+                fontSize = 15.sp,
+                lineHeight = 15.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
             )
         }
 

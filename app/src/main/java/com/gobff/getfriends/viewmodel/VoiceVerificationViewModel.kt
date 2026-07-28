@@ -137,6 +137,9 @@ private fun String?.isVoiceVerificationSuccessful(): Boolean {
         "SUCCESSFUL",
         "COMPLETED",
         "COMPLETE",
+        "PASSED",
+        "PASS",
+        "APPROVED",
         "VERIFIED" -> true
         else -> false
     }

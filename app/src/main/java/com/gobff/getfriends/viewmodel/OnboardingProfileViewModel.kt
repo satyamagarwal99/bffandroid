@@ -21,15 +21,60 @@ class OnboardingProfileViewModel(
 ) : AndroidViewModel(application) {
     private val mainRepository = MainRepository()
 
+
     var uiState by mutableStateOf(UpdateProfileUiState())
         private set
 
-    fun updateProfile(
+    fun saveGender(
+        gender: String,
+        onSuccess: () -> Unit
+    ) {
+        updateProfile(
+            body = UpdateProfileBody(gender = gender),
+            onSuccess = {
+                AppSession.setCurrentUserProfile(
+                    displayName = AppSession.getCurrentUserDisplayName(),
+                    avatarUrl = AppSession.getCurrentUserAvatarUrl(),
+                    gender = it.gender ?: gender
+                )
+                onSuccess()
+            }
+        )
+    }
+
+    fun saveDisplayName(
         displayName: String,
         gender: String,
-        avatarUrl: String,
-        bio: String? = null,
         onSuccess: () -> Unit
+    ) {
+        val resolvedDisplayName = displayName.trim().ifBlank { Constant.DEFAULT_DISPLAY_NAME }
+        updateProfile(
+            body = UpdateProfileBody(displayName = resolvedDisplayName),
+            onSuccess = { response ->
+                Log.d(
+                    ONLINE_ONBOARDING_TAG,
+                    "profileUpdateSuccess gender=$gender markOffline=true"
+                )
+                AppSession.putUserPersistentBoolean(Constant.USER_UNAVAILABLE_FOR_CALLS_KEY, true)
+                if (gender.equals("FEMALE", ignoreCase = true)) {
+                    Log.d(ONLINE_ONBOARDING_TAG, "female profile created: marking pending")
+                    AppSession.markFemaleOnlineOnboardingPending()
+                } else {
+                    Log.d(ONLINE_ONBOARDING_TAG, "non-female profile created: no onboarding")
+                }
+                AppSession.setCurrentUserProfile(
+                    displayName = response.displayName ?: resolvedDisplayName,
+                    avatarUrl = response.avatarUrl ?: AppSession.getCurrentUserAvatarUrl(),
+                    gender = response.gender ?: AppSession.getCurrentUserGender()
+                )
+                onSuccess()
+            }
+        )
+    }
+
+    private fun updateProfile(
+        body: UpdateProfileBody,
+        onSuccess: (com.gobff.getfriends.data.model.UpdateProfileResponse) -> Unit
     ) {
         if (uiState.isLoading) return
 
@@ -45,33 +90,16 @@ class OnboardingProfileViewModel(
 
             uiState = uiState.copy(isLoading = true, errorMessage = null)
 
-            val body = UpdateProfileBody(
-                displayName = displayName.trim().ifBlank { Constant.DEFAULT_DISPLAY_NAME },
-                gender = gender,
-                avatarUrl = avatarUrl,
-                bio = bio?.trim()?.takeIf { it.isNotBlank() }
-            )
-
             runCatching { mainRepository.updateProfile(token, body) }
                 .onSuccess { response ->
-                    if (response.isSuccessful) {
-                        Log.d(
-                            ONLINE_ONBOARDING_TAG,
-                            "profileUpdateSuccess gender=$gender markOffline=true"
-                        )
-                        AppSession.putUserPersistentBoolean(Constant.USER_UNAVAILABLE_FOR_CALLS_KEY, true)
-                        if (gender.equals("FEMALE", ignoreCase = true)) {
-                            Log.d(ONLINE_ONBOARDING_TAG, "female profile created: marking pending")
-                            AppSession.markFemaleOnlineOnboardingPending()
-                        } else {
-                            Log.d(ONLINE_ONBOARDING_TAG, "non-female profile created: no onboarding")
-                        }
+                    val responseBody = response.body()
+                    if (response.isSuccessful && responseBody != null) {
                         uiState = uiState.copy(isLoading = false, errorMessage = null)
-                        onSuccess()
+                        onSuccess(responseBody)
                     } else {
                         uiState = uiState.copy(
                             isLoading = false,
-                            errorMessage = response.body()?.message ?: "Unable to update profile"
+                            errorMessage = responseBody?.message ?: "Unable to update profile"
                         )
                     }
                 }

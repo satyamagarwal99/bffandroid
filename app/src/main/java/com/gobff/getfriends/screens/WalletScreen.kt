@@ -82,6 +82,7 @@ fun WalletScreen(
     var resultState by remember { mutableStateOf(WithdrawalResult.Success) }
     val walletUiState = walletViewModel.uiState
     val balanceAmount = walletUiState.amountInr
+    val coinBalance = walletUiState.coins
 
     BackHandler {
         if (sheet != null) sheet = null else onBack()
@@ -95,6 +96,7 @@ fun WalletScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             WalletHeader(
                 amount = balanceAmount,
+                coins = coinBalance,
                 onBack = onBack,
                 onRedeem = {
                     sheet = if (panVerified) WalletSheet.Withdraw else WalletSheet.PanVerification
@@ -160,13 +162,14 @@ fun WalletScreen(
 @Composable
 private fun WalletHeader(
     amount: Int,
+    coins: Int,
     onBack: () -> Unit,
     onRedeem: () -> Unit
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(360.dp)
+            .height(400.dp)
             .clip(RoundedCornerShape(bottomStart = 18.dp, bottomEnd = 18.dp))
             .background(WalletCoral)
     ) {
@@ -177,54 +180,59 @@ private fun WalletHeader(
             contentScale = ContentScale.FillBounds
         )
         WalletTopBar(onBack = onBack)
-        Text(
-            text = "₹$amount",
-            color = Color.White,
-            fontSize = 60.sp,
-            lineHeight = 60.sp,
-            fontFamily = FreedokaFontFamily,
-            fontWeight = FontWeight.Bold,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 98.dp)
-        )
+                .padding(top = 124.dp)
+        ) {
+            Text(
+                text = coins.toString(),
+                color = Color.White,
+                fontSize = 72.sp,
+                lineHeight = 72.sp,
+                fontFamily = FreedokaFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Image(
+                painter = painterResource(id = R.drawable.coin_icon),
+                contentDescription = null,
+                modifier = Modifier.size(54.dp),
+                contentScale = ContentScale.Fit
+            )
+        }
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 190.dp)
+                .padding(top = 220.dp)
                 .clip(RoundedCornerShape(24.dp))
                 .background(Color.White.copy(alpha = 0.22f))
                 .border(1.dp, Color.White.copy(alpha = 0.65f), RoundedCornerShape(24.dp))
-                .padding(horizontal = 12.dp, vertical = 5.dp)
+                .padding(horizontal = 13.dp, vertical = 6.dp)
         ) {
-            Image(
-                painter = painterResource(id = R.drawable.coin_icon),
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                contentScale = ContentScale.Fit
-            )
-            Spacer(modifier = Modifier.width(4.dp))
             Text(
-                text = "1 Coin = ₹0.90",
+                text = "Balance: ${amount.formatWalletBalance()}",
                 color = Color.Black,
                 fontSize = 11.sp,
                 fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Normal
+                fontWeight = FontWeight.Bold
             )
         }
         SwipeToRedeem(
-            enabled = amount > 0,
+            enabled = coins >= MIN_REDEEM_COINS,
             onRedeem = onRedeem,
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = 252.dp)
-                .padding(horizontal = 34.dp)
+                .padding(top = 293.dp)
+                .padding(horizontal = 32.dp)
         )
         WalletTrustRow(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 18.dp)
+                .padding(bottom = 20.dp)
         )
     }
 }
@@ -234,7 +242,7 @@ private fun WalletTopBar(onBack: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 48.dp, start = 22.dp, end = 22.dp)
+            .padding(top = 56.dp, start = 20.dp, end = 20.dp)
     ) {
 
         Icon(
@@ -253,11 +261,48 @@ private fun WalletTopBar(onBack: () -> Unit) {
         Text(
             text = "Reward wallet",
             color = Color.White,
-            fontSize = 20.sp,
+            fontSize = 16.sp,
             fontFamily = GaretFontFamily,
             fontWeight = FontWeight.Bold,
             modifier = Modifier
                 .align(Alignment.TopCenter)
+        )
+        CoinRatePill(modifier = Modifier.align(Alignment.TopEnd))
+    }
+}
+
+@Composable
+private fun CoinRatePill(modifier: Modifier = Modifier) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .height(25.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color.White)
+            .border(1.dp, Color.White.copy(alpha = 0.85f), RoundedCornerShape(20.dp))
+            .padding(horizontal = 9.dp)
+    ) {
+        Text(
+            text = "1",
+            color = Color.Black,
+            fontSize = 11.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.width(3.dp))
+        Image(
+            painter = painterResource(id = R.drawable.coin_icon),
+            contentDescription = null,
+            modifier = Modifier.size(14.dp),
+            contentScale = ContentScale.Fit
+        )
+        Spacer(modifier = Modifier.width(3.dp))
+        Text(
+            text = "= ₹0.90",
+            color = Color.Black,
+            fontSize = 10.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold
         )
     }
 }
@@ -272,14 +317,14 @@ private fun SwipeToRedeem(
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     var trackWidthPx by remember { mutableStateOf(0f) }
-    val sidePaddingPx = with(density) { 6.dp.toPx() }
-    val knobSizePx = with(density) { 38.dp.toPx() }
+    val sidePaddingPx = with(density) { 8.dp.toPx() }
+    val knobSizePx = with(density) { 40.dp.toPx() }
     val maxOffset = (trackWidthPx - knobSizePx - (sidePaddingPx * 2f)).coerceAtLeast(0f)
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(48.dp)
+            .height(56.dp)
             .onSizeChanged { trackWidthPx = it.width.toFloat() }
             .pointerInput(enabled, maxOffset) {
                 if (!enabled) return@pointerInput
@@ -316,41 +361,43 @@ private fun SwipeToRedeem(
             modifier = Modifier
                 .matchParentSize()
                 .offset(x = 3.dp, y = 4.dp)
-                .clip(RoundedCornerShape(11.dp))
+                .clip(RoundedCornerShape(16.dp))
                 .background(if (enabled) Color.Black else Color.Transparent)
         )
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .clip(RoundedCornerShape(11.dp))
-                .background(if (enabled) Color.White else Color.White.copy(alpha = 0.38f))
-                .border(1.dp, Color.White.copy(alpha = 0.8f), RoundedCornerShape(11.dp))
+                .clip(RoundedCornerShape(16.dp))
+                .background(if (enabled) Color.White else Color.White.copy(alpha = 0.40f))
+                .border(1.dp, Color.White.copy(alpha = 0.8f), RoundedCornerShape(16.dp))
         )
         Text(
-            text = "Swipe to redeem",
+            text = if (enabled) "Swipe to redeem" else "Minimum 100 coins to redeem",
             color = Color(0xFF222222).copy(alpha = if (enabled) 1f else 0.38f),
-            fontSize = 14.sp,
+            fontSize = 13.sp,
             fontFamily = GaretFontFamily,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.align(Alignment.Center)
         )
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .offset { IntOffset(knobOffset.value.roundToInt(), 0) }
-                .align(Alignment.CenterStart)
-                .padding(start = 6.dp)
-                .size(38.dp)
-                .clip(RoundedCornerShape(9.dp))
-                .background(Color(0xFFFFD8D8))
-                .border(1.dp, Color.White.copy(alpha = 0.7f), RoundedCornerShape(9.dp))
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = null,
-                tint = Color.Black,
-                modifier = Modifier.size(22.dp)
-            )
+        if (enabled) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .offset { IntOffset(knobOffset.value.roundToInt(), 0) }
+                    .align(Alignment.CenterStart)
+                    .padding(start = 8.dp)
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFFF98080))
+                    .border(1.dp, Color.White.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = Color.Black,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
         }
     }
 }
@@ -416,7 +463,7 @@ private fun WalletTransactionHistory(hasTransactions: Boolean) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 24.dp)
-            .padding(top = 28.dp)
+            .padding(top = 32.dp)
     ) {
         Text(
             text = "Transaction History",
@@ -430,7 +477,7 @@ private fun WalletTransactionHistory(hasTransactions: Boolean) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 130.dp)
+                    .padding(top = 142.dp)
             ) {
                 Text(
                     text = "No withdrawals yet",
@@ -441,7 +488,7 @@ private fun WalletTransactionHistory(hasTransactions: Boolean) {
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Start making friends, earn coins, and cash out\nyour rewards.",
+                    text = "Start making friends, earn hearts, and cash out\nyour rewards.",
                     color = Color(0xFF999999),
                     fontSize = 11.sp,
                     lineHeight = 16.sp,
@@ -451,15 +498,23 @@ private fun WalletTransactionHistory(hasTransactions: Boolean) {
                 )
             }
         } else {
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(30.dp))
             listOf(
-                WalletTransaction("Withdrawal", "12 Jun 2026, 06:30 PM", "₹150", "Completed", Color(0xFF39B86B), Color(0xFFE3F7E9)),
-                WalletTransaction("Withdrawal", "20 Aug 2026, 02:15 PM", "₹350", "Failed", Color(0xFFE95151), Color(0xFFF0E7FF)),
-                WalletTransaction("Withdrawal", "05 Sep 2026, 11:00 AM", "₹500", "Completed", Color(0xFF39B86B), Color(0xFFFFF0C8)),
-                WalletTransaction("Withdrawal", "05 Sep 2026, 11:00 AM", "₹500", "Completed", Color(0xFF39B86B), Color(0xFFDDF9F5)),
-                WalletTransaction("Withdrawal", "05 Sep 2026, 11:00 AM", "₹500", "Completed", Color(0xFF39B86B), Color(0xFFE3F7E9))
-            ).forEach {
-                TransactionRow(it)
+                WalletTransaction("Withdrawal", "12 Jun 2026, 06:30 PM", "₹150", "-172 Coins", "Completed", Color(0xFF39B86B), Color(0xFFE3F7E9)),
+                WalletTransaction("Withdrawal", "12 Jun 2026, 06:30 PM", "₹150", "-172 Coins", "Failed", Color(0xFFE95151), Color(0xFFF0E7FF)),
+                WalletTransaction("Withdrawal", "12 Jun 2026, 06:30 PM", "₹150", "-172 Coins", "Completed", Color(0xFF39B86B), Color(0xFFFFF0C8)),
+                WalletTransaction("Withdrawal", "12 Jun 2026, 06:30 PM", "₹150", "-172 Coins", "Completed", Color(0xFF39B86B), Color(0xFFDDF9F5)),
+                WalletTransaction("Withdrawal", "12 Jun 2026, 06:30 PM", "₹150", "-172 Coins", "Completed", Color(0xFF39B86B), Color(0xFFE3F7E9))
+            ).forEachIndexed { index, item ->
+                TransactionRow(item)
+                if (index < 4) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(Color(0xFFF1F1F1))
+                    )
+                }
             }
         }
     }
@@ -471,12 +526,12 @@ private fun TransactionRow(item: WalletTransaction) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .height(64.dp)
+            .height(62.dp)
     ) {
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier
-                .size(36.dp)
+                .size(40.dp)
                 .clip(CircleShape)
                 .background(item.iconBackground)
         ) {
@@ -489,22 +544,27 @@ private fun TransactionRow(item: WalletTransaction) {
         }
         Spacer(modifier = Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(item.title, color = Color(0xFF000000), fontSize = 12.sp, fontFamily = GaretFontFamily, fontWeight = FontWeight.Medium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(item.title, color = Color(0xFF000000), fontSize = 12.sp, fontFamily = GaretFontFamily, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.width(6.dp))
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(item.statusColor.copy(alpha = 0.12f))
+                        .border(1.dp, item.statusColor, RoundedCornerShape(20.dp))
+                        .padding(horizontal = 7.dp, vertical = 2.dp)
+                ) {
+                    Text(item.status, color = item.statusColor, fontSize = 7.sp, fontFamily = GaretFontFamily, fontWeight = FontWeight.Bold)
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
             Text(item.date, color = Color(0xFF999999), fontSize = 10.sp, fontFamily = GaretFontFamily, fontWeight = FontWeight.Medium)
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(item.amount, color = Color.Black, fontSize = 13.sp, fontFamily = GaretFontFamily, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(4.dp))
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(item.statusColor.copy(alpha = 0.12f))
-                    .border(1.dp, item.statusColor, RoundedCornerShape(20.dp))
-                    .padding(horizontal = 8.dp, vertical = 2.dp)
-            ) {
-                Text(item.status, color = item.statusColor, fontSize = 8.sp, fontFamily = GaretFontFamily, fontWeight = FontWeight.Bold)
-            }
+            Text(item.coinDelta, color = WalletYellow, fontSize = 10.sp, fontFamily = GaretFontFamily, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -845,10 +905,17 @@ private data class WalletTransaction(
     val title: String,
     val date: String,
     val amount: String,
+    val coinDelta: String,
     val status: String,
     val statusColor: Color,
     val iconBackground: Color
 )
+
+private fun Int.formatWalletBalance(): String {
+    return if (this == 0) "₹0.00" else "₹$this"
+}
+
+private const val MIN_REDEEM_COINS = 100
 
 @Preview(showBackground = true, widthDp = 393, heightDp = 852)
 @Composable

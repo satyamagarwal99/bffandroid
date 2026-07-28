@@ -14,6 +14,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,8 +44,6 @@ import androidx.compose.material.icons.filled.CurrencyRupee
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -126,7 +125,6 @@ fun RechargeScreen(
     var stage by remember { mutableStateOf(RechargeStage.Main) }
     var appliedCouponCode by remember { mutableStateOf("") }
     var pendingCouponCode by remember { mutableStateOf("") }
-    var availableUpiApps by remember { mutableStateOf(emptyList<CashfreePaymentLauncher.UpiPaymentApp>()) }
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val selectedPack = rechargePacks.firstOrNull { it.id == rechargeUiState.selectedOptionId }
@@ -135,10 +133,6 @@ fun RechargeScreen(
         when (stage) {
             RechargeStage.Main -> onBack()
             RechargeStage.Coupon -> stage = RechargeStage.Main
-            RechargeStage.UpiPicker -> {
-                rechargeViewModel.clearQuoteState()
-                stage = RechargeStage.Main
-            }
             RechargeStage.Processing,
             RechargeStage.PaymentStatus -> {
                 rechargeViewModel.clearQuoteState()
@@ -212,21 +206,30 @@ fun RechargeScreen(
                 return@LaunchedEffect
             }
 
-            if (checkout.hasCashfreeSession) {
-                val upiApps = CashfreePaymentLauncher.installedUpiApps(activity)
-                if (upiApps.isNotEmpty()) {
-                    availableUpiApps = upiApps
-                    stage = RechargeStage.UpiPicker
-                    return@LaunchedEffect
-                }
+            val result = when (selectedPayment.gateway) {
+                PaymentGateway.GPay -> CashfreePaymentLauncher.launchUpiIntent(
+                    activity = activity,
+                    checkout = checkout,
+                    selectedPackageName = GOOGLE_PAY_PACKAGE,
+                    onReturn = rechargeViewModel::markPaymentReturned,
+                    onFailure = rechargeViewModel::markPaymentReturnFailed
+                )
+                PaymentGateway.PhonePe -> CashfreePaymentLauncher.launchUpiIntent(
+                    activity = activity,
+                    checkout = checkout,
+                    selectedPackageName = PHONEPE_PACKAGE,
+                    onReturn = rechargeViewModel::markPaymentReturned,
+                    onFailure = rechargeViewModel::markPaymentReturnFailed
+                )
+                PaymentGateway.CashfreeCheckout -> CashfreePaymentLauncher.fallback(
+                    activity = activity,
+                    checkout = checkout,
+                    onReturn = rechargeViewModel::markPaymentReturned,
+                    onFailure = rechargeViewModel::markPaymentReturnFailed
+                )
             }
 
-            when (val result = CashfreePaymentLauncher.fallback(
-                activity = activity,
-                checkout = checkout,
-                onReturn = rechargeViewModel::markPaymentReturned,
-                onFailure = rechargeViewModel::markPaymentReturnFailed
-            )) {
+            when (result) {
                 CashfreePaymentLauncher.LaunchResult.Launched -> {
                     rechargeViewModel.markCheckoutLaunched(checkout.launchKey)
                 }
@@ -268,13 +271,6 @@ fun RechargeScreen(
                     stage = RechargeStage.Main
                 }
             )
-            RechargeStage.UpiPicker -> RechargeProcessingScreen(
-                statusMessage = rechargeUiState.purchaseMessage,
-                onBackToRecharge = {
-                    rechargeViewModel.clearQuoteState()
-                    stage = RechargeStage.Main
-                }
-            )
             RechargeStage.PaymentStatus -> RechargePaymentStatusScreen(
                 resolution = rechargeUiState.paymentResolution ?: RechargePaymentResolution.Pending,
                 statusMessage = rechargeUiState.purchaseMessage,
@@ -310,66 +306,6 @@ fun RechargeScreen(
             )
         }
 
-        if (stage == RechargeStage.UpiPicker) {
-            UpiAppsOverlay(
-                apps = availableUpiApps,
-                onDismiss = {
-                    rechargeViewModel.clearQuoteState()
-                    stage = RechargeStage.Main
-                },
-                onAppSelected = { app ->
-                    val activity = context as? Activity
-                    val checkout = rechargeUiState.checkout
-                    if (activity == null || checkout == null) {
-                        rechargeViewModel.markCheckoutLaunchFailed("Unable to open payment app")
-                        stage = RechargeStage.Main
-                        return@UpiAppsOverlay
-                    }
-
-                    when (val result = CashfreePaymentLauncher.launchUpiIntent(
-                        activity = activity,
-                        checkout = checkout,
-                        selectedPackageName = app.packageName,
-                        onReturn = rechargeViewModel::markPaymentReturned,
-                        onFailure = rechargeViewModel::markPaymentReturnFailed
-                    )) {
-                        CashfreePaymentLauncher.LaunchResult.Launched -> {
-                            rechargeViewModel.markCheckoutLaunched(checkout.launchKey)
-                            stage = RechargeStage.Processing
-                        }
-                        is CashfreePaymentLauncher.LaunchResult.Failure -> {
-                            rechargeViewModel.markCheckoutLaunchFailed(result.message)
-                            stage = RechargeStage.Main
-                        }
-                    }
-                },
-                onFallback = {
-                    val activity = context as? Activity
-                    val checkout = rechargeUiState.checkout
-                    if (activity == null || checkout == null) {
-                        rechargeViewModel.markCheckoutLaunchFailed("Unable to open payment page")
-                        stage = RechargeStage.Main
-                        return@UpiAppsOverlay
-                    }
-
-                    when (val result = CashfreePaymentLauncher.fallback(
-                        activity = activity,
-                        checkout = checkout,
-                        onReturn = rechargeViewModel::markPaymentReturned,
-                        onFailure = rechargeViewModel::markPaymentReturnFailed
-                    )) {
-                        CashfreePaymentLauncher.LaunchResult.Launched -> {
-                            rechargeViewModel.markCheckoutLaunched(checkout.launchKey)
-                            stage = RechargeStage.Processing
-                        }
-                        is CashfreePaymentLauncher.LaunchResult.Failure -> {
-                            rechargeViewModel.markCheckoutLaunchFailed(result.message)
-                            stage = RechargeStage.Main
-                        }
-                    }
-                }
-            )
-        }
     }
 }
 
@@ -526,33 +462,42 @@ private fun RechargeHeader(
                 .padding(top = 48.dp, end = 30.dp)
                 .size(24.dp)
         )
-        Column(
+        BoxWithConstraints(
             modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 20.dp, bottom = 56.dp)
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 12.dp, bottom = 50.dp)
         ) {
-            Text(
-                text = "Don't feel lonely",
-                color = Color.White,
-                fontSize = 14.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = "Recharge & keep talking",
-                color = Color.White,
-                fontSize = 14.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold
-            )
+            val headerCopySize = if (maxWidth < 360.dp) 12.sp else 14.sp
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = "Don't feel lonely",
+                        color = Color.White,
+                        fontSize = headerCopySize,
+                        maxLines = 1,
+                        fontFamily = GaretFontFamily,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Recharge & keep talking",
+                        color = Color.White,
+                        fontSize = headerCopySize,
+                        maxLines = 1,
+                        fontFamily = GaretFontFamily,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                BalanceChip(balance = balance)
+            }
         }
-        BalanceChip(
-            balance = balance,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 18.dp, bottom = 50.dp)
-        )
     }
 }
 
@@ -562,7 +507,7 @@ private fun BalanceChip(
     modifier: Modifier = Modifier
 ) {
     val shape = HeartChipShape
-    Box(modifier = modifier.size(width = 152.dp, height = 56.dp)) {
+    Box(modifier = modifier.size(width = 132.dp, height = 54.dp)) {
         Box(
             modifier = Modifier
                 .matchParentSize()
@@ -577,20 +522,20 @@ private fun BalanceChip(
                 .clip(shape)
                 .background(Color.White)
                 .border(1.3.dp, Color.Black, shape)
-                .padding(horizontal = 14.dp)
+                .padding(horizontal = 10.dp)
         ) {
             Image(
                 painter = painterResource(id = R.drawable.single_heart),
                 contentDescription = null,
-                modifier = Modifier.size(30.dp),
+                modifier = Modifier.size(26.dp),
                 contentScale = ContentScale.Fit
             )
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(6.dp))
             Column {
                 Text(
                     text = "Your Balance",
                     color = RechargeMuted,
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,
                     lineHeight = 10.sp,
                     fontFamily = GaretFontFamily,
                     fontWeight = FontWeight.Medium
@@ -814,10 +759,10 @@ private fun CouponOfferCard(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .fillMaxWidth()
-            .height(78.dp)
+            .height(96.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(Color(0xFFF1F0FF))
-            .padding(start = 12.dp)
+            .padding(start = 14.dp)
             .clickable(onClick = onClick)
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -828,7 +773,7 @@ private fun CouponOfferCard(
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Bold
             )
-            Spacer(modifier= Modifier.height(3.dp))
+            Spacer(modifier= Modifier.height(6.dp))
             Text(
                 text = buildAnnotatedString {
                     append("Grab the ")
@@ -847,7 +792,7 @@ private fun CouponOfferCard(
         Image(
             painter = painterResource(id = R.drawable.coupan_icon),
             contentDescription = null,
-            modifier = Modifier.size(width = 114.dp, height = 84.dp),
+            modifier = Modifier.size(width = 128.dp, height = 94.dp),
             contentScale = ContentScale.Fit
         )
         Box(
@@ -1018,101 +963,6 @@ private fun RechargePayButton(
 }
 
 @Composable
-private fun UpiAppsOverlay(
-    apps: List<CashfreePaymentLauncher.UpiPaymentApp>,
-    onDismiss: () -> Unit,
-    onAppSelected: (CashfreePaymentLauncher.UpiPaymentApp) -> Unit,
-    onFallback: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.50f))
-            .clickable(onClick = onDismiss)
-    ) {
-        val sheetShape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .clip(sheetShape)
-                .background(Color.White)
-                .clickable(enabled = false, onClick = {})
-                .padding(start = 24.dp, top = 22.dp, end = 24.dp, bottom = 30.dp)
-        ) {
-            Text(
-                text = "Pay with UPI",
-                color = RechargeInk,
-                fontSize = 18.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = "Choose an app to complete the payment",
-                color = RechargeMuted,
-                fontSize = 12.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Medium
-            )
-            Spacer(modifier = Modifier.height(18.dp))
-            apps.take(8).forEach { app ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                        .clickable { onAppSelected(app) }
-                ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFFF1F0FF))
-                    ) {
-                        Text(
-                            text = app.label.firstOrNull()?.uppercase() ?: "U",
-                            color = RechargePurple,
-                            fontSize = 14.sp,
-                            fontFamily = GaretFontFamily,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(14.dp))
-                    Text(
-                        text = app.label,
-                        color = RechargeInk,
-                        fontSize = 14.sp,
-                        fontFamily = GaretFontFamily,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = null,
-                        tint = RechargeMuted,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "Use another payment method",
-                color = RechargePurple,
-                fontSize = 14.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .clickable(onClick = onFallback)
-                    .padding(vertical = 8.dp)
-            )
-        }
-    }
-}
-
-@Composable
 private fun CouponOverlay(
     couponCode: String,
     onCouponCodeChange: (String) -> Unit,
@@ -1153,7 +1003,7 @@ private fun CouponOverlay(
                         .height(128.dp)
                         .background(RechargePurple)
                 ) {
-                    val couponInputHeight = 48.dp
+                    val couponInputHeight = 44.dp
                     val waveHeight = 34.dp
                     Image(
                         painter = painterResource(id = R.drawable.recharge_screen_background),
@@ -1176,54 +1026,65 @@ private fun CouponOverlay(
                         }
                         drawPath(path = path, color = Color.White)
                     }
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
+                    BoxWithConstraints(
                         modifier = Modifier
                             .align(Alignment.TopCenter)
                             .offset(y = (138.dp - waveHeight - couponInputHeight) / 2)
-                            .width(300.dp)
-                            .height(couponInputHeight)
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(Color.White)
-                            .padding(horizontal = 18.dp)
+                            .fillMaxWidth()
                     ) {
-                        TextField(
-                            value = couponCode,
-                            onValueChange = onCouponCodeChange,
-                            placeholder = {
-                                Text(
-                                    text = "Enter coupon code",
-                                    color = Color(0xFF777777),
+                        val inputWidth = if (maxWidth > 344.dp) 300.dp else maxWidth - 44.dp
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .width(inputWidth)
+                                .height(couponInputHeight)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color.White)
+                                .padding(start = 16.dp, end = 18.dp)
+                        ) {
+                            BasicTextField(
+                                value = couponCode,
+                                onValueChange = onCouponCodeChange,
+                                singleLine = true,
+                                textStyle = androidx.compose.ui.text.TextStyle(
+                                    color = Color(0xFF404040),
                                     fontSize = 14.sp,
-                                    fontFamily = GaretFontFamily
-                                )
-                            },
-                            singleLine = true,
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                disabledContainerColor = Color.Transparent,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent
-                            ),
-                            textStyle = androidx.compose.ui.text.TextStyle(
-                                color = Color(0xFF404040),
-                                fontSize = 14.sp,
+                                    fontFamily = GaretFontFamily,
+                                    fontWeight = FontWeight.Normal
+                                ),
+                                modifier = Modifier.weight(1f),
+                                decorationBox = { innerTextField ->
+                                    Box(
+                                        contentAlignment = Alignment.CenterStart,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        if (couponCode.isBlank()) {
+                                            Text(
+                                                text = "Enter coupon code",
+                                                color = Color(0xFF777777),
+                                                fontSize = 13.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                fontFamily = GaretFontFamily
+                                            )
+                                        }
+                                        innerTextField()
+                                    }
+                                }
+                            )
+                            Text(
+                                text = "Apply",
+                                color = Color.Black,
+                                fontSize = 16.sp,
+                                maxLines = 1,
                                 fontFamily = GaretFontFamily,
-                                fontWeight = FontWeight.Normal
-                            ),
-                            modifier = Modifier.weight(1f)
-                        )
-                        Text(
-                            text = "Apply",
-                            color = Color.Black,
-                            fontSize = 16.sp,
-                            fontFamily = GaretFontFamily,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.clickable {
-                                onApply(couponCode)
-                            }
-                        )
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.clickable {
+                                    onApply(couponCode)
+                                }
+                            )
+                        }
                     }
                 }
 
@@ -2017,13 +1878,19 @@ private data class PaymentMethod(
     val label: String,
     val iconRes: Int,
     val iconWidth: androidx.compose.ui.unit.Dp,
-    val iconHeight: androidx.compose.ui.unit.Dp
+    val iconHeight: androidx.compose.ui.unit.Dp,
+    val gateway: PaymentGateway
 )
+
+private enum class PaymentGateway {
+    GPay,
+    PhonePe,
+    CashfreeCheckout
+}
 
 private enum class RechargeStage {
     Main,
     Coupon,
-    UpiPicker,
     Processing,
     PaymentStatus,
     Success
@@ -2049,11 +1916,14 @@ private fun RechargeOption.toRechargePack(index: Int): RechargePack {
 }
 
 private fun paymentMethods() = listOf(
-    PaymentMethod("G pay", R.drawable.recharge_gpay, 22.67.dp, 19.2.dp),
-    PaymentMethod("Phonepe", R.drawable.recharge_phonepe, 19.2.dp, 19.2.dp),
-    PaymentMethod("Other apps", R.drawable.recharge_upi, 22.4.dp, 8.36.dp),
-    PaymentMethod("Card", R.drawable.recharge_debit_card, 19.2.dp, 12.22.dp)
+    PaymentMethod("G pay", R.drawable.recharge_gpay, 22.67.dp, 19.2.dp, PaymentGateway.GPay),
+    PaymentMethod("Phonepe", R.drawable.recharge_phonepe, 19.2.dp, 19.2.dp, PaymentGateway.PhonePe),
+    PaymentMethod("Other apps", R.drawable.recharge_upi, 22.4.dp, 8.36.dp, PaymentGateway.CashfreeCheckout),
+    PaymentMethod("Card", R.drawable.recharge_debit_card, 19.2.dp, 12.22.dp, PaymentGateway.CashfreeCheckout)
 )
+
+private const val GOOGLE_PAY_PACKAGE = "com.google.android.apps.nbu.paisa.user"
+private const val PHONEPE_PACKAGE = "com.phonepe.app"
 
 @Preview(showBackground = true, widthDp = 393, heightDp = 852)
 @Composable

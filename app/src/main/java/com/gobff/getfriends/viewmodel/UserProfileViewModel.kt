@@ -13,6 +13,8 @@ import com.gobff.getfriends.data.model.UserProfileUiState
 import com.gobff.getfriends.utils.AppSession
 import com.gobff.getfriends.utils.Constant
 import com.gobff.getfriends.utils.TokenUtils
+import com.gobff.getfriends.utils.AvatarGender
+import com.gobff.getfriends.utils.toAvatarGender
 import com.gobff.getfriends.utils.userFacingMessage
 import kotlinx.coroutines.launch
 
@@ -194,12 +196,20 @@ class UserProfileViewModel(
     }
 
     fun shouldCompleteVoiceVerification(): Boolean {
-        return uiState.voiceVerificationRequired && !uiState.voiceVerificationStatus.isVoiceVerificationSuccessful()
+        return if (uiState.gender.toAvatarGender() == AvatarGender.Female) {
+            !uiState.voiceVerificationStatus.isVoiceVerificationSuccessful()
+        } else {
+            uiState.voiceVerificationRequired && uiState.voiceVerificationStatus.isVoiceVerificationPending()
+        }
     }
 
     private fun hasRequiredProfileData(): Boolean {
-        return !uiState.displayName.isNullOrBlank() && !uiState.avatarUrl.isNullOrBlank()
+        return !uiState.gender.isNullOrBlank() && uiState.displayName.isUserProvidedDisplayName()
     }
+}
+
+private fun String?.isVoiceVerificationPending(): Boolean {
+    return this?.trim()?.uppercase() == "PENDING"
 }
 
 private fun String?.isVoiceVerificationSuccessful(): Boolean {
@@ -209,9 +219,16 @@ private fun String?.isVoiceVerificationSuccessful(): Boolean {
         "COMPLETED",
         "COMPLETE",
         "PASSED",
+        "PASS",
+        "APPROVED",
         "VERIFIED" -> true
         else -> false
     }
+}
+
+private fun String?.isUserProvidedDisplayName(): Boolean {
+    val normalized = this?.trim().orEmpty()
+    return normalized.isNotBlank() && !normalized.equals(Constant.DEFAULT_DISPLAY_NAME, ignoreCase = true)
 }
 
 private fun List<String>.normalizedSet(): Set<String> {

@@ -87,6 +87,7 @@ import com.gobff.getfriends.screens.HistoryScreen
 import com.gobff.getfriends.screens.HomeScreen
 import com.gobff.getfriends.screens.HomeScreen2
 import com.gobff.getfriends.screens.IncomingCallScreen
+import com.gobff.getfriends.screens.LanguageScreen
 import com.gobff.getfriends.screens.LiveScreen
 import com.gobff.getfriends.screens.LoginScreen
 import com.gobff.getfriends.screens.OnlineFlowScreen
@@ -166,6 +167,7 @@ fun AppNavGraph(
             AppSession.getUserPersistentBoolean(Constant.ONLINE_FLOW_COMPLETED_KEY) &&
             currentRoute.shouldShowWaitingForCallBanner()
     var lastHomeBackPressAt by remember { mutableStateOf(0L) }
+    var lastOnboardingBackPressAt by remember { mutableStateOf(0L) }
     var notificationPermissionUiState by remember {
         mutableStateOf(NotificationPermissionState.currentUiState(context, activity))
     }
@@ -260,6 +262,16 @@ fun AppNavGraph(
             (context as? Activity)?.finish()
         } else {
             lastHomeBackPressAt = now
+            Toast.makeText(context, "Press back again to close the app", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun closeAppOnSecondBackPress() {
+        val now = System.currentTimeMillis()
+        if (now - lastOnboardingBackPressAt <= HOME_EXIT_BACK_PRESS_WINDOW_MS) {
+            (context as? Activity)?.finish()
+        } else {
+            lastOnboardingBackPressAt = now
             Toast.makeText(context, "Press back again to close the app", Toast.LENGTH_SHORT).show()
         }
     }
@@ -420,6 +432,8 @@ fun AppNavGraph(
                     Log.d(TAG, "Splash profile refresh result=$hasProfile")
                     resolvePostAuthRoute(
                         hasProfile = hasProfile,
+                        gender = userProfileViewModel.uiState.gender,
+                        hasLanguages = userProfileViewModel.uiState.languages.isNotEmpty(),
                         requiresVoiceVerification = userProfileViewModel.shouldCompleteVoiceVerification()
                     )
                 } else {
@@ -448,6 +462,8 @@ fun AppNavGraph(
                         mainViewModel.onAppOpen()
                         val nextRoute = resolvePostAuthRoute(
                             hasProfile = hasProfile,
+                            gender = userProfileViewModel.uiState.gender,
+                            hasLanguages = userProfileViewModel.uiState.languages.isNotEmpty(),
                             requiresVoiceVerification = userProfileViewModel.shouldCompleteVoiceVerification()
                         )
                         navController.navigate(nextRoute) {
@@ -461,11 +477,39 @@ fun AppNavGraph(
 
         composable(AppRoute.Gender.route) {
             GenderScreen(
-                onAudioStepRequested = { navController.navigateSingleTop(AppRoute.Audio) },
+                onAudioStepRequested = {
+                    val nextRoute = if (userProfileViewModel.uiState.languages.isEmpty()) {
+                        AppRoute.Language.route
+                    } else {
+                        AppRoute.Audio.route
+                    }
+                    navController.navigate(nextRoute) {
+                        popUpTo(AppRoute.Gender.route) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
                 onHomeRequested = {
                     navController.navigate(AppRoute.Home2.route) {
                         popUpTo(AppRoute.Gender.route) { inclusive = true }
                         launchSingleTop = true
+                    }
+                },
+                savedGender = userProfileViewModel.uiState.gender,
+                savedDisplayName = userProfileViewModel.uiState.displayName
+            )
+        }
+
+        composable(AppRoute.Language.route) {
+            LanguageScreen(
+                onBack = { closeAppOnSecondBackPress() },
+                isSubmitting = userProfileViewModel.uiState.isSaving,
+                submitError = userProfileViewModel.uiState.errorMessage,
+                onStartTalking = { languages ->
+                    userProfileViewModel.saveLanguages(languages) {
+                        navController.navigate(AppRoute.Audio.route) {
+                            popUpTo(AppRoute.Language.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
                     }
                 }
             )
@@ -473,7 +517,8 @@ fun AppNavGraph(
 
         composable(AppRoute.Audio.route) {
             AudioScreen(
-                onBack = { navController.navigateSingleTop(AppRoute.Gender) },
+                onBack = { closeAppOnSecondBackPress() },
+                onBackToLogin = { clearUserStateAndNavigateToLogin() },
                 onDone = {
                     val gender = userProfileViewModel.uiState.gender
                     Log.d(
@@ -523,6 +568,8 @@ fun AppNavGraph(
                 mainViewModel.refreshAvailabilityFromSession()
                 val nextRoute = resolvePostAuthRoute(
                     hasProfile = hasProfile,
+                    gender = userProfileViewModel.uiState.gender,
+                    hasLanguages = userProfileViewModel.uiState.languages.isNotEmpty(),
                     requiresVoiceVerification = userProfileViewModel.shouldCompleteVoiceVerification()
                 )
                 if (nextRoute != AppRoute.Home2.route) {
@@ -1078,6 +1125,21 @@ private fun String?.navigationOrderIndex(): Int? =
         AppRoute.Login.route -> 19
         AppRoute.UpdateApp.route -> 20
         AppRoute.Splash.route -> 21
+        AppRoute.Settings.route -> 7
+        AppRoute.GiftVibe.route -> 8
+        AppRoute.Wallet.route -> 9
+        AppRoute.Recharge.route -> 10
+        AppRoute.Friends.route -> 11
+        AppRoute.PersonalChat.route -> 12
+        AppRoute.TruthDare.route -> 13
+        AppRoute.IncomingCall.route -> 14
+        AppRoute.Call.route -> 15
+        AppRoute.Gender.route -> 16
+        AppRoute.Language.route -> 17
+        AppRoute.Audio.route -> 18
+        AppRoute.Login.route -> 19
+        AppRoute.UpdateApp.route -> 20
+        AppRoute.Splash.route -> 21
         else -> null
     }
 
@@ -1103,6 +1165,7 @@ private fun String?.shouldShowWaitingForCallBanner(): Boolean =
         this != AppRoute.UpdateApp.route &&
         this != AppRoute.Login.route &&
         this != AppRoute.Gender.route &&
+        this != AppRoute.Language.route &&
         this != AppRoute.Audio.route &&
         this != AppRoute.OnlineFlow.route &&
         this != AppRoute.OnlineWaiting.route &&
@@ -1111,10 +1174,13 @@ private fun String?.shouldShowWaitingForCallBanner(): Boolean =
 
 private fun resolvePostAuthRoute(
     hasProfile: Boolean,
+    gender: String?,
+    hasLanguages: Boolean,
     requiresVoiceVerification: Boolean
 ): String {
     return when {
         !hasProfile -> AppRoute.Gender.route
+        requiresVoiceVerification && gender.toAvatarGender() == AvatarGender.Female && !hasLanguages -> AppRoute.Language.route
         requiresVoiceVerification -> AppRoute.Audio.route
         else -> AppRoute.Home2.route
     }

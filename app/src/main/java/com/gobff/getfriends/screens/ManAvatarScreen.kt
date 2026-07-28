@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -29,7 +30,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -57,7 +57,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -75,14 +74,15 @@ fun ManAvatarScreen(
     onBack: () -> Unit = {},
     onComplete: (selectedAvatar: Int, nickname: String) -> Unit = { _, _ -> },
     isSubmitting: Boolean = false,
-    submitError: String? = null
+    submitError: String? = null,
+    startOnNickname: Boolean = false
 ) {
     var selectedAvatar by remember { mutableIntStateOf(1) }
     var nickname by remember { mutableStateOf("") }
-    var showNickname by remember { mutableStateOf(false) }
+    var showNickname by remember(startOnNickname) { mutableStateOf(startOnNickname) }
 
     BackHandler {
-        if (showNickname) {
+        if (showNickname && !startOnNickname) {
             showNickname = false
         } else {
             onBack()
@@ -167,10 +167,6 @@ private fun ManAvatarPickerContent(
             selectedAvatar = selectedAvatar,
             onAvatarSelected = onAvatarSelected
         )
-        Spacer(modifier = Modifier.height(22.dp))
-        ManOrDivider()
-        Spacer(modifier = Modifier.height(24.dp))
-        ManPhotoAvatarCard()
         Spacer(modifier = Modifier.height(36.dp))
         ManPrimaryButton(
             onClick = onContinue,
@@ -193,6 +189,7 @@ private fun ManNicknameContent(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
+            .imePadding()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 48.dp)
     ) {
@@ -233,17 +230,6 @@ private fun ManNicknameContent(
                 textAlign = TextAlign.Center
             )
         }
-        Spacer(modifier = Modifier.height(170.dp))
-        Text(
-            text = "I'll choose later",
-            color = Color.Black,
-            fontSize = 16.sp,
-            lineHeight = 16.sp,
-            fontFamily = GaretFontFamily,
-            fontWeight = FontWeight.Medium,
-            textDecoration = TextDecoration.Underline,
-            modifier = Modifier.clickable(enabled = !isSubmitting, onClick = onComplete)
-        )
         Spacer(modifier = Modifier.height(48.dp))
     }
 }
@@ -422,93 +408,6 @@ private fun rememberCachedAvatarBitmap(gender: AvatarGender, index: Int): ImageB
             BitmapFactory.decodeFile(avatarFile.absolutePath)?.asImageBitmap()
         } else {
             null
-        }
-    }
-}
-
-@Composable
-private fun ManOrDivider() {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(1.dp)
-                .background(Color.White.copy(alpha = 0.7f))
-        )
-        Text(
-            text = "or",
-            color = Color.White,
-            fontSize = 16.sp,
-            lineHeight = 16.sp,
-            fontFamily = GaretFontFamily,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(horizontal = 6.dp)
-        )
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(1.dp)
-                .background(Color.White.copy(alpha = 0.7f))
-        )
-    }
-}
-
-@Composable
-private fun ManPhotoAvatarCard() {
-    val shape = RoundedCornerShape(10.dp)
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(118.dp)
-            .clip(shape)
-            .background(Color(0x26214F4B))
-    ) {
-        Canvas(modifier = Modifier.matchParentSize()) {
-            drawRoundRect(
-                color = Color.White.copy(alpha = 0.55f),
-                size = Size(size.width, size.height),
-                cornerRadius = CornerRadius(10.dp.toPx()),
-                style = Stroke(
-                    width = 1.dp.toPx(),
-                    pathEffect = PathEffect.dashPathEffect(
-                        floatArrayOf(7.dp.toPx(), 7.dp.toPx())
-                    )
-                )
-            )
-        }
-
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.align(Alignment.Center)
-        ) {
-            Icon(
-                imageVector = Icons.Default.PhotoCamera,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(32.dp)
-            )
-            Spacer(modifier = Modifier.height(14.dp))
-            Text(
-                text = "Create an avatar from your photo",
-                color = Color.White,
-                fontSize = 16.sp,
-                lineHeight = 16.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(14.dp))
-            Text(
-                text = "We don't save or store your photo.",
-                color = Color.White,
-                fontSize = 11.sp,
-                lineHeight = 11.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Medium
-            )
         }
     }
 }

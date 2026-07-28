@@ -33,6 +33,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gobff.getfriends.R
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.GaretFontFamily
+import com.gobff.getfriends.utils.AvatarGender
+import com.gobff.getfriends.utils.Constant
+import com.gobff.getfriends.utils.toAvatarGender
 import com.gobff.getfriends.viewmodel.OnboardingProfileViewModel
 
 @Composable
@@ -40,17 +43,27 @@ fun GenderScreen(
     modifier: Modifier = Modifier,
     onAudioStepRequested: () -> Unit = {},
     onHomeRequested: () -> Unit = {},
+    savedGender: String? = null,
+    savedDisplayName: String? = null,
     profileViewModel: OnboardingProfileViewModel = viewModel()
 ) {
-    var showManAvatar by remember { mutableStateOf(false) }
-    var showWomenAvatar by remember { mutableStateOf(false) }
+    val savedAvatarGender = savedGender.toAvatarGender()
+    val startOnNickname = savedAvatarGender != null && !savedDisplayName.isUserProvidedDisplayName()
+    var showManAvatar by remember(savedAvatarGender) { mutableStateOf(savedAvatarGender == AvatarGender.Male) }
+    var showWomenAvatar by remember(savedAvatarGender) { mutableStateOf(savedAvatarGender == AvatarGender.Female) }
     val updateProfileState = profileViewModel.uiState
 
-    fun submitProfile(gender: String, selectedAvatar: Int, nickname: String) {
-        profileViewModel.updateProfile(
+    fun submitGender(gender: String, onSuccess: () -> Unit) {
+        profileViewModel.saveGender(
+            gender = gender,
+            onSuccess = onSuccess
+        )
+    }
+
+    fun submitDisplayName(gender: String, nickname: String) {
+        profileViewModel.saveDisplayName(
             displayName = nickname,
             gender = gender,
-            avatarUrl = com.gobff.getfriends.utils.AvatarCache.avatarValue(selectedAvatar),
             onSuccess = {
                 if (gender == GENDER_FEMALE) {
                     onAudioStepRequested()
@@ -65,11 +78,12 @@ fun GenderScreen(
         ManAvatarScreen(
             modifier = modifier,
             onBack = { showManAvatar = false },
-            onComplete = { selectedAvatar, nickname ->
-                submitProfile(GENDER_MALE, selectedAvatar, nickname)
+            onComplete = { _, nickname ->
+                submitDisplayName(GENDER_MALE, nickname)
             },
             isSubmitting = updateProfileState.isLoading,
-            submitError = updateProfileState.errorMessage
+            submitError = updateProfileState.errorMessage,
+            startOnNickname = startOnNickname
         )
         return
     }
@@ -78,11 +92,12 @@ fun GenderScreen(
         WomenAvatarScreen(
             modifier = modifier,
             onBack = { showWomenAvatar = false },
-            onComplete = { selectedAvatar, nickname ->
-                submitProfile(GENDER_FEMALE, selectedAvatar, nickname)
+            onComplete = { _, nickname ->
+                submitDisplayName(GENDER_FEMALE, nickname)
             },
             isSubmitting = updateProfileState.isLoading,
-            submitError = updateProfileState.errorMessage
+            submitError = updateProfileState.errorMessage,
+            startOnNickname = startOnNickname
         )
         return
     }
@@ -118,13 +133,21 @@ fun GenderScreen(
             GenderOption(
                 imageResId = R.drawable.gender_man,
                 label = "Man",
-                onClick = { showManAvatar = true }
+                onClick = {
+                    submitGender(GENDER_MALE) {
+                        showManAvatar = true
+                    }
+                }
             )
             Spacer(modifier = Modifier.height(54.dp))
             GenderOption(
                 imageResId = R.drawable.gender_women,
                 label = "Women",
-                onClick = { showWomenAvatar = true }
+                onClick = {
+                    submitGender(GENDER_FEMALE) {
+                        showWomenAvatar = true
+                    }
+                }
             )
         }
     }
@@ -181,3 +204,8 @@ private fun GenderScreenPreview() {
 
 private const val GENDER_MALE = "MALE"
 private const val GENDER_FEMALE = "FEMALE"
+
+private fun String?.isUserProvidedDisplayName(): Boolean {
+    val normalized = this?.trim().orEmpty()
+    return normalized.isNotBlank() && !normalized.equals(Constant.DEFAULT_DISPLAY_NAME, ignoreCase = true)
+}
