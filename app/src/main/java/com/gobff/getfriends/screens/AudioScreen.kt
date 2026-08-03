@@ -95,6 +95,9 @@ fun AudioScreen(
     var outputFile by remember { mutableStateOf<File?>(null) }
     var recordingStartedAt by remember { mutableLongStateOf(0L) }
     val voiceUiState = voiceVerificationViewModel.uiState
+    val isVerificationPending = voiceUiState.isVoiceRecorded &&
+        voiceUiState.status.isVoiceVerificationPending() &&
+        !voiceUiState.isVerified
 
     BackHandler(onBack = onBack)
 
@@ -117,9 +120,12 @@ fun AudioScreen(
                 if (verified) {
                     audioStage = AudioStage.Success
                     statusMessage = null
+                } else if (voiceVerificationViewModel.uiState.status.isVoiceVerificationPending()) {
+                    audioStage = AudioStage.Retry
+                    statusMessage = VOICE_VERIFYING_MESSAGE
                 } else {
                     audioStage = AudioStage.Retry
-                    statusMessage = "Verification pending. Please retry."
+                    statusMessage = "No worries! Let's try that again."
                 }
             }
         )
@@ -174,8 +180,33 @@ fun AudioScreen(
 
         audioStage = when {
             voiceUiState.isVerified -> AudioStage.Success
-            voiceUiState.isVoiceRecorded || voiceUiState.status.isVoiceVerificationPending() -> AudioStage.Retry
+            voiceUiState.status.isVoiceVerificationPending() && voiceUiState.isVoiceRecorded -> AudioStage.Retry
+            voiceUiState.status.isVoiceVerificationFailed() -> AudioStage.Retry
             else -> audioStage
+        }
+        statusMessage = when {
+            voiceUiState.isVerified -> null
+            voiceUiState.status.isVoiceVerificationPending() && voiceUiState.isVoiceRecorded -> VOICE_VERIFYING_MESSAGE
+            voiceUiState.status.isVoiceVerificationFailed() -> voiceUiState.errorMessage ?: "No worries! Let's try that again."
+            else -> statusMessage
+        }
+    }
+
+    LaunchedEffect(isVerificationPending) {
+        if (!isVerificationPending) return@LaunchedEffect
+        statusMessage = VOICE_VERIFYING_MESSAGE
+        while (true) {
+            delay(3_000L)
+            voiceVerificationViewModel.refreshVoiceVerificationStatus(
+                onVerified = {
+                    audioStage = AudioStage.Success
+                    statusMessage = null
+                },
+                onFailed = {
+                    audioStage = AudioStage.Retry
+                    statusMessage = "No worries! Let's try that again."
+                }
+            )
         }
     }
 
@@ -331,6 +362,7 @@ fun AudioScreen(
                     recording = false,
                     onClick = {
                         if (voiceUiState.isSubmitting) return@AudioRecordButton
+                        if (isVerificationPending) return@AudioRecordButton
                         if (hasAudioPermission) {
                             runCatching { startRecording() }
                                 .onFailure {
@@ -346,6 +378,7 @@ fun AudioScreen(
                 Text(
                     text = when {
                         voiceUiState.isSubmitting -> "Submitting..."
+                        isVerificationPending -> "Voice is getting verified..."
                         audioStage == AudioStage.Retry -> "Tap to Record again"
                         else -> "Tap to Record"
                     },
@@ -386,18 +419,23 @@ private fun AudioTopCopy(
     modifier: Modifier = Modifier
 ) {
     val isShortRecordingFailure = statusMessage == SHORT_RECORDING_MESSAGE
+    val isPendingVerification = statusMessage == VOICE_VERIFYING_MESSAGE
     val title = when (audioStage) {
         AudioStage.Prompt, AudioStage.Recording -> "Let's hear your voice"
-        AudioStage.Retry -> if (isShortRecordingFailure) {
-            "Voice verification failed."
-        } else {
-            "We couldn't recognize\nyour voice :("
+        AudioStage.Retry -> when {
+            isPendingVerification -> "Voice is getting\nverified"
+            isShortRecordingFailure -> "Voice verification failed."
+            else -> "We couldn't recognize\nyour voice :("
         }
         AudioStage.Success -> "Voice verified"
     }
     val subtitle = when (audioStage) {
         AudioStage.Prompt, AudioStage.Recording -> "Record a few seconds of your voice"
-        AudioStage.Retry -> "No worries! Let's try that again."
+        AudioStage.Retry -> if (isPendingVerification) {
+            "Please wait while we check your voice."
+        } else {
+            "No worries! Let's try that again."
+        }
         AudioStage.Success -> "Thanks! You're all set"
     }
 
@@ -665,6 +703,18 @@ private fun String?.isVoiceVerificationPending(): Boolean {
     return this?.trim()?.uppercase() == "PENDING"
 }
 
+private fun String?.isVoiceVerificationFailed(): Boolean {
+    return when (this?.trim()?.uppercase()) {
+        "FAILED",
+        "FAIL",
+        "REJECTED",
+        "DECLINED",
+        "VOICE_VERIFICATION_FAILED",
+        "VOICE_VERIFICATION_FAIL" -> true
+        else -> false
+    }
+}
+
 private enum class AudioStage {
     Prompt,
     Recording,
@@ -675,6 +725,7 @@ private enum class AudioStage {
 private const val MIN_SUCCESS_SECONDS = 3
 private const val MAX_RECORDING_SECONDS = 6
 private const val SHORT_RECORDING_MESSAGE = "Please record for at least 3 seconds and try again"
+private const val VOICE_VERIFYING_MESSAGE = "Your voice is getting verified..."
 private val AudioBackground = Color(0xFFFF7171)
 
 @Preview(showBackground = true, widthDp = 393, heightDp = 852)

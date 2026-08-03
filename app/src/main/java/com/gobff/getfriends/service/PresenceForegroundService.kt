@@ -3,9 +3,12 @@ package com.gobff.getfriends.service
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
@@ -14,6 +17,7 @@ import com.gobff.getfriends.R
 import com.gobff.getfriends.data.MainRepository
 import com.gobff.getfriends.utils.AppSession
 import com.gobff.getfriends.utils.PresenceHeartbeat
+import com.gobff.getfriends.utils.TokenUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -36,17 +40,32 @@ class PresenceForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (!PresenceHeartbeat.isAlwaysOnlineEnabled()) {
+            Log.d(TAG, "Service start ignored: always-online disabled startId=$startId")
             stopSelf()
             return START_NOT_STICKY
         }
 
-        startForeground(NOTIFICATION_ID, buildNotification())
+        startAsForegroundService()
+        Log.d(TAG, "Service started startId=$startId action=${intent?.action.orEmpty()}")
         startHeartbeat()
-        return START_STICKY
+        return START_REDELIVER_INTENT
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        if (PresenceHeartbeat.isAlwaysOnlineEnabled() && TokenUtils.hasStoredSession()) {
+            scheduleRestart()
+            Log.d(TAG, "Task removed; scheduled presence service restart")
+        }
+        super.onTaskRemoved(rootIntent)
     }
 
     override fun onDestroy() {
         heartbeatJob?.cancel()
+        if (PresenceHeartbeat.isAlwaysOnlineEnabled() && TokenUtils.hasStoredSession()) {
+            scheduleRestart()
+            Log.d(TAG, "Service destroyed while enabled; scheduled restart")
+        }
+        Log.d(TAG, "Service destroyed")
         super.onDestroy()
     }
 
@@ -56,11 +75,47 @@ class PresenceForegroundService : Service() {
         if (heartbeatJob?.isActive == true) return
 
         heartbeatJob = serviceScope.launch {
+            var tick = 0
             while (isActive && PresenceHeartbeat.isAlwaysOnlineEnabled()) {
+                tick += 1
+                Log.d(TAG, "Presence heartbeat tick=$tick")
                 PresenceHeartbeat.updateOnline(repository, online = true, tag = TAG)
                 delay(PresenceHeartbeat.INTERVAL_MS)
             }
+            Log.d(TAG, "Presence heartbeat stopped enabled=${PresenceHeartbeat.isAlwaysOnlineEnabled()}")
             stopSelf()
+        }
+    }
+
+    private fun startAsForegroundService() {
+        val notification = buildNotification()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(
+                NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
+    }
+
+    private fun scheduleRestart() {
+        val restartIntent = Intent(applicationContext, PresenceForegroundService::class.java).apply {
+            action = ACTION_RESTART
+        }
+        val pendingIntent = PendingIntent.getService(
+            applicationContext,
+            RESTART_REQUEST_CODE,
+            restartIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val alarmManager = getSystemService(AlarmManager::class.java)
+        val triggerAtMillis = System.currentTimeMillis() + RESTART_DELAY_MS
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
+        } else {
+            alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
         }
     }
 
@@ -70,7 +125,9 @@ class PresenceForegroundService : Service() {
             .setContentTitle("Available for calls")
             .setContentText("BFF is keeping you online for incoming calls.")
             .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOnlyAlertOnce(true)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
     }
 
@@ -93,9 +150,14 @@ class PresenceForegroundService : Service() {
         private const val TAG = "PresenceForegroundSvc"
         private const val CHANNEL_ID = "call_availability"
         private const val NOTIFICATION_ID = 2101
+        private const val ACTION_RESTART = "com.gobff.getfriends.PRESENCE_RESTART"
+        private const val RESTART_REQUEST_CODE = 2102
+        private const val RESTART_DELAY_MS = 5_000L
 
         fun start(context: Context) {
-            val intent = Intent(context, PresenceForegroundService::class.java)
+            val intent = Intent(context, PresenceForegroundService::class.java).apply {
+                action = ACTION_RESTART
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {

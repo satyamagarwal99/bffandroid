@@ -88,16 +88,12 @@ class MainViewModel(
         }
 
         if (available) {
+            PresenceHeartbeat.setAlwaysOnlineEnabled(true)
             viewModelScope.launch {
                 PresenceHeartbeat.updateOnline(mainRepository, online = true, tag = TAG)
             }
-            if (PresenceHeartbeat.isAlwaysOnlineEnabled()) {
-                stopForegroundHeartbeat()
-                PresenceForegroundService.start(appContext)
-            } else {
-                PresenceForegroundService.stop(appContext)
-                startForegroundHeartbeat()
-            }
+            stopForegroundHeartbeat()
+            PresenceForegroundService.start(appContext)
         } else {
             PresenceHeartbeat.setAlwaysOnlineEnabled(false)
             PresenceForegroundService.stop(appContext)

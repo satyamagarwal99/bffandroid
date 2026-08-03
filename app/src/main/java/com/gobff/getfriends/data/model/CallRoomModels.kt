@@ -89,6 +89,8 @@ data class VideoUpgradeStatusResponse(
 )
 
 data class RoomResponse(
+    @SerializedName("code") val code: String? = null,
+    @SerializedName("message") val message: String? = null,
     @SerializedName("id") val id: String?,
     @SerializedName("channelName") val channelName: String?,
     @SerializedName("title") val title: String?,

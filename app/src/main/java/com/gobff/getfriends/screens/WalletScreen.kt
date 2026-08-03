@@ -60,12 +60,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gobff.getfriends.R
+import com.gobff.getfriends.data.model.WalletWithdrawalItem
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.FreedokaFontFamily
 import com.gobff.getfriends.ui.theme.GaretFontFamily
 import com.gobff.getfriends.viewmodel.WalletViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlin.math.roundToInt
 
 private val WalletCoral = Color(0xFFFF7171)
@@ -80,9 +86,13 @@ fun WalletScreen(
     var sheet by remember { mutableStateOf<WalletSheet?>(null) }
     var panVerified by remember { mutableStateOf(false) }
     var resultState by remember { mutableStateOf(WithdrawalResult.Success) }
+    var verifiedName by remember { mutableStateOf("") }
+    var verifiedPan by remember { mutableStateOf("") }
     val walletUiState = walletViewModel.uiState
     val balanceAmount = walletUiState.amountInr
+    val balanceAmountPaise = walletUiState.amountPaise
     val coinBalance = walletUiState.coins
+    val currentCoinValuePaise = walletUiState.currentCoinValuePaise
 
     BackHandler {
         if (sheet != null) sheet = null else onBack()
@@ -96,13 +106,21 @@ fun WalletScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             WalletHeader(
                 amount = balanceAmount,
+                amountPaise = balanceAmountPaise,
                 coins = coinBalance,
+                currentCoinValuePaise = currentCoinValuePaise,
                 onBack = onBack,
                 onRedeem = {
-                    sheet = if (panVerified) WalletSheet.Withdraw else WalletSheet.PanVerification
+                    if (coinBalance > MIN_REDEEM_COINS) {
+                        sheet = if (panVerified) WalletSheet.Withdraw else WalletSheet.PanVerification
+                    }
                 }
             )
-            WalletTransactionHistory(hasTransactions = balanceAmount > 0)
+            WalletTransactionHistory(
+                withdrawals = walletUiState.withdrawals,
+                isLoading = walletUiState.isWithdrawalsLoading,
+                errorMessage = walletUiState.withdrawalErrorMessage
+            )
         }
 
         if (sheet != null) {
@@ -119,7 +137,9 @@ fun WalletScreen(
 
         when (sheet) {
             WalletSheet.PanVerification -> PanVerificationSheet(
-                onSubmit = {
+                onSubmit = { name, pan ->
+                    verifiedName = name
+                    verifiedPan = pan
                     panVerified = true
                     sheet = WalletSheet.PanVerified
                 },
@@ -135,22 +155,34 @@ fun WalletScreen(
             }
 
             WalletSheet.Withdraw -> WithdrawRewardsSheet(
-                amount = balanceAmount,
-                onWithdraw = {
-                    sheet = WalletSheet.WithdrawalResult
-                    resultState = when (resultState) {
-                        WithdrawalResult.Success -> WithdrawalResult.Process
-                        WithdrawalResult.Process -> WithdrawalResult.Failed
-                        WithdrawalResult.Failed -> WithdrawalResult.Success
-                    }
+                amountPaise = balanceAmountPaise,
+                isSubmitting = walletUiState.isSubmittingWithdrawal,
+                errorMessage = walletUiState.withdrawalSubmitMessage,
+                onWithdraw = { upiId ->
+                    walletViewModel.createWithdrawal(
+                        name = verifiedName,
+                        pan = verifiedPan,
+                        upiId = upiId,
+                        coinAmount = coinBalance,
+                        onSuccess = {
+                            resultState = WithdrawalResult.Success
+                            sheet = WalletSheet.WithdrawalResult
+                        }
+                    )
                 },
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
 
             WalletSheet.WithdrawalResult -> WithdrawalResultSheet(
                 state = resultState,
-                amount = balanceAmount,
-                onDone = { sheet = null },
+                amountPaise = walletUiState.lastWithdrawalAmountPaise.takeIf { it > 0 }
+                    ?: balanceAmountPaise,
+                onDone = {
+                    sheet = null
+                    if (resultState == WithdrawalResult.Success) {
+                        walletViewModel.loadWalletBalance()
+                    }
+                },
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
 
@@ -162,7 +194,9 @@ fun WalletScreen(
 @Composable
 private fun WalletHeader(
     amount: Int,
+    amountPaise: Int,
     coins: Int,
+    currentCoinValuePaise: Int,
     onBack: () -> Unit,
     onRedeem: () -> Unit
 ) {
@@ -179,7 +213,10 @@ private fun WalletHeader(
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.FillBounds
         )
-        WalletTopBar(onBack = onBack)
+        WalletTopBar(
+            currentCoinValuePaise = currentCoinValuePaise,
+            onBack = onBack
+        )
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
@@ -214,7 +251,7 @@ private fun WalletHeader(
                 .padding(horizontal = 13.dp, vertical = 6.dp)
         ) {
             Text(
-                text = "Balance: ${amount.formatWalletBalance()}",
+                text = "Balance: ${amountPaise.formatWalletBalancePaise(amount)}",
                 color = Color.Black,
                 fontSize = 11.sp,
                 fontFamily = GaretFontFamily,
@@ -222,7 +259,7 @@ private fun WalletHeader(
             )
         }
         SwipeToRedeem(
-            enabled = coins >= MIN_REDEEM_COINS,
+            enabled = coins > MIN_REDEEM_COINS,
             onRedeem = onRedeem,
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -238,7 +275,10 @@ private fun WalletHeader(
 }
 
 @Composable
-private fun WalletTopBar(onBack: () -> Unit) {
+private fun WalletTopBar(
+    currentCoinValuePaise: Int,
+    onBack: () -> Unit
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -267,12 +307,18 @@ private fun WalletTopBar(onBack: () -> Unit) {
             modifier = Modifier
                 .align(Alignment.TopCenter)
         )
-        CoinRatePill(modifier = Modifier.align(Alignment.TopEnd))
+        CoinRatePill(
+            currentCoinValuePaise = currentCoinValuePaise,
+            modifier = Modifier.align(Alignment.TopEnd)
+        )
     }
 }
 
 @Composable
-private fun CoinRatePill(modifier: Modifier = Modifier) {
+private fun CoinRatePill(
+    currentCoinValuePaise: Int,
+    modifier: Modifier = Modifier
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
@@ -298,7 +344,7 @@ private fun CoinRatePill(modifier: Modifier = Modifier) {
         )
         Spacer(modifier = Modifier.width(3.dp))
         Text(
-            text = "= ₹0.90",
+            text = "= ${currentCoinValuePaise.formatCoinRate()}",
             color = Color.Black,
             fontSize = 10.sp,
             fontFamily = GaretFontFamily,
@@ -458,7 +504,11 @@ private fun TrustItem(
 }
 
 @Composable
-private fun WalletTransactionHistory(hasTransactions: Boolean) {
+private fun WalletTransactionHistory(
+    withdrawals: List<WalletWithdrawalItem>,
+    isLoading: Boolean,
+    errorMessage: String?
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -472,7 +522,25 @@ private fun WalletTransactionHistory(hasTransactions: Boolean) {
             fontFamily = GaretFontFamily,
             fontWeight = FontWeight.Bold
         )
-        if (!hasTransactions) {
+        if (isLoading) {
+            Text(
+                text = "Loading withdrawals...",
+                color = Color(0xFF888888),
+                fontSize = 12.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(top = 30.dp)
+            )
+        } else if (errorMessage != null) {
+            Text(
+                text = errorMessage,
+                color = Color(0xFFE95151),
+                fontSize = 12.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(top = 30.dp)
+            )
+        } else if (withdrawals.isEmpty()) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
@@ -499,15 +567,11 @@ private fun WalletTransactionHistory(hasTransactions: Boolean) {
             }
         } else {
             Spacer(modifier = Modifier.height(30.dp))
-            listOf(
-                WalletTransaction("Withdrawal", "12 Jun 2026, 06:30 PM", "₹150", "-172 Coins", "Completed", Color(0xFF39B86B), Color(0xFFE3F7E9)),
-                WalletTransaction("Withdrawal", "12 Jun 2026, 06:30 PM", "₹150", "-172 Coins", "Failed", Color(0xFFE95151), Color(0xFFF0E7FF)),
-                WalletTransaction("Withdrawal", "12 Jun 2026, 06:30 PM", "₹150", "-172 Coins", "Completed", Color(0xFF39B86B), Color(0xFFFFF0C8)),
-                WalletTransaction("Withdrawal", "12 Jun 2026, 06:30 PM", "₹150", "-172 Coins", "Completed", Color(0xFF39B86B), Color(0xFFDDF9F5)),
-                WalletTransaction("Withdrawal", "12 Jun 2026, 06:30 PM", "₹150", "-172 Coins", "Completed", Color(0xFF39B86B), Color(0xFFE3F7E9))
-            ).forEachIndexed { index, item ->
+            withdrawals
+                .mapIndexed { index, withdrawal -> withdrawal.toWalletTransaction(index) }
+                .forEachIndexed { index, item ->
                 TransactionRow(item)
-                if (index < 4) {
+                if (index < withdrawals.lastIndex) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -571,7 +635,7 @@ private fun TransactionRow(item: WalletTransaction) {
 
 @Composable
 private fun PanVerificationSheet(
-    onSubmit: () -> Unit,
+    onSubmit: (String, String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var fullName by remember { mutableStateOf("") }
@@ -594,7 +658,7 @@ private fun PanVerificationSheet(
             WalletYellowButton(
                 text = "Submit",
                 enabled = canSubmit,
-                onClick = onSubmit,
+                onClick = { onSubmit(fullName.trim(), panNumber.trim().uppercase()) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 28.dp)
@@ -639,16 +703,19 @@ private fun PanVerifiedSheet(modifier: Modifier = Modifier) {
 
 @Composable
 private fun WithdrawRewardsSheet(
-    amount: Int,
-    onWithdraw: () -> Unit,
+    amountPaise: Int,
+    isSubmitting: Boolean,
+    errorMessage: String?,
+    onWithdraw: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var upi by remember { mutableStateOf("") }
-    val canWithdraw = upi.isNotBlank()
+    val amountText = amountPaise.formatCurrencyPaise()
+    val canWithdraw = upi.isNotBlank() && !isSubmitting
 
     WalletBottomSheet(
         title = "Withdraw Rewards",
-        modifier = modifier.height(440.dp)
+        modifier = modifier.height(455.dp)
     ) {
         Column(
             modifier = Modifier
@@ -664,7 +731,7 @@ private fun WithdrawRewardsSheet(
                     .background(Color(0xFFFFF8E5))
                     .border(1.2.dp, Color.Black, RoundedCornerShape(12.dp))
             ) {
-                Text("₹$amount", color = Color.Black, fontSize = 24.sp, fontFamily = GaretFontFamily, fontWeight = FontWeight.Bold)
+                Text(amountText, color = Color.Black, fontSize = 24.sp, fontFamily = GaretFontFamily, fontWeight = FontWeight.Bold)
             }
             Spacer(modifier = Modifier.height(22.dp))
             Text("Enter your UPI ID", color = Color.Black, fontSize = 11.sp, fontFamily = GaretFontFamily, fontWeight = FontWeight.Bold)
@@ -685,11 +752,22 @@ private fun WithdrawRewardsSheet(
                     }
                 }
             }
+            if (errorMessage != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = errorMessage,
+                    color = Color(0xFFE95151),
+                    fontSize = 10.sp,
+                    lineHeight = 14.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Medium
+                )
+            }
             Spacer(modifier = Modifier.weight(1f))
             WalletYellowButton(
-                text = "Withdraw ₹$amount",
+                text = if (isSubmitting) "Withdrawing..." else "Withdraw $amountText",
                 enabled = canWithdraw,
-                onClick = onWithdraw,
+                onClick = { onWithdraw(upi.trim()) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 28.dp)
@@ -701,10 +779,11 @@ private fun WithdrawRewardsSheet(
 @Composable
 private fun WithdrawalResultSheet(
     state: WithdrawalResult,
-    amount: Int,
+    amountPaise: Int,
     onDone: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val amountText = amountPaise.formatCurrencyPaise()
     val image = when (state) {
         WithdrawalResult.Success -> R.drawable.withdrawal_success
         WithdrawalResult.Process -> R.drawable.withdrawal_process
@@ -716,13 +795,13 @@ private fun WithdrawalResultSheet(
         WithdrawalResult.Failed -> "Withdrawal Failed"
     }
     val color = when (state) {
-        WithdrawalResult.Success -> Color(0xFF29A756)
+        WithdrawalResult.Success -> Color(0xFF249842)
         WithdrawalResult.Process -> Color(0xFFFF8D1A)
         WithdrawalResult.Failed -> Color(0xFFFF474D)
     }
     val message = when (state) {
-        WithdrawalResult.Success -> "₹$amount will be credited to your account\nwithin 2 hours"
-        WithdrawalResult.Process -> "Your withdrawal is being processed.\nDon't worry, if the transfer isn't successful,\n₹$amount will be returned to your wallet."
+        WithdrawalResult.Success -> "$amountText will be credited to your account\nwithin 2 hours"
+        WithdrawalResult.Process -> "Your withdrawal is being processed.\nIf the transfer fails, $amountText will be returned to your wallet."
         WithdrawalResult.Failed -> "We couldn't process your withdrawal\nright now. Please check your UPI ID and try\nagain."
     }
     val button = when (state) {
@@ -731,7 +810,7 @@ private fun WithdrawalResultSheet(
         WithdrawalResult.Failed -> "Try again"
     }
 
-    WalletBottomSheet(title = "", showTitle = false, modifier = modifier.height(440.dp)) {
+    WalletBottomSheet(title = "", showTitle = false, modifier = modifier.height(470.dp)) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
@@ -742,17 +821,17 @@ private fun WithdrawalResultSheet(
             Image(
                 painter = painterResource(id = image),
                 contentDescription = null,
-                modifier = Modifier.size(116.dp),
+                modifier = Modifier.size(128.dp),
                 contentScale = ContentScale.Fit
             )
             Spacer(modifier = Modifier.height(18.dp))
-            Text(title, color = color, fontSize = 16.sp, fontFamily = GaretFontFamily, fontWeight = FontWeight.Bold)
+            Text(title, color = color, fontSize = 18.sp, fontFamily = GaretFontFamily, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = message,
-                color = Color(0xFF888888),
-                fontSize = 11.sp,
-                lineHeight = 17.sp,
+                color = Color(0xFF6C6C6C),
+                fontSize = 14.sp,
+                lineHeight = 24.sp,
                 fontFamily = GaretFontFamily,
                 fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center
@@ -762,7 +841,7 @@ private fun WithdrawalResultSheet(
                 text = button,
                 enabled = true,
                 onClick = onDone,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.width(272.dp)
             )
         }
     }
@@ -779,13 +858,13 @@ private fun WalletBottomSheet(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp))
+            .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .background(Color.White)
     ) {
         Box(
             modifier = Modifier
                 .padding(top = 10.dp)
-                .size(width = 58.dp, height = 5.dp)
+                .size(width = 64.dp, height = 6.dp)
                 .clip(RoundedCornerShape(20.dp))
                 .background(Color(0xFFD6D6D6))
         )
@@ -911,8 +990,73 @@ private data class WalletTransaction(
     val iconBackground: Color
 )
 
-private fun Int.formatWalletBalance(): String {
-    return if (this == 0) "₹0.00" else "₹$this"
+private fun WalletWithdrawalItem.toWalletTransaction(index: Int): WalletTransaction {
+    val normalizedStatus = status.trim().uppercase(Locale.ENGLISH)
+    val isFailed = normalizedStatus.contains("FAIL") || normalizedStatus == "REJECTED"
+    val isCompleted = normalizedStatus.contains("COMPLETE") ||
+        normalizedStatus == "SUCCESS" ||
+        normalizedStatus == "PAID"
+    val statusLabel = when {
+        isCompleted -> "Completed"
+        isFailed -> "Failed"
+        normalizedStatus.isBlank() -> "Pending"
+        else -> status.lowercase(Locale.ENGLISH).replaceFirstChar { it.titlecase(Locale.ENGLISH) }
+    }
+    val statusColor = when {
+        isCompleted -> Color(0xFF39B86B)
+        isFailed -> Color(0xFFE95151)
+        else -> Color(0xFFFF8D1A)
+    }
+    val backgrounds = listOf(
+        Color(0xFFE3F7E9),
+        Color(0xFFF0E7FF),
+        Color(0xFFFFF0C8),
+        Color(0xFFDDF9F5)
+    )
+    return WalletTransaction(
+        title = title.ifBlank { "Withdrawal" },
+        date = createdAt.formatWithdrawalDate(),
+        amount = amountPaise.formatCurrencyPaise(),
+        coinDelta = "-$coinAmount Coins",
+        status = statusLabel,
+        statusColor = statusColor,
+        iconBackground = backgrounds[index % backgrounds.size]
+    )
+}
+
+private fun String?.formatWithdrawalDate(): String {
+    if (isNullOrBlank()) return ""
+    val outputFormatter = DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a", Locale.ENGLISH)
+    runCatching {
+        return Instant.parse(this)
+            .atZone(ZoneId.systemDefault())
+            .format(outputFormatter)
+    }
+    runCatching {
+        return LocalDateTime.parse(this)
+            .atZone(ZoneId.systemDefault())
+            .format(outputFormatter)
+    }
+    return this
+}
+
+private fun Int.formatWalletBalance(): String = formatCurrencyPaise()
+
+private fun Int.formatCurrencyPaise(): String {
+    val paise = coerceAtLeast(0)
+    val rupees = paise / 100
+    val fractionalPaise = (paise % 100).toString().padStart(2, '0')
+    return "\u20B9$rupees.$fractionalPaise"
+}
+
+private fun Int.formatWalletBalancePaise(fallbackAmountInr: Int): String {
+    val paise = if (this > 0) this else fallbackAmountInr * 100
+    return paise.formatCurrencyPaise()
+}
+
+private fun Int.formatCoinRate(): String {
+    val paise = takeIf { it > 0 } ?: 0
+    return paise.formatCurrencyPaise()
 }
 
 private const val MIN_REDEEM_COINS = 100

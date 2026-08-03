@@ -61,19 +61,19 @@ data class UpdateProfileUiState(
 )
 
 data class VoiceVerificationResponse(
-    @SerializedName("isVoiceRecorded") val isVoiceRecorded: Boolean?,
+    @SerializedName(value = "isVoiceRecorded", alternate = ["voiceRecorded", "is_voice_recorded"]) val isVoiceRecorded: Boolean?,
     @SerializedName("success") val success: Boolean?,
-    @SerializedName("status") val status: String?,
+    @SerializedName(value = "status", alternate = ["voiceVerificationStatus", "verificationStatus", "voice_verification_status", "verification_status"]) val status: String?,
     @SerializedName("message") val message: String?,
-    @SerializedName("verified") val verified: Boolean?,
+    @SerializedName(value = "verified", alternate = ["isVerified", "voiceVerified", "is_verified", "voice_verified"]) val verified: Boolean?,
     @SerializedName("submittedAt") val submittedAt: String?
 )
 
 data class VoiceVerificationStatusResponse(
-    @SerializedName("isVoiceRecorded") val isVoiceRecorded: Boolean?,
-    @SerializedName("status") val status: String?,
+    @SerializedName(value = "isVoiceRecorded", alternate = ["voiceRecorded", "is_voice_recorded"]) val isVoiceRecorded: Boolean?,
+    @SerializedName(value = "status", alternate = ["voiceVerificationStatus", "verificationStatus", "voice_verification_status", "verification_status"]) val status: String?,
     @SerializedName("message") val message: String?,
-    @SerializedName("verified") val verified: Boolean?,
+    @SerializedName(value = "verified", alternate = ["isVerified", "voiceVerified", "is_verified", "voice_verified"]) val verified: Boolean?,
     @SerializedName("submittedAt") val submittedAt: String?,
     @SerializedName("verifiedAt") val verifiedAt: String?
 )

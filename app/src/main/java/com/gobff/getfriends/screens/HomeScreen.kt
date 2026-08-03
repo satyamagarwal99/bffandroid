@@ -1389,12 +1389,15 @@ private fun MainProfileCard(
                     .height(94.dp)
                     .background(profile.headerColor)
             ) {
-                Image(
-                    painter = painterResource(id = profile.avatarRes),
+                CachedAvatarImage(
+                    avatarUrl = profile.avatarUrl,
+                    gender = profile.gender,
+                    fallbackRes = profile.avatarRes,
                     contentDescription = null,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .size(104.dp),
+                        .size(104.dp)
+                        .clip(CircleShape),
                     contentScale = ContentScale.Crop
                 )
                 Box(
@@ -1547,7 +1550,9 @@ data class HomeProfile(
     val headerColor: Color,
     val languages: List<HomeProfileLanguage>,
     val tags: List<HomeProfileTag>,
-    val prompt: String
+    val prompt: String,
+    val avatarUrl: String? = null,
+    val gender: String? = null
 )
 
 data class HomeProfileLanguage(
@@ -1565,6 +1570,8 @@ private fun List<ConnectUserResponse>.toHomeProfiles(): List<HomeProfile> {
         HomeProfile(
             userId = user.userId.orEmpty(),
             name = user.displayName?.takeIf { it.isNotBlank() } ?: "Someone",
+            avatarUrl = user.avatarUrl,
+            gender = user.gender,
             avatarRes = user.avatarUrl.toAvatarRes(),
             headerColor = user.headerColor(),
             languages = user.languages.toHomeProfileLanguages(),

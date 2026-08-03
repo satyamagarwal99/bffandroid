@@ -66,6 +66,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -78,9 +79,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.gobff.getfriends.analytics.MetaEvents
 import com.gobff.getfriends.data.model.RechargeOption
 import com.gobff.getfriends.data.model.RechargePaymentResolution
 import com.gobff.getfriends.data.model.RechargeUiState
+import com.gobff.getfriends.data.model.RechargeCoupon
+import com.gobff.getfriends.data.model.RechargeQuote
 import com.gobff.getfriends.R
 import com.gobff.getfriends.payment.CashfreePaymentLauncher
 import com.gobff.getfriends.ui.component.HeartChipShape
@@ -125,9 +129,24 @@ fun RechargeScreen(
     var stage by remember { mutableStateOf(RechargeStage.Main) }
     var appliedCouponCode by remember { mutableStateOf("") }
     var pendingCouponCode by remember { mutableStateOf("") }
+    var loggedPurchaseKey by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val selectedPack = rechargePacks.firstOrNull { it.id == rechargeUiState.selectedOptionId }
+    val applicableCoupons = remember(selectedPack, rechargeUiState.coupons) {
+        selectedPack?.let { pack ->
+            rechargeUiState.coupons.filter { coupon -> coupon.isApplicableTo(pack) }
+        }.orEmpty()
+    }
+    val bestCoupon = remember(selectedPack, applicableCoupons) {
+        selectedPack?.let { pack ->
+            applicableCoupons.maxByOrNull { coupon -> coupon.estimatedDiscountPaise(pack) }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        MetaEvents.logRechargeView(context)
+    }
 
     BackHandler {
         when (stage) {
@@ -148,6 +167,21 @@ fun RechargeScreen(
     LaunchedEffect(rechargeUiState.paymentResolution) {
         when (rechargeUiState.paymentResolution) {
             RechargePaymentResolution.Success -> {
+                val purchaseKey = rechargeUiState.activeOrderId
+                    ?: rechargeUiState.checkout?.orderId
+                    ?: selectedPack?.packCode
+                if (selectedPack != null && purchaseKey != null && loggedPurchaseKey != purchaseKey) {
+                    MetaEvents.logPurchase(
+                        context = context,
+                        packCode = selectedPack.packCode,
+                        hearts = selectedPack.hearts,
+                        amountInr = rechargeUiState.quote?.payableAmountPaise?.toAmountInr()
+                            ?: selectedPack.price.toDouble(),
+                        currencyCode = rechargeUiState.quote?.currencyCode ?: "INR",
+                        orderId = rechargeUiState.activeOrderId ?: rechargeUiState.checkout?.orderId
+                    )
+                    loggedPurchaseKey = purchaseKey
+                }
                 onRechargeSuccess()
                 stage = RechargeStage.Success
             }
@@ -181,6 +215,24 @@ fun RechargeScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    LaunchedEffect(selectedPack?.id, bestCoupon?.code) {
+        val pack = selectedPack ?: return@LaunchedEffect
+        val coupon = bestCoupon
+        if (coupon == null) {
+            if (rechargeUiState.quote != null || !rechargeUiState.appliedCouponCode.isNullOrBlank()) {
+                rechargeViewModel.clearAppliedCoupon()
+            }
+            return@LaunchedEffect
+        }
+
+        val quoteMatchesSelection = rechargeUiState.quote?.packCode == pack.packCode &&
+            rechargeUiState.appliedCouponCode.equals(coupon.code, ignoreCase = true)
+        if (!quoteMatchesSelection) {
+            appliedCouponCode = coupon.code
+            rechargeViewModel.requestRechargeQuote(coupon.code)
         }
     }
 
@@ -250,16 +302,29 @@ fun RechargeScreen(
                 walletHearts = walletHearts,
                 rechargePacks = rechargePacks,
                 rechargeUiState = rechargeUiState,
+                applicableCoupons = applicableCoupons,
+                bestCoupon = bestCoupon,
                 paymentMethods = paymentMethods,
-                onPackSelected = { rechargeViewModel.selectOption(it.id) },
+                onPackSelected = {
+                    appliedCouponCode = ""
+                    rechargeViewModel.selectOption(it.id)
+                },
                 onPaymentSelected = { selectedPayment = it },
                 onRetry = rechargeViewModel::loadRechargeOptions,
                 onBack = onBack,
                 onCouponClick = { stage = RechargeStage.Coupon },
                 onPayClick = {
                     if (selectedPack != null) {
+                        MetaEvents.logInitiateCheckout(
+                            context = context,
+                            packCode = selectedPack.packCode,
+                            hearts = selectedPack.hearts,
+                            amountInr = rechargeUiState.quote?.payableAmountPaise?.toAmountInr()
+                                ?: selectedPack.price.toDouble(),
+                            currencyCode = rechargeUiState.quote?.currencyCode ?: "INR"
+                        )
                         rechargeViewModel.clearQuoteState()
-                        pendingCouponCode = appliedCouponCode.trim()
+                        pendingCouponCode = rechargeUiState.appliedCouponCode.orEmpty()
                         stage = RechargeStage.Processing
                     }
                 }
@@ -298,9 +363,23 @@ fun RechargeScreen(
             CouponOverlay(
                 couponCode = appliedCouponCode,
                 onCouponCodeChange = { appliedCouponCode = it },
+                coupons = applicableCoupons,
+                isApplying = rechargeUiState.isQuoteLoading,
+                message = rechargeUiState.quoteMessage,
+                appliedCouponCode = rechargeUiState.appliedCouponCode,
                 onApply = {
-                    appliedCouponCode = it.trim()
-                    stage = RechargeStage.Main
+                    val code = it.trim()
+                    appliedCouponCode = code
+                    if (code.isBlank()) {
+                        rechargeViewModel.clearAppliedCoupon()
+                        stage = RechargeStage.Main
+                    } else {
+                        rechargeViewModel.requestRechargeQuote(code) { success ->
+                            if (success) {
+                                stage = RechargeStage.Main
+                            }
+                        }
+                    }
                 },
                 onDismiss = { stage = RechargeStage.Main }
             )
@@ -317,6 +396,8 @@ private fun RechargeMainContent(
     walletHearts: Int,
     rechargePacks: List<RechargePack>,
     rechargeUiState: RechargeUiState,
+    applicableCoupons: List<RechargeCoupon>,
+    bestCoupon: RechargeCoupon?,
     paymentMethods: List<PaymentMethod>,
     onPackSelected: (RechargePack) -> Unit,
     onPaymentSelected: (PaymentMethod) -> Unit,
@@ -362,6 +443,7 @@ private fun RechargeMainContent(
                     RechargePackGrid(
                         packs = rechargePacks,
                         selectedPack = selectedPack,
+                        quote = rechargeUiState.quote,
                         onPackSelected = onPackSelected,
                         modifier = Modifier.padding(horizontal = 24.dp)
                     )
@@ -369,6 +451,9 @@ private fun RechargeMainContent(
             }
             Spacer(modifier = Modifier.height(34.dp))
             CouponOfferCard(
+                coupon = bestCoupon,
+                quote = rechargeUiState.quote,
+                isApplying = rechargeUiState.isQuoteLoading && bestCoupon != null,
                 modifier = Modifier.padding(horizontal = 24.dp),
                 onClick = onCouponClick
             )
@@ -382,6 +467,7 @@ private fun RechargeMainContent(
             Spacer(modifier = Modifier.height(42.dp))
             RechargePayButton(
                 pack = selectedPack,
+                quote = rechargeUiState.quote,
                 modifier = Modifier.padding(horizontal = 18.dp),
                 onClick = onPayClick
             )
@@ -557,6 +643,7 @@ private fun BalanceChip(
 private fun RechargePackGrid(
     packs: List<RechargePack>,
     selectedPack: RechargePack?,
+    quote: RechargeQuote?,
     onPackSelected: (RechargePack) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -573,6 +660,9 @@ private fun RechargePackGrid(
                     RechargePackCard(
                         pack = pack,
                         isSelected = selectedPack?.id == pack.id,
+                        discountedPricePaise = quote
+                            ?.takeIf { selectedPack?.id == pack.id && it.packCode == pack.packCode && it.discountAmountPaise > 0 }
+                            ?.payableAmountPaise,
                         onClick = { onPackSelected(pack) },
                         modifier = Modifier.weight(1f)
                     )
@@ -625,6 +715,7 @@ private fun RechargeOptionsStatus(
 private fun RechargePackCard(
     pack: RechargePack,
     isSelected: Boolean,
+    discountedPricePaise: Int?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -695,7 +786,7 @@ private fun RechargePackCard(
                     .background(if (isSelected) RechargePink else Color(0xFFF7F7F7))
             ) {
                 Text(
-                    text = "₹${pack.price}",
+                    text = discountedPricePaise?.formatPaiseAsRupees() ?: "₹${pack.price}",
                     color = Color.Black,
                     fontSize = 16.sp,
                     fontFamily = GaretFontFamily,
@@ -752,9 +843,29 @@ private fun PopularPill(modifier: Modifier = Modifier) {
 
 @Composable
 private fun CouponOfferCard(
+    coupon: RechargeCoupon?,
+    quote: RechargeQuote?,
+    isApplying: Boolean,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val appliedCoupon = quote?.appliedCoupon
+    val discountText = quote
+        ?.discountAmountPaise
+        ?.takeIf { coupon != null && it > 0 }
+        ?.let { "You saved ${it.formatPaiseAsRupees()}" }
+    val subtitle = when {
+        coupon == null -> buildAnnotatedString {
+            append("Grab the ")
+            withStyle(SpanStyle(color = RechargePink, fontWeight = FontWeight.Bold)) {
+                append("best deals")
+            }
+            append(" before\nthey're gone!")
+        }
+        isApplying -> buildAnnotatedString { append("Applying best coupon...") }
+        discountText != null -> buildAnnotatedString { append(discountText) }
+        else -> buildAnnotatedString { append(appliedCoupon?.description ?: coupon.description.ifBlank { "Best coupon applied" }) }
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
@@ -767,7 +878,7 @@ private fun CouponOfferCard(
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "Coupons & offers",
+                text = coupon?.code ?: "Coupons & offers",
                 color = Color(0xFF08033D),
                 fontSize = 16.sp,
                 fontFamily = GaretFontFamily,
@@ -775,13 +886,7 @@ private fun CouponOfferCard(
             )
             Spacer(modifier= Modifier.height(6.dp))
             Text(
-                text = buildAnnotatedString {
-                    append("Grab the ")
-                    withStyle(SpanStyle(color = RechargePink, fontWeight = FontWeight.Bold)) {
-                        append("best deals")
-                    }
-                    append(" before\nthey're gone!")
-                },
+                text = subtitle,
                 color = Color(0xFF777777),
                 fontSize = 10.sp,
                 fontFamily = GaretFontFamily,
@@ -898,13 +1003,16 @@ private fun PaymentMethodItem(
 @Composable
 private fun RechargePayButton(
     pack: RechargePack?,
+    quote: RechargeQuote?,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     val isEnabled = pack != null
     val shape = RechargeButtonShape
     val buttonColor = if (isEnabled) RechargePurple else Color(0xFFD184C8)
-    val buttonText = pack?.let { "Add \u20B9${it.price} \u2022 ${it.hearts} Hearts" } ?: "Select a pack"
+    val quotedPayable = quote?.takeIf { pack != null && it.packCode == pack.packCode }?.payableAmountPaise
+    val buttonPrice = quotedPayable?.formatPaiseAsRupees() ?: pack?.price?.let { "₹$it" }
+    val buttonText = pack?.let { "Add $buttonPrice • ${it.hearts} Hearts" } ?: "Select a pack"
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -966,6 +1074,10 @@ private fun RechargePayButton(
 private fun CouponOverlay(
     couponCode: String,
     onCouponCodeChange: (String) -> Unit,
+    coupons: List<RechargeCoupon>,
+    isApplying: Boolean,
+    message: String?,
+    appliedCouponCode: String?,
     onApply: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -1074,13 +1186,13 @@ private fun CouponOverlay(
                                 }
                             )
                             Text(
-                                text = "Apply",
+                                text = if (isApplying) "Applying" else "Apply",
                                 color = Color.Black,
                                 fontSize = 16.sp,
                                 maxLines = 1,
                                 fontFamily = GaretFontFamily,
                                 fontWeight = FontWeight.Bold,
-                                modifier = Modifier.clickable {
+                                modifier = Modifier.clickable(enabled = !isApplying) {
                                     onApply(couponCode)
                                 }
                             )
@@ -1089,30 +1201,145 @@ private fun CouponOverlay(
                 }
 
                 Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
-                        .padding(horizontal = 18.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 18.dp, vertical = 18.dp)
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.no_coupon_available),
-                        contentDescription = null,
-                        modifier = Modifier.size(width = 230.dp, height = 210.dp),
-                        contentScale = ContentScale.Fit
-                    )
-                    Spacer(modifier = Modifier.height(18.dp))
+                    if (!message.isNullOrBlank()) {
+                        Text(
+                            text = message,
+                            color = if (appliedCouponCode.isNullOrBlank()) RechargeMuted else RechargePurple,
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp,
+                            fontFamily = GaretFontFamily,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+                    }
+                    if (coupons.isEmpty()) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(300.dp)
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.no_coupon_available),
+                                contentDescription = null,
+                                modifier = Modifier.size(width = 230.dp, height = 210.dp),
+                                contentScale = ContentScale.Fit
+                            )
+                            Spacer(modifier = Modifier.height(18.dp))
+                            Text(
+                                text = "No coupons available",
+                                color = Color(0xFF7E7E7E),
+                                fontSize = 14.sp,
+                                fontFamily = GaretFontFamily,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    } else {
+                        coupons.forEach { coupon ->
+                            CouponRow(
+                                coupon = coupon,
+                                isApplied = appliedCouponCode.equals(coupon.code, ignoreCase = true),
+                                enabled = !isApplying,
+                                onClick = {
+                                    onCouponCodeChange(coupon.code)
+                                    onApply(coupon.code)
+                                }
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CouponRow(
+    coupon: RechargeCoupon,
+    isApplied: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(14.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(if (isApplied) Color(0xFFFFEDF3) else Color(0xFFF7F3FF))
+            .border(
+                width = if (isApplied) 1.3.dp else 1.dp,
+                color = if (isApplied) RechargePink else Color(0xFFE2D8FF),
+                shape = shape
+            )
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = coupon.code,
+                    color = RechargeInk,
+                    fontSize = 14.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold
+                )
+                if (isApplied) {
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "No coupons available",
-                        color = Color(0xFF7E7E7E),
-                        fontSize = 14.sp,
+                        text = "Applied",
+                        color = Color(0xFF2EB4A4),
+                        fontSize = 10.sp,
                         fontFamily = GaretFontFamily,
                         fontWeight = FontWeight.Bold
                     )
                 }
             }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = coupon.title,
+                color = RechargePurple,
+                fontSize = 12.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold
+            )
+            if (coupon.description.isNotBlank()) {
+                Spacer(modifier = Modifier.height(3.dp))
+                Text(
+                    text = coupon.description,
+                    color = RechargeMuted,
+                    fontSize = 11.sp,
+                    lineHeight = 14.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            coupon.minAmountPaise?.takeIf { it > 0 }?.let { minAmount ->
+                Spacer(modifier = Modifier.height(3.dp))
+                Text(
+                    text = "Min order ${minAmount.formatPaiseAsRupees()}",
+                    color = Color(0xFF999999),
+                    fontSize = 10.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Medium
+                )
+            }
         }
+        Text(
+            text = if (isApplied) "Done" else "Apply",
+            color = if (isApplied) Color(0xFF2EB4A4) else RechargePink,
+            fontSize = 13.sp,
+            fontFamily = GaretFontFamily,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
@@ -1867,6 +2094,7 @@ private fun LargeSuccessButton(
 
 private data class RechargePack(
     val id: String,
+    val packCode: String,
     val hearts: Int,
     val price: Int,
     val iconRes: Int,
@@ -1907,6 +2135,7 @@ private fun RechargeOption.toRechargePack(index: Int): RechargePack {
     }
     return RechargePack(
         id = id,
+        packCode = packCode,
         hearts = hearts,
         price = price,
         iconRes = iconRes,
@@ -1924,6 +2153,36 @@ private fun paymentMethods() = listOf(
 
 private const val GOOGLE_PAY_PACKAGE = "com.google.android.apps.nbu.paisa.user"
 private const val PHONEPE_PACKAGE = "com.phonepe.app"
+
+private fun Int.formatPaiseAsRupees(): String {
+    val rupees = this / 100
+    val paise = kotlin.math.abs(this % 100)
+    return if (paise == 0) {
+        "₹$rupees"
+    } else {
+        "₹$rupees.${paise.toString().padStart(2, '0')}"
+    }
+}
+
+private fun Int.toAmountInr(): Double = this / 100.0
+
+private fun RechargeCoupon.isApplicableTo(pack: RechargePack): Boolean {
+    val packPricePaise = pack.price * 100
+    return minAmountPaise?.let { packPricePaise >= it } ?: true
+}
+
+private fun RechargeCoupon.estimatedDiscountPaise(pack: RechargePack): Int {
+    val packPricePaise = pack.price * 100
+    val rawDiscount = if (discountType.contains("percent", ignoreCase = true)) {
+        (packPricePaise * discountValue.coerceAtLeast(0)) / 100
+    } else {
+        discountValue.coerceAtLeast(0) * 100
+    }
+    return maxDiscountPaise
+        ?.takeIf { it > 0 }
+        ?.let { rawDiscount.coerceAtMost(it) }
+        ?: rawDiscount
+}
 
 @Preview(showBackground = true, widthDp = 393, heightDp = 852)
 @Composable
@@ -1952,6 +2211,8 @@ private fun RechargeScreenPreview() {
                 options = previewOptions,
                 selectedOptionId = selectedPack.id
             ),
+            applicableCoupons = emptyList(),
+            bestCoupon = null,
             paymentMethods = paymentMethods,
             onPackSelected = { selectedPack = it },
             onPaymentSelected = { selectedPayment = it },

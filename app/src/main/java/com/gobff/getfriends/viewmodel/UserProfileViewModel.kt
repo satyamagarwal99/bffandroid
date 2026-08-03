@@ -180,6 +180,10 @@ class UserProfileViewModel(
             avatarUrl = profile.avatarUrl,
             gender = profile.gender
         )
+        val hasVerifiedVoice = profile.voiceVerificationStatus.isVoiceVerificationSuccessful()
+        if (hasVerifiedVoice) {
+            AppSession.putUserPersistentBoolean(Constant.VOICE_VERIFICATION_COMPLETED_KEY, true)
+        }
         uiState = uiState.copy(
             displayName = profile.displayName,
             gender = profile.gender,
@@ -196,6 +200,9 @@ class UserProfileViewModel(
     }
 
     fun shouldCompleteVoiceVerification(): Boolean {
+        if (AppSession.getUserPersistentBoolean(Constant.VOICE_VERIFICATION_COMPLETED_KEY)) {
+            return false
+        }
         return if (uiState.gender.toAvatarGender() == AvatarGender.Female) {
             !uiState.voiceVerificationStatus.isVoiceVerificationSuccessful()
         } else {
@@ -221,6 +228,10 @@ private fun String?.isVoiceVerificationSuccessful(): Boolean {
         "PASSED",
         "PASS",
         "APPROVED",
+        "ACCEPTED",
+        "MATCHED",
+        "VOICE_VERIFICATION_PASSED",
+        "VOICE_VERIFICATION_PASS",
         "VERIFIED" -> true
         else -> false
     }

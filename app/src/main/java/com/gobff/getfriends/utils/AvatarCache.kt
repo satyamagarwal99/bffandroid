@@ -57,9 +57,19 @@ object AvatarCache {
         val explicitKey = parseAvatarKey(normalized)
         if (explicitKey != null) return explicitKey
 
-        if (!normalized.startsWith("Avatar", ignoreCase = true)) return null
-        val avatarGender = gender.toAvatarGender() ?: return null
-        val index = normalized.takeLastWhile { it.isDigit() }.toIntOrNull() ?: return null
+        val fileName = normalized
+            .substringBefore("?")
+            .substringAfterLast("/")
+            .substringBeforeLast(".")
+        if (!fileName.startsWith("Avatar", ignoreCase = true)) return null
+        val avatarGender = gender.toAvatarGender()
+            ?: when {
+                normalized.contains("/female/", ignoreCase = true) -> AvatarGender.Female
+                normalized.contains("/male/", ignoreCase = true) -> AvatarGender.Male
+                else -> null
+            }
+            ?: return null
+        val index = fileName.takeLastWhile { it.isDigit() }.toIntOrNull() ?: return null
         return AvatarCacheKey(gender = avatarGender, index = index).takeIf { index in 1..avatarGender.count }
     }
 

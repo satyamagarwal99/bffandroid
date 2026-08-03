@@ -5,7 +5,7 @@ import com.gobff.getfriends.data.MainRepository
 import com.gobff.getfriends.data.model.PresenceRequestBody
 
 object PresenceHeartbeat {
-    const val INTERVAL_MS = 45_000L
+    const val INTERVAL_MS = 30_000L
 
     suspend fun updateOnline(
         repository: MainRepository,

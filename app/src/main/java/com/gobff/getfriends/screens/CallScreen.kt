@@ -17,6 +17,9 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -71,6 +74,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -89,6 +93,7 @@ import com.gobff.getfriends.data.model.RoomMessageResponse
 import com.gobff.getfriends.data.model.RoomType
 import com.gobff.getfriends.ui.component.CachedAvatarImage
 import com.gobff.getfriends.ui.component.ChatBubbleShape
+import com.gobff.getfriends.ui.component.HandDrawnCardShape
 import com.gobff.getfriends.ui.component.HeartChipShape
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.GaretFontFamily
@@ -107,6 +112,12 @@ private enum class VideoPendingAction {
     ACCEPT_VIDEO
 }
 
+private fun String.isInsufficientHeartsError(): Boolean {
+    return contains("INSUFFICIENT_HEARTS", ignoreCase = true) ||
+        contains("insufficient hearts", ignoreCase = true) ||
+        (contains("no hearts", ignoreCase = true) && contains("recharge", ignoreCase = true))
+}
+
 private val CallYellow = Color(0xFFF5B120)
 
 @Composable
@@ -123,6 +134,7 @@ fun CallScreen(
     walletHearts: Int = 145,
     callEndedPush: CallEndedPush? = null,
     onCallEndedPushHandled: () -> Unit = {},
+    onRechargeRequired: () -> Unit = {},
     callViewModel: CallViewModel = viewModel(),
     giftCatalogViewModel: GiftCatalogViewModel = viewModel()
 ) {
@@ -136,6 +148,7 @@ fun CallScreen(
     var showChatSheet by remember { mutableStateOf(false) }
     var showSafetySheet by remember { mutableStateOf(false) }
     var showEndCallConfirmation by remember { mutableStateOf(false) }
+    var showInsufficientHeartsDialog by remember { mutableStateOf(false) }
     var showFeedbackPopup by remember { mutableStateOf(false) }
     var showVideoUpgradeRequestSheet by remember { mutableStateOf(false) }
     var remoteCallEndMessage by remember { mutableStateOf<String?>(null) }
@@ -206,6 +219,18 @@ fun CallScreen(
         onBack()
     }
 
+    fun showRechargeDialogForCreateRoomFailure() {
+        shouldEndBackendOnDispose = false
+        remoteCallEndMessage = null
+        remoteCallDeclined = false
+        showFeedbackPopup = false
+        showAddTimeSheet = false
+        showGiftSheet = false
+        showSafetySheet = false
+        showVideoUpgradeRequestSheet = false
+        showInsufficientHeartsDialog = true
+    }
+
     fun startRandomFallback(message: String) {
         if (hasRetriedWithRandom) return
         hasRetriedWithRandom = true
@@ -221,8 +246,12 @@ fun CallScreen(
                 remoteCallDeclined = false
             },
             onFailure = { error ->
-                Toast.makeText(context, error, Toast.LENGTH_SHORT).show()
-                closeEndedCallScreen()
+                if (error.isInsufficientHeartsError()) {
+                    showRechargeDialogForCreateRoomFailure()
+                } else {
+                    Toast.makeText(context, error, Toast.LENGTH_SHORT).show()
+                    closeEndedCallScreen()
+                }
             }
         )
     }
@@ -243,6 +272,7 @@ fun CallScreen(
     BackHandler {
         when {
             showEndCallConfirmation -> showEndCallConfirmation = false
+            showInsufficientHeartsDialog -> closeEndedCallScreen()
             showVideoUpgradeRequestSheet -> showVideoUpgradeRequestSheet = false
             showVideoUpgradePrompt -> callViewModel.declineVideoUpgrade()
             showChatSheet -> showChatSheet = false
@@ -263,7 +293,12 @@ fun CallScreen(
                         title = "$personName Audio Call",
                         invitedUserId = outgoingInvitedUserId,
                         onFailure = { error ->
-                            if (error.contains("token", ignoreCase = true) || error.contains("permission", ignoreCase = true)) {
+                            if (error.isInsufficientHeartsError()) {
+                                showRechargeDialogForCreateRoomFailure()
+                            } else if (
+                                error.contains("token", ignoreCase = true) ||
+                                error.contains("permission", ignoreCase = true)
+                            ) {
                                 Toast.makeText(context, error, Toast.LENGTH_SHORT).show()
                                 closeEndedCallScreen()
                             } else {
@@ -275,8 +310,12 @@ fun CallScreen(
                     callViewModel.createRandomOneToOneAudioCall(
                         title = "$personName Audio Call",
                         onFailure = { error ->
-                            Toast.makeText(context, error, Toast.LENGTH_SHORT).show()
-                            closeEndedCallScreen()
+                            if (error.isInsufficientHeartsError()) {
+                                showRechargeDialogForCreateRoomFailure()
+                            } else {
+                                Toast.makeText(context, error, Toast.LENGTH_SHORT).show()
+                                closeEndedCallScreen()
+                            }
                         }
                     )
                 }
@@ -358,9 +397,9 @@ fun CallScreen(
     LaunchedEffect(sendingGift) {
         val gift = sendingGift ?: return@LaunchedEffect
         giftDeliveryPhase = GiftDeliveryPhase.Delivering
-        delay(1_100L)
+        delay(1_450L)
         giftDeliveryPhase = GiftDeliveryPhase.Arrived
-        delay(1_400L)
+        delay(1_250L)
         sendingGift = null
         giftDeliveryPhase = null
     }
@@ -646,6 +685,25 @@ fun CallScreen(
             )
         }
 
+        if (showInsufficientHeartsDialog) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.48f))
+            )
+            InsufficientHeartsDialog(
+                onRecharge = {
+                    showInsufficientHeartsDialog = false
+                    onRechargeRequired()
+                },
+                onCancel = {
+                    showInsufficientHeartsDialog = false
+                    closeEndedCallScreen()
+                },
+                modifier = Modifier.align(Alignment.Center)
+            )
+        }
+
         sendingGift?.let { gift ->
             GiftDeliveryOverlay(
                 gift = gift,
@@ -777,6 +835,142 @@ private fun EndCallDialogButton(
             fontFamily = GaretFontFamily,
             fontWeight = FontWeight.Bold
         )
+    }
+}
+
+@Composable
+private fun InsufficientHeartsDialog(
+    onRecharge: () -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(20.dp)
+    Box(
+        modifier = modifier
+            .padding(horizontal = 21.dp)
+            .fillMaxWidth()
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .background(
+                    Brush.verticalGradient(
+                        colorStops = arrayOf(
+                            0f to Color(0xFF740B64),
+                            0.51f to Color(0xFF350827),
+                            0.83f to Color(0xFF040404)
+                        )
+                    )
+                )
+                .border(1.dp, Color(0xFF404040), shape)
+                .padding(start = 16.dp, end = 16.dp, top = 23.dp, bottom = 21.dp)
+        ) {
+            Text(
+                text = "Oops! You're out of Hearts",
+                color = Color.White,
+                fontSize = 18.sp,
+                lineHeight = 22.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Recharge now and start your call instantly.",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 14.sp,
+                lineHeight = 26.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(25.dp))
+            Image(
+                painter = painterResource(id = R.drawable.insufficient_hearts_offer),
+                contentDescription = null,
+                modifier = Modifier.size(width = 157.dp, height = 154.dp),
+                contentScale = ContentScale.Fit
+            )
+            Spacer(modifier = Modifier.height(22.dp))
+            Text(
+                text = "100 Hearts",
+                color = Color.White,
+                fontSize = 24.sp,
+                lineHeight = 30.sp,
+                fontFamily = GaretFontFamily,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "₹99",
+                    color = Color(0xFFC4C4C4),
+                    fontSize = 16.sp,
+                    lineHeight = 20.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Medium,
+                    textDecoration = TextDecoration.LineThrough
+                )
+                Text(
+                    text = "₹49",
+                    color = Color(0xFFFFCB26),
+                    fontSize = 16.sp,
+                    lineHeight = 20.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            Spacer(modifier = Modifier.height(18.dp))
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onRecharge
+                    )
+            ) {
+                Text(
+                    text = "Recharge Now",
+                    color = Color.Black,
+                    fontSize = 14.sp,
+                    lineHeight = 18.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.call_screen_verified_user),
+                    contentDescription = null,
+                    tint = Color(0xFFB1B1B1),
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = "Secure payments",
+                    color = Color(0xFFB1B1B1),
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Normal
+                )
+            }
+        }
     }
 }
 
@@ -2145,54 +2339,146 @@ private fun GiftDeliveryOverlay(
     phase: GiftDeliveryPhase?,
     modifier: Modifier = Modifier
 ) {
-    Box(modifier = modifier) {
-        if (phase == GiftDeliveryPhase.Delivering) {
+    val progress = remember(gift.code) { Animatable(0f) }
+
+    LaunchedEffect(gift.code) {
+        progress.snapTo(0f)
+        progress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(
+                durationMillis = 2_650,
+                easing = FastOutSlowInEasing
+            )
+        )
+    }
+
+    BoxWithConstraints(modifier = modifier) {
+        val value = progress.value
+        val flight = ((value - 0.34f) / 0.46f).coerceIn(0f, 1f)
+        val settle = ((value - 0.66f) / 0.22f).coerceIn(0f, 1f)
+        val fadeOut = ((value - 0.88f) / 0.12f).coerceIn(0f, 1f)
+        val largeAlpha = when {
+            value < 0.08f -> value / 0.08f
+            value < 0.62f -> 1f
+            value < 0.78f -> 1f - ((value - 0.62f) / 0.16f)
+            else -> 0f
+        }.coerceIn(0f, 1f)
+        val landedAlpha = (settle * (1f - fadeOut)).coerceIn(0f, 1f)
+        val giftSize = lerpDp(126.dp, 34.dp, flight)
+        val giftOffsetX = lerpDp(0.dp, maxWidth * 0.285f, flight)
+        val giftOffsetY = lerpDp((-72).dp, (-70).dp, flight)
+        val lift = if (value < 0.22f) {
+            -8.dp * kotlin.math.sin((value / 0.22f) * Math.PI).toFloat()
+        } else {
+            0.dp
+        }
+        val receiverGlowAlpha = if (phase == GiftDeliveryPhase.Arrived) landedAlpha else (settle * 0.72f)
+
+        if (receiverGlowAlpha > 0.01f) {
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color(0x8C000000))
+                    .align(Alignment.Center)
+                    .offset(x = maxWidth * 0.245f, y = (-54).dp)
+                    .size(width = 134.dp, height = 122.dp)
+                    .graphicsLayer {
+                        alpha = receiverGlowAlpha
+                        scaleX = lerpFloat(0.96f, 1.04f, settle)
+                        scaleY = lerpFloat(0.96f, 1.04f, settle)
+                    }
+                    .shadow(
+                        elevation = 20.dp,
+                        shape = RoundedCornerShape(10.dp),
+                        ambientColor = Color.White.copy(alpha = 0.9f),
+                        spotColor = Color(0xFF7FA8FF).copy(alpha = 0.95f)
+                    )
+                    .border(
+                        width = 2.dp,
+                        color = Color.White.copy(alpha = 0.86f),
+                        shape = RoundedCornerShape(10.dp)
+                    )
             )
-            Image(
-                painter = painterResource(id = gift.imageRes),
-                contentDescription = null,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .offset(y = (-150).dp)
-                    .size(width = 112.dp, height = 112.dp),
-                contentScale = ContentScale.Fit
-            )
-            Text(
-                text = "Delivering your ${gift.deliveryLabel}...",
-                color = Color.White,
-                fontSize = 16.sp,
-                fontFamily = GaretFontFamily,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .offset(y = (-124).dp)
-            )
-        } else if (phase == GiftDeliveryPhase.Arrived) {
-//            Box(
-//                modifier = Modifier
-//                    .align(Alignment.Center)
-//                    .offset(x = (-109).dp, y = (-63).dp)
-//                    .size(width = 138.dp, height = 138.dp)
-//                    .clip(RoundedCornerShape(14.dp))
-//                    .border(3.dp, Color.White, RoundedCornerShape(14.dp))
-//            )
+        }
+
+        if (landedAlpha > 0.01f) {
             Image(
                 painter = painterResource(id = gift.imageRes),
                 contentDescription = null,
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .offset(x = (-42).dp, y = (-18).dp)
-                    .size(width = 72.dp, height = 72.dp),
+                    .offset(x = maxWidth * 0.335f, y = (-14).dp)
+                    .graphicsLayer {
+                        alpha = landedAlpha
+                        scaleX = lerpFloat(0.72f, 1f, settle)
+                        scaleY = lerpFloat(0.72f, 1f, settle)
+                    }
+                    .size(34.dp),
                 contentScale = ContentScale.Fit
             )
         }
+
+        if (largeAlpha > 0.01f) {
+            Image(
+                painter = painterResource(id = gift.imageRes),
+                contentDescription = null,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .offset(x = giftOffsetX, y = giftOffsetY + lift)
+                    .graphicsLayer {
+                        alpha = largeAlpha
+                        rotationZ = lerpFloat(-4f, 6f, value.coerceIn(0f, 0.35f) / 0.35f)
+                        scaleX = lerpFloat(0.88f, 1f, (value / 0.16f).coerceIn(0f, 1f))
+                        scaleY = scaleX
+                    }
+                    .size(giftSize),
+                contentScale = ContentScale.Fit
+            )
+        }
+
+        if (value < 0.62f) {
+            val textAlpha = when {
+                value < 0.1f -> value / 0.1f
+                value < 0.48f -> 1f
+                else -> 1f - ((value - 0.48f) / 0.14f)
+            }.coerceIn(0f, 1f)
+            val caption = "Delivering your ${gift.deliveryLabel}..."
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .offset(y = 8.dp)
+                    .graphicsLayer { alpha = textAlpha }
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = caption,
+                    color = Color.Black,
+                    fontSize = 17.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Black,
+                    maxLines = 1,
+                    textAlign = TextAlign.Center,
+                    style = TextStyle(drawStyle = Stroke(width = 5f))
+                )
+                Text(
+                    text = caption,
+                    color = Color.White,
+                    fontSize = 17.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Black,
+                    maxLines = 1,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
     }
 }
+
+private fun lerpFloat(start: Float, stop: Float, fraction: Float): Float =
+    start + ((stop - start) * fraction.coerceIn(0f, 1f))
+
+private fun lerpDp(start: Dp, stop: Dp, fraction: Float): Dp =
+    start + ((stop - start) * fraction.coerceIn(0f, 1f))
 
 @Composable
 private fun GiftTopPanel(

@@ -17,8 +17,8 @@ android {
         targetSdk = 36
 
 
-        versionCode = 9
-        versionName = "1.8"
+        versionCode = 11
+        versionName = "1.10"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -82,6 +82,7 @@ dependencies {
 
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
+    implementation(libs.facebook.core)
 
     implementation(libs.androidx.security.crypto)
     implementation(libs.agora.rtc)

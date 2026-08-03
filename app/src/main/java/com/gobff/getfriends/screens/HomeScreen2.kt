@@ -646,6 +646,7 @@ private fun HomeScreen2StarFriendRow(
         friends.forEachIndexed { index, friend ->
             HomeScreen2StarFriendCard(
                 name = friend.displayNameForHome(),
+                avatarUrl = friend.avatarUrl,
                 avatarRes = friend.avatarUrl.toHomeFriendAvatarRes(friend.identitySeedForHome()),
                 showOnline = friend.isOnlineForHome(),
                 delayMillis = 170 + index * 60
@@ -657,6 +658,7 @@ private fun HomeScreen2StarFriendRow(
 @Composable
 private fun HomeScreen2StarFriendCard(
     name: String,
+    avatarUrl: String?,
     avatarRes: Int,
     showOnline: Boolean,
     delayMillis: Int = 0
@@ -699,8 +701,9 @@ private fun HomeScreen2StarFriendCard(
         ) {
 
             Box {
-                Image(
-                    painter = painterResource(avatarRes),
+                CachedAvatarImage(
+                    avatarUrl = avatarUrl,
+                    fallbackRes = avatarRes,
                     contentDescription = null,
                     modifier = Modifier
                         .size(58.dp)
@@ -850,6 +853,8 @@ private fun HomeScreen2FriendRow(
         friends.forEachIndexed { index, friend ->
             HomeScreen2FriendCard(
                 name = friend.displayNameForHome(),
+                avatarUrl = friend.avatarUrl,
+                gender = friend.gender,
                 avatarRes = friend.avatarUrl.toHomeFriendAvatarRes(friend.identitySeedForHome()),
                 showOnline = friend.online != false,
                 onCallClick = { onCallRequested(friend.toHomeProfile()) },
@@ -862,6 +867,8 @@ private fun HomeScreen2FriendRow(
 @Composable
 private fun HomeScreen2FriendCard(
     name: String,
+    avatarUrl: String?,
+    gender: String?,
     avatarRes: Int,
     showOnline: Boolean,
     onCallClick: () -> Unit,
@@ -890,8 +897,10 @@ private fun HomeScreen2FriendCard(
                 .padding(top = 13.dp, start = 14.dp, end = 14.dp, bottom = 10.dp)
         ) {
             Box {
-                Image(
-                    painter = painterResource(id = avatarRes),
+                CachedAvatarImage(
+                    avatarUrl = avatarUrl,
+                    gender = gender,
+                    fallbackRes = avatarRes,
                     contentDescription = null,
                     modifier = Modifier
                         .size(58.dp)
@@ -1142,7 +1151,9 @@ private fun ConnectUserResponse.toHomeProfile(): HomeProfile =
         headerColor = Color(0xFFFCC02E),
         languages = emptyList(),
         tags = emptyList(),
-        prompt = ""
+        prompt = "",
+        avatarUrl = avatarUrl,
+        gender = gender
     )
 
 private fun ConnectUserResponse.identitySeedForHome(): String =

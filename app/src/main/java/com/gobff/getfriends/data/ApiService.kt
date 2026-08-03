@@ -4,6 +4,7 @@ import com.gobff.getfriends.data.model.AppVersionResponse
 import com.gobff.getfriends.data.model.CallHistoryItemResponse
 import com.gobff.getfriends.data.model.CountryLoginConfig
 import com.gobff.getfriends.data.model.ConnectUserResponse
+import com.gobff.getfriends.data.model.CreateCoinWithdrawalBody
 import com.gobff.getfriends.data.model.CreateRoomBody
 import com.gobff.getfriends.data.model.EndRoomResponse
 import com.gobff.getfriends.data.model.FriendListUserResponse
@@ -46,6 +47,7 @@ import com.gobff.getfriends.data.model.VideoUpgradeStatusResponse
 import com.gobff.getfriends.data.model.VoiceVerificationResponse
 import com.gobff.getfriends.data.model.VoiceVerificationStatusResponse
 import com.gobff.getfriends.data.model.WalletBalanceResponse
+import com.google.gson.JsonElement
 import okhttp3.MultipartBody
 import retrofit2.Response
 import retrofit2.http.Body
@@ -122,6 +124,18 @@ interface ApiService {
     suspend fun getCoinSummary(
         @Header("Authorization") bearerToken: String
     ): Response<WalletBalanceResponse>
+
+    @GET("coin/withdrawals")
+    suspend fun getCoinWithdrawals(
+        @Header("Authorization") bearerToken: String
+    ): Response<JsonElement>
+
+    @POST("coin/withdrawals")
+    suspend fun createCoinWithdrawal(
+        @Header("Authorization") bearerToken: String,
+        @Header("Idempotency-Key") idempotencyKey: String,
+        @Body body: CreateCoinWithdrawalBody
+    ): Response<JsonElement>
 
     @GET("wallet/recharge/options")
     suspend fun getRechargeOptions(

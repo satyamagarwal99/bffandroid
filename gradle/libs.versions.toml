@@ -12,6 +12,7 @@ kotlin = "2.2.10"
 composeBom = "2026.02.01"
 googleServices = "4.4.2"
 firebaseBom = "33.16.0"
+facebookSdk = "18.3.0"
 loggingInterceptor = "4.12.0"
 navigationCompose = "2.9.0"
 retrofit = "2.9.0"
@@ -26,6 +27,7 @@ androidx-security-crypto = { module = "androidx.security:security-crypto", versi
 converter-gson = { module = "com.squareup.retrofit2:converter-gson", version.ref = "converterGson" }
 firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
 firebase-messaging = { module = "com.google.firebase:firebase-messaging" }
+facebook-core = { module = "com.facebook.android:facebook-core", version.ref = "facebookSdk" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }

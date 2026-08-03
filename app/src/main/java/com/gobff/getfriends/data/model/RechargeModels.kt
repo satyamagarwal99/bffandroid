@@ -11,6 +11,35 @@ data class RechargeOption(
     val isPopular: Boolean = false
 )
 
+data class RechargeCoupon(
+    val code: String,
+    val title: String,
+    val description: String,
+    val discountType: String,
+    val discountValue: Int,
+    val maxDiscountPaise: Int?,
+    val minAmountPaise: Int?,
+    val validUntil: String?
+)
+
+data class AppliedRechargeCoupon(
+    val code: String,
+    val title: String?,
+    val description: String?,
+    val discountAmountPaise: Int
+)
+
+data class RechargeQuote(
+    val packCode: String,
+    val packTitle: String?,
+    val hearts: Int,
+    val baseAmountPaise: Int,
+    val discountAmountPaise: Int,
+    val payableAmountPaise: Int,
+    val currencyCode: String,
+    val appliedCoupon: AppliedRechargeCoupon?
+)
+
 data class RechargeQuoteResult(
     val isSuccessful: Boolean,
     val message: String?,
@@ -48,17 +77,21 @@ typealias JuspayCheckoutData = CashfreeCheckoutData
 data class RechargeOptionsResult(
     val isSuccessful: Boolean,
     val options: List<RechargeOption>,
+    val coupons: List<RechargeCoupon> = emptyList(),
     val message: String?
 )
 
 data class RechargeUiState(
     val isLoading: Boolean = true,
     val options: List<RechargeOption> = emptyList(),
+    val coupons: List<RechargeCoupon> = emptyList(),
     val selectedOptionId: String? = null,
     val errorMessage: String? = null,
     val isQuoteLoading: Boolean = false,
     val isQuoteSuccessful: Boolean = false,
     val quoteMessage: String? = null,
+    val quote: RechargeQuote? = null,
+    val appliedCouponCode: String? = null,
     val isPurchaseLoading: Boolean = false,
     val isPurchaseSuccessful: Boolean = false,
     val purchaseMessage: String? = null,
@@ -82,16 +115,31 @@ enum class RechargePaymentResolution {
 
 data class RechargeQuoteBody(
     @SerializedName("packCode") val packCode: String,
-    @SerializedName("couponCode") val couponCode: String
+    @SerializedName("couponCode") val couponCode: String?
 )
 
 data class RechargeQuoteResponse(
-    @SerializedName("message") val message: String?
+    @SerializedName("message") val message: String?,
+    @SerializedName("packCode") val packCode: String?,
+    @SerializedName("packTitle") val packTitle: String?,
+    @SerializedName("hearts") val hearts: Int?,
+    @SerializedName("baseAmountPaise") val baseAmountPaise: Int?,
+    @SerializedName("discountAmountPaise") val discountAmountPaise: Int?,
+    @SerializedName("payableAmountPaise") val payableAmountPaise: Int?,
+    @SerializedName("currencyCode") val currencyCode: String?,
+    @SerializedName("appliedCoupon") val appliedCoupon: AppliedRechargeCouponDto?
 )
 
 data class RechargePurchaseBody(
     @SerializedName("packCode") val packCode: String,
-    @SerializedName("couponCode") val couponCode: String
+    @SerializedName("couponCode") val couponCode: String?
+)
+
+data class AppliedRechargeCouponDto(
+    @SerializedName("code") val code: String?,
+    @SerializedName("title") val title: String?,
+    @SerializedName("description") val description: String?,
+    @SerializedName("discountAmountPaise") val discountAmountPaise: Int?
 )
 
 data class RechargePurchaseResponse(
@@ -180,6 +228,7 @@ data class RechargeOptionsResponse(
     @SerializedName("packs") val packs: List<RechargeOptionDto>?,
     @SerializedName("options") val options: List<RechargeOptionDto>?,
     @SerializedName("rechargeOptions") val rechargeOptions: List<RechargeOptionDto>?,
+    @SerializedName("coupons") val coupons: List<RechargeCouponDto>?,
     @SerializedName("data") val data: RechargeOptionsContainer?,
     @SerializedName("wallet") val wallet: RechargeOptionsContainer?
 )
@@ -187,7 +236,8 @@ data class RechargeOptionsResponse(
 data class RechargeOptionsContainer(
     @SerializedName("packs") val packs: List<RechargeOptionDto>?,
     @SerializedName("options") val options: List<RechargeOptionDto>?,
-    @SerializedName("rechargeOptions") val rechargeOptions: List<RechargeOptionDto>?
+    @SerializedName("rechargeOptions") val rechargeOptions: List<RechargeOptionDto>?,
+    @SerializedName("coupons") val coupons: List<RechargeCouponDto>?
 )
 
 data class RechargeOptionDto(
@@ -208,4 +258,15 @@ data class RechargeOptionDto(
     @SerializedName("isPopular") val isPopular: Boolean?,
     @SerializedName("popular") val popular: Boolean?,
     @SerializedName("recommended") val recommended: Boolean?
+)
+
+data class RechargeCouponDto(
+    @SerializedName("code") val code: String?,
+    @SerializedName("title") val title: String?,
+    @SerializedName("description") val description: String?,
+    @SerializedName("discountType") val discountType: String?,
+    @SerializedName("discountValue") val discountValue: Int?,
+    @SerializedName("maxDiscountPaise") val maxDiscountPaise: Int?,
+    @SerializedName("minAmountPaise") val minAmountPaise: Int?,
+    @SerializedName("validUntil") val validUntil: String?
 )

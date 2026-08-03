@@ -392,6 +392,7 @@ private fun ProfileScreenContent(
                 onBack = onBack,
                 walletBalance = walletCoins,
                 walletHearts = walletHearts,
+                showWallet = !isMaleProfile,
                 onWalletRequested = onWalletRequested,
                 onRechargeRequested = onRechargeRequested,
                 onSettingsRequested = onSettingsRequested,
@@ -635,6 +636,7 @@ private fun ProfileTopBar(
     onBack: () -> Unit,
     walletBalance: Int,
     walletHearts: Int,
+    showWallet: Boolean,
     onWalletRequested: () -> Unit,
     onRechargeRequested: () -> Unit,
     onSettingsRequested: () -> Unit,
@@ -657,13 +659,15 @@ private fun ProfileTopBar(
                 )
         )
         Spacer(modifier = Modifier.weight(1f))
-        ProfileTopChip(
-            width = 76.dp,
-            iconRes = R.drawable.profile_screen_wallet,
-            text = walletBalance.toString(),
-            onClick = onWalletRequested
-        )
-        Spacer(modifier = Modifier.width(12.dp))
+        if (showWallet) {
+            ProfileTopChip(
+                width = 76.dp,
+                iconRes = R.drawable.coin_icon,
+                text = walletBalance.toString(),
+                onClick = onWalletRequested
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+        }
         BffHeartChip(hearts = walletHearts, onClick = onRechargeRequested)
         Spacer(modifier = Modifier.width(12.dp))
         ProfileSettingsChip(onClick = onSettingsRequested)

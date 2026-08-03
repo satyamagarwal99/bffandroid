@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -50,6 +51,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -307,9 +309,9 @@ fun OnlineWaitingScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    KeepOnlineWaitingScreenAwake()
+
     var showSafetySheet by remember { mutableStateOf(false) }
-    var muted by remember { mutableStateOf(true) }
-    var speakerOn by remember { mutableStateOf(false) }
     var cardIndex by remember { mutableIntStateOf(0) }
     val cards = remember { OnlineWaitingCards }
 
@@ -406,24 +408,6 @@ fun OnlineWaitingScreen(
                 selectedIndex = cardIndex,
                 total = cards.size
             )
-            Spacer(modifier = Modifier.height(30.dp))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(58.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OnlineCircleControl(
-                    active = muted,
-                    iconRes = if (muted) R.drawable.mic_off else R.drawable.mic_on,
-                    label = "Mute",
-                    onClick = { muted = !muted }
-                )
-                OnlineCircleControl(
-                    active = !speakerOn,
-                    iconRes = if (speakerOn) R.drawable.speaker_on else R.drawable.speaker_off,
-                    label = if (speakerOn) "Speaker on" else "Speaker off",
-                    onClick = { speakerOn = !speakerOn }
-                )
-            }
         }
 
         if (showSafetySheet) {
@@ -441,6 +425,18 @@ fun OnlineWaitingScreen(
                 onReportClick = { showSafetySheet = false },
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
+        }
+    }
+}
+
+@Composable
+private fun KeepOnlineWaitingScreenAwake() {
+    val view = LocalView.current
+    DisposableEffect(view) {
+        val previousKeepScreenOn = view.keepScreenOn
+        view.keepScreenOn = true
+        onDispose {
+            view.keepScreenOn = previousKeepScreenOn
         }
     }
 }

@@ -623,7 +623,11 @@ fun AppNavGraph(
                 walletHearts = walletHearts,
                 onBack = navController::navigateUp,
                 onGiftVibeRequested = { navController.navigateSingleTop(AppRoute.GiftVibe) },
-                onWalletRequested = { navController.navigateSingleTop(AppRoute.Wallet) },
+                onWalletRequested = {
+                    if (userProfileViewModel.uiState.gender.toAvatarGender() != AvatarGender.Male) {
+                        navController.navigateSingleTop(AppRoute.Wallet)
+                    }
+                },
                 onRechargeRequested = { navController.navigateSingleTop(AppRoute.Recharge) },
                 onSettingsRequested = { navController.navigateSingleTop(AppRoute.Settings) },
                 onFriendsListRequested = { navController.navigateSingleTop(AppRoute.Friends) },
@@ -683,9 +687,16 @@ fun AppNavGraph(
         }
 
         composable(AppRoute.Wallet.route) {
-            WalletScreen(
-                onBack = navController::navigateUp
-            )
+            LaunchedEffect(currentUserProfile.gender) {
+                if (currentUserProfile.gender.toAvatarGender() == AvatarGender.Male) {
+                    navController.navigateHome()
+                }
+            }
+            if (currentUserProfile.gender.toAvatarGender() != AvatarGender.Male) {
+                WalletScreen(
+                    onBack = navController::navigateUp
+                )
+            }
         }
 
         composable(AppRoute.Chat.route) {
@@ -825,6 +836,12 @@ fun AppNavGraph(
                 walletHearts = walletHearts,
                 callEndedPush = callEndedPush,
                 onCallEndedPushHandled = onCallEndedPushHandled,
+                onRechargeRequired = {
+                    navController.navigate(AppRoute.Recharge.route) {
+                        popUpTo(AppRoute.Call.route) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                },
                 onBack = { navController.navigateHome() }
             )
         }

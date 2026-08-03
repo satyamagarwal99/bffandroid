@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.gobff.getfriends.analytics.MetaEvents
 import com.gobff.getfriends.data.MainRepository
 import com.gobff.getfriends.data.model.CountryIsoProvider
 import com.gobff.getfriends.data.model.CountryLoginConfig
@@ -217,6 +218,7 @@ class LoginViewModel(
                             userId = responseBody.userId
                         )
                         syncFcmTokenAfterLogin(responseBody.accessToken, fcmToken)
+                        MetaEvents.logCompleteRegistration(getApplication<Application>(), "otp")
                         AppSession.logSnapshot("LoginViewModel.otp.success")
                         uiState = uiState.copy(
                             isOtpVerifyLoading = false,
@@ -286,6 +288,7 @@ class LoginViewModel(
                             userId = responseBody?.userId
                         )
                         syncFcmTokenAfterLogin(responseBody?.accessToken, fcmToken)
+                        MetaEvents.logCompleteRegistration(getApplication<Application>(), "google")
                         AppSession.logSnapshot("LoginViewModel.google.success")
                     }
                     uiState = uiState.copy(

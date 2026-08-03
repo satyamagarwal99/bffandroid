@@ -8,14 +8,19 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gobff.getfriends.data.MainRepository
+import com.gobff.getfriends.data.model.AppliedRechargeCoupon
 import com.gobff.getfriends.data.model.CashfreeCheckoutData
+import com.gobff.getfriends.data.model.RechargeCoupon
+import com.gobff.getfriends.data.model.RechargeCouponDto
 import com.gobff.getfriends.data.model.RechargeOption
 import com.gobff.getfriends.data.model.RechargeOrderStatusResponse
 import com.gobff.getfriends.data.model.RechargePaymentResolution
 import com.gobff.getfriends.data.model.RechargeOptionsResponse
 import com.gobff.getfriends.data.model.RechargePurchaseBody
 import com.gobff.getfriends.data.model.RechargePurchaseResponse
+import com.gobff.getfriends.data.model.RechargeQuote
 import com.gobff.getfriends.data.model.RechargeQuoteBody
+import com.gobff.getfriends.data.model.RechargeQuoteResponse
 import com.gobff.getfriends.data.model.RechargeUiState
 import com.gobff.getfriends.utils.TokenUtils
 import com.gobff.getfriends.utils.userFacingMessage
@@ -59,9 +64,15 @@ class RechargeViewModel(
                     } else {
                         emptyList()
                     }
+                    val coupons = if (response.isSuccessful && body != null) {
+                        parseRechargeCoupons(body)
+                    } else {
+                        emptyList()
+                    }
                     uiState = uiState.copy(
                         isLoading = false,
                         options = options,
+                        coupons = coupons,
                         selectedOptionId = uiState.selectedOptionId
                             ?.takeIf { selectedId -> options.any { it.id == selectedId } },
                         errorMessage = if (response.isSuccessful) null else body?.message ?: "Unable to load recharge options"
@@ -71,6 +82,7 @@ class RechargeViewModel(
                     uiState = uiState.copy(
                         isLoading = false,
                         options = emptyList(),
+                        coupons = emptyList(),
                         selectedOptionId = null,
                         errorMessage = error.userFacingMessage("Unable to load recharge options")
                     )
@@ -79,16 +91,26 @@ class RechargeViewModel(
     }
 
     fun selectOption(optionId: String) {
-        uiState = uiState.copy(selectedOptionId = optionId)
+        uiState = uiState.copy(
+            selectedOptionId = optionId,
+            isQuoteSuccessful = false,
+            quoteMessage = null,
+            quote = null,
+            appliedCouponCode = null
+        )
     }
 
-    fun requestRechargeQuote(couponCode: String = "") {
+    fun requestRechargeQuote(couponCode: String = "", onComplete: (Boolean) -> Unit = {}) {
+        val normalizedCouponCode = couponCode.trim()
         val selectedOption = uiState.selectedOption ?: run {
             uiState = uiState.copy(
                 isQuoteLoading = false,
                 isQuoteSuccessful = false,
-                quoteMessage = "Select a recharge pack"
+                quoteMessage = "Select a recharge pack",
+                quote = null,
+                appliedCouponCode = null
             )
+            onComplete(false)
             return
         }
 
@@ -98,8 +120,11 @@ class RechargeViewModel(
                 uiState = uiState.copy(
                     isQuoteLoading = false,
                     isQuoteSuccessful = false,
-                    quoteMessage = "Login token missing"
+                    quoteMessage = "Login token missing",
+                    quote = null,
+                    appliedCouponCode = null
                 )
+                onComplete(false)
                 return@launch
             }
 
@@ -111,28 +136,47 @@ class RechargeViewModel(
 
             val body = RechargeQuoteBody(
                 packCode = selectedOption.packCode,
-                couponCode = couponCode
+                couponCode = normalizedCouponCode.takeIf { it.isNotBlank() }
             )
             runCatching { mainRepository.getRechargeQuote(token, body) }
                 .onSuccess { response ->
+                    val quote = response.body()?.takeIf { response.isSuccessful }?.let(::parseRechargeQuote)
                     uiState = uiState.copy(
                         isQuoteLoading = false,
                         isQuoteSuccessful = response.isSuccessful,
+                        quote = quote,
+                        appliedCouponCode = quote?.appliedCoupon?.code ?: normalizedCouponCode.takeIf {
+                            response.isSuccessful && it.isNotBlank()
+                        },
                         quoteMessage = response.body()?.message ?: if (response.isSuccessful) {
-                            "Recharge quote created"
+                            quote?.appliedCoupon?.let { "Coupon ${it.code} applied" } ?: "Recharge quote created"
                         } else {
                             "Unable to create recharge quote"
                         }
                     )
+                    onComplete(response.isSuccessful)
                 }
                 .onFailure { error ->
                     uiState = uiState.copy(
                         isQuoteLoading = false,
                         isQuoteSuccessful = false,
+                        quote = null,
+                        appliedCouponCode = null,
                         quoteMessage = error.userFacingMessage("Unable to create recharge quote")
                     )
+                    onComplete(false)
                 }
         }
+    }
+
+    fun clearAppliedCoupon() {
+        uiState = uiState.copy(
+            isQuoteLoading = false,
+            isQuoteSuccessful = false,
+            quoteMessage = null,
+            quote = null,
+            appliedCouponCode = null
+        )
     }
 
     fun purchaseRecharge(couponCode: String = "") {
@@ -167,7 +211,7 @@ class RechargeViewModel(
 
             val body = RechargePurchaseBody(
                 packCode = selectedOption.packCode,
-                couponCode = couponCode
+                couponCode = couponCode.trim().takeIf { it.isNotBlank() } ?: uiState.appliedCouponCode
             )
             val idempotencyKey = UUID.randomUUID().toString()
             Log.d(
@@ -341,6 +385,8 @@ class RechargeViewModel(
             isQuoteLoading = false,
             isQuoteSuccessful = false,
             quoteMessage = null,
+            quote = null,
+            appliedCouponCode = null,
             isPurchaseLoading = false,
             isPurchaseSuccessful = false,
             purchaseMessage = null,
@@ -561,6 +607,52 @@ class RechargeViewModel(
                     item.badge.equals("POPULAR", ignoreCase = true)
             )
         }
+    }
+
+    private fun parseRechargeCoupons(body: RechargeOptionsResponse): List<RechargeCoupon> {
+        val items = body.coupons
+            ?: body.data?.coupons
+            ?: body.wallet?.coupons
+            ?: emptyList()
+
+        return items.mapNotNull { item ->
+            item.toRechargeCoupon()
+        }
+    }
+
+    private fun RechargeCouponDto.toRechargeCoupon(): RechargeCoupon? {
+        val code = code?.trim()?.takeIf { it.isNotBlank() } ?: return null
+        return RechargeCoupon(
+            code = code,
+            title = title?.trim()?.takeIf { it.isNotBlank() } ?: code,
+            description = description?.trim().orEmpty(),
+            discountType = discountType?.trim().orEmpty(),
+            discountValue = discountValue ?: 0,
+            maxDiscountPaise = maxDiscountPaise,
+            minAmountPaise = minAmountPaise,
+            validUntil = validUntil
+        )
+    }
+
+    private fun parseRechargeQuote(body: RechargeQuoteResponse): RechargeQuote {
+        val coupon = body.appliedCoupon?.code?.trim()?.takeIf { it.isNotBlank() }?.let { code ->
+            AppliedRechargeCoupon(
+                code = code,
+                title = body.appliedCoupon.title,
+                description = body.appliedCoupon.description,
+                discountAmountPaise = body.appliedCoupon.discountAmountPaise ?: 0
+            )
+        }
+        return RechargeQuote(
+            packCode = body.packCode.orEmpty(),
+            packTitle = body.packTitle,
+            hearts = body.hearts ?: 0,
+            baseAmountPaise = body.baseAmountPaise ?: 0,
+            discountAmountPaise = body.discountAmountPaise ?: 0,
+            payableAmountPaise = body.payableAmountPaise ?: body.baseAmountPaise ?: 0,
+            currencyCode = body.currencyCode ?: "INR",
+            appliedCoupon = coupon
+        )
     }
 
     private fun parseCashfreeCheckoutData(body: RechargePurchaseResponse): CashfreeCheckoutData {

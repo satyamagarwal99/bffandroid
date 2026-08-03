@@ -556,10 +556,9 @@ class CallViewModel(
             runCatching { mainRepository.createRoom(token, body) }
                 .onSuccess { response ->
                     val responseBody = response.body()
-                    uiState = if (response.isSuccessful && responseBody != null) {
-                        responseBody.id?.let { roomId ->
-                            getAudioRtcToken(roomId = roomId)
-                        }
+                    val roomError = responseBody?.roomCreateErrorMessage()
+                    uiState = if (response.isSuccessful && responseBody != null && roomError == null) {
+                        getAudioRtcToken(roomId = responseBody.id.orEmpty())
                         onSuccess(responseBody)
                         uiState.copy(
                             isCreatingRoom = false,
@@ -567,16 +566,12 @@ class CallViewModel(
                             errorMessage = null
                         )
                     } else {
-                        val errorMessage = response.errorBody()
-                            ?.string()
-                            ?.takeIf { it.isNotBlank() }
-                            ?.let { bodyText ->
-                                Regex("\"message\"\\s*:\\s*\"([^\"]+)\"")
-                                    .find(bodyText)
-                                    ?.groupValues
-                                    ?.getOrNull(1)
-                                    ?: bodyText
-                            }
+                        val errorMessage = roomError
+                            ?: response.errorBody()
+                                ?.string()
+                                ?.takeIf { it.isNotBlank() }
+                                ?.let(::roomCreateErrorMessage)
+                            ?: responseBody?.message
                             ?: "Unable to create room"
                         onFailure(errorMessage)
                         uiState.copy(
@@ -840,5 +835,34 @@ class CallViewModel(
 
     private companion object {
         const val DEFAULT_MAX_PARTICIPANTS = 50
+
+        fun RoomResponse.roomCreateErrorMessage(): String? {
+            val code = code?.trim().orEmpty()
+            val message = message?.trim().orEmpty()
+            return when {
+                code.equals("INSUFFICIENT_HEARTS", ignoreCase = true) ->
+                    "$code: ${message.ifBlank { "No hearts available. Please recharge to start a call." }}"
+                id.isNullOrBlank() ->
+                    message.ifBlank { "Unable to create room" }
+                else -> null
+            }
+        }
+
+        fun roomCreateErrorMessage(bodyText: String): String {
+            val code = Regex("\"code\"\\s*:\\s*\"([^\"]+)\"")
+                .find(bodyText)
+                ?.groupValues
+                ?.getOrNull(1)
+            val message = Regex("\"message\"\\s*:\\s*\"([^\"]+)\"")
+                .find(bodyText)
+                ?.groupValues
+                ?.getOrNull(1)
+                ?: bodyText
+            return if (code.equals("INSUFFICIENT_HEARTS", ignoreCase = true)) {
+                "$code: $message"
+            } else {
+                message
+            }
+        }
     }
 }
