@@ -79,6 +79,7 @@ import com.gobff.getfriends.data.MainRepository
 import com.gobff.getfriends.screens.AudioScreen
 import com.gobff.getfriends.screens.CallScreen
 import com.gobff.getfriends.screens.ChatScreen
+import com.gobff.getfriends.screens.EarnCoinsScreen
 import com.gobff.getfriends.screens.FriendsListScreen
 import com.gobff.getfriends.screens.GameScreen
 import com.gobff.getfriends.screens.GenderScreen
@@ -528,10 +529,23 @@ fun AppNavGraph(
                     if (gender.toAvatarGender() == AvatarGender.Female) {
                         Log.d(
                             FEMALE_ONLINE_ONBOARDING_TAG,
-                            "audioDone female: marking pending fallback"
+                            "audioDone female: opening earn coins"
                         )
-                        AppSession.markFemaleOnlineOnboardingPending()
+                        navController.navigate(AppRoute.EarnCoins.route) {
+                            popUpTo(AppRoute.Audio.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                        return@AudioScreen
                     }
+                    navController.navigateHome()
+                }
+            )
+        }
+
+        composable(AppRoute.EarnCoins.route) {
+            EarnCoinsScreen(
+                onGotIt = {
+                    AppSession.markFemaleOnlineOnboardingPending()
                     navController.navigateHome()
                 }
             )
@@ -1128,10 +1142,12 @@ private fun String?.navigationOrderIndex(): Int? =
         AppRoute.IncomingCall.route -> 15
         AppRoute.Call.route -> 16
         AppRoute.Gender.route -> 17
-        AppRoute.Audio.route -> 18
-        AppRoute.Login.route -> 19
-        AppRoute.UpdateApp.route -> 20
-        AppRoute.Splash.route -> 21
+        AppRoute.Language.route -> 18
+        AppRoute.Audio.route -> 19
+        AppRoute.EarnCoins.route -> 20
+        AppRoute.Login.route -> 21
+        AppRoute.UpdateApp.route -> 22
+        AppRoute.Splash.route -> 23
         AppRoute.Settings.route -> 7
         AppRoute.GiftVibe.route -> 8
         AppRoute.Wallet.route -> 9
@@ -1144,9 +1160,10 @@ private fun String?.navigationOrderIndex(): Int? =
         AppRoute.Gender.route -> 16
         AppRoute.Language.route -> 17
         AppRoute.Audio.route -> 18
-        AppRoute.Login.route -> 19
-        AppRoute.UpdateApp.route -> 20
-        AppRoute.Splash.route -> 21
+        AppRoute.EarnCoins.route -> 19
+        AppRoute.Login.route -> 20
+        AppRoute.UpdateApp.route -> 21
+        AppRoute.Splash.route -> 22
         else -> null
     }
 
@@ -1174,6 +1191,7 @@ private fun String?.shouldShowWaitingForCallBanner(): Boolean =
         this != AppRoute.Gender.route &&
         this != AppRoute.Language.route &&
         this != AppRoute.Audio.route &&
+        this != AppRoute.EarnCoins.route &&
         this != AppRoute.OnlineFlow.route &&
         this != AppRoute.OnlineWaiting.route &&
         this != AppRoute.Call.route &&

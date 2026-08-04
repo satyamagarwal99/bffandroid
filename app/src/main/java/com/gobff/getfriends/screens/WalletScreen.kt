@@ -17,6 +17,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -25,6 +28,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -46,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
@@ -53,9 +58,11 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -111,7 +118,7 @@ fun WalletScreen(
                 currentCoinValuePaise = currentCoinValuePaise,
                 onBack = onBack,
                 onRedeem = {
-                    if (coinBalance > MIN_REDEEM_COINS) {
+                    if (coinBalance >= MIN_REDEEM_COINS) {
                         sheet = if (panVerified) WalletSheet.Withdraw else WalletSheet.PanVerification
                     }
                 }
@@ -131,7 +138,7 @@ fun WalletScreen(
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
-                    ) { sheet = null }
+                    ) { }
             )
         }
 
@@ -259,7 +266,7 @@ private fun WalletHeader(
             )
         }
         SwipeToRedeem(
-            enabled = coins > MIN_REDEEM_COINS,
+            enabled = coins >= MIN_REDEEM_COINS,
             onRedeem = onRedeem,
             modifier = Modifier
                 .align(Alignment.TopCenter)
@@ -366,6 +373,12 @@ private fun SwipeToRedeem(
     val sidePaddingPx = with(density) { 8.dp.toPx() }
     val knobSizePx = with(density) { 40.dp.toPx() }
     val maxOffset = (trackWidthPx - knobSizePx - (sidePaddingPx * 2f)).coerceAtLeast(0f)
+    val swipeProgress = if (maxOffset > 0f) {
+        (knobOffset.value / maxOffset).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+    val labelAlpha = if (enabled) (1f - swipeProgress).coerceIn(0f, 1f) else 0.38f
 
     Box(
         modifier = modifier
@@ -417,13 +430,36 @@ private fun SwipeToRedeem(
                 .background(if (enabled) Color.White else Color.White.copy(alpha = 0.40f))
                 .border(1.dp, Color.White.copy(alpha = 0.8f), RoundedCornerShape(16.dp))
         )
+        if (enabled) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .padding(3.dp)
+                    .clip(RoundedCornerShape(13.dp))
+                    .background(Color.Transparent)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth((0.18f + (swipeProgress * 0.82f)).coerceIn(0.18f, 1f))
+                        .height(50.dp)
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(Color(0xFFFFB2B2).copy(alpha = 0.18f + (swipeProgress * 0.18f)))
+                )
+            }
+        }
         Text(
             text = if (enabled) "Swipe to redeem" else "Minimum 100 coins to redeem",
-            color = Color(0xFF222222).copy(alpha = if (enabled) 1f else 0.38f),
+            color = Color(0xFF222222).copy(alpha = labelAlpha),
             fontSize = 13.sp,
             fontFamily = GaretFontFamily,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.align(Alignment.Center)
+            modifier = Modifier
+                .align(Alignment.Center)
+                .graphicsLayer {
+                    translationX = swipeProgress * 18f
+                    scaleX = 1f - (swipeProgress * 0.03f)
+                    scaleY = 1f - (swipeProgress * 0.03f)
+                }
         )
         if (enabled) {
             Box(
@@ -436,6 +472,10 @@ private fun SwipeToRedeem(
                     .clip(RoundedCornerShape(8.dp))
                     .background(Color(0xFFF98080))
                     .border(1.dp, Color.White.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
+                    .graphicsLayer {
+                        scaleX = 1f + (swipeProgress * 0.06f)
+                        scaleY = 1f + (swipeProgress * 0.06f)
+                    }
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
@@ -640,29 +680,62 @@ private fun PanVerificationSheet(
 ) {
     var fullName by remember { mutableStateOf("") }
     var panNumber by remember { mutableStateOf("") }
-    val canSubmit = fullName.isNotBlank() && panNumber.isNotBlank()
+    var hasTriedSubmit by remember { mutableStateOf(false) }
+    val normalizedPan = panNumber.trim().uppercase(Locale.ENGLISH)
+    val panError = normalizedPan.panValidationError()
+    val shouldShowPanError = panNumber.isNotBlank() || hasTriedSubmit
+    val canSubmit = fullName.isNotBlank() && panError == null
 
     WalletBottomSheet(
         title = "KYC-PAN Card verification",
-        modifier = modifier.height(440.dp)
+        titleBottomSpacing = 44.dp,
+        modifier = modifier.heightIn(min = 520.dp, max = 620.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
         ) {
             WalletInput(value = fullName, onValueChange = { fullName = it }, placeholder = "Full name ( as on PAN card )")
             Spacer(modifier = Modifier.height(28.dp))
-            WalletInput(value = panNumber, onValueChange = { panNumber = it.uppercase() }, placeholder = "PAN number")
-            Spacer(modifier = Modifier.weight(1f))
+            WalletInput(
+                value = panNumber,
+                onValueChange = { input ->
+                    panNumber = input
+                        .filter { it.isLetterOrDigit() }
+                        .take(10)
+                        .uppercase(Locale.ENGLISH)
+                },
+                placeholder = "PAN number",
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters)
+            )
+            if (shouldShowPanError && panError != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = panError,
+                    color = Color(0xFFE95151),
+                    fontSize = 10.sp,
+                    lineHeight = 14.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            Spacer(modifier = Modifier.height(46.dp))
             WalletYellowButton(
                 text = "Submit",
                 enabled = canSubmit,
-                onClick = { onSubmit(fullName.trim(), panNumber.trim().uppercase()) },
+                onClick = {
+                    hasTriedSubmit = true
+                    if (canSubmit) {
+                        onSubmit(fullName.trim(), normalizedPan)
+                    }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 28.dp)
             )
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
@@ -715,11 +788,13 @@ private fun WithdrawRewardsSheet(
 
     WalletBottomSheet(
         title = "Withdraw Rewards",
-        modifier = modifier.height(455.dp)
+        titleBottomSpacing = 36.dp,
+        modifier = modifier.heightIn(min = 500.dp, max = 620.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
         ) {
             Box(
@@ -763,7 +838,7 @@ private fun WithdrawRewardsSheet(
                     fontWeight = FontWeight.Medium
                 )
             }
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(34.dp))
             WalletYellowButton(
                 text = if (isSubmitting) "Withdrawing..." else "Withdraw $amountText",
                 enabled = canWithdraw,
@@ -772,6 +847,7 @@ private fun WithdrawRewardsSheet(
                     .fillMaxWidth()
                     .padding(horizontal = 28.dp)
             )
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
@@ -852,12 +928,15 @@ private fun WalletBottomSheet(
     title: String,
     modifier: Modifier = Modifier,
     showTitle: Boolean = true,
+    titleBottomSpacing: Dp = 58.dp,
     content: @Composable () -> Unit
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
             .fillMaxWidth()
+            .imePadding()
+            .navigationBarsPadding()
             .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             .background(Color.White)
     ) {
@@ -871,7 +950,7 @@ private fun WalletBottomSheet(
         if (showTitle) {
             Spacer(modifier = Modifier.height(28.dp))
             Text(title, color = Color.Black, fontSize = 16.sp, fontFamily = GaretFontFamily, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(58.dp))
+            Spacer(modifier = Modifier.height(titleBottomSpacing))
         } else {
             Spacer(modifier = Modifier.height(18.dp))
         }
@@ -890,7 +969,8 @@ private fun WalletBottomSheet(
 private fun WalletInput(
     value: String,
     onValueChange: (String) -> Unit,
-    placeholder: String
+    placeholder: String,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default
 ) {
     Box(
         modifier = Modifier
@@ -915,6 +995,7 @@ private fun WalletInput(
             value = value,
             onValueChange = onValueChange,
             singleLine = true,
+            keyboardOptions = keyboardOptions,
             cursorBrush = SolidColor(Color.Black),
             textStyle = TextStyle(
                 color = Color(0xFF222222),
@@ -1045,8 +1126,12 @@ private fun Int.formatWalletBalance(): String = formatCurrencyPaise()
 private fun Int.formatCurrencyPaise(): String {
     val paise = coerceAtLeast(0)
     val rupees = paise / 100
-    val fractionalPaise = (paise % 100).toString().padStart(2, '0')
-    return "\u20B9$rupees.$fractionalPaise"
+    val fractionalPaise = paise % 100
+    return if (fractionalPaise == 0) {
+        "\u20B9$rupees"
+    } else {
+        "\u20B9$rupees.${fractionalPaise.toString().padStart(2, '0')}"
+    }
 }
 
 private fun Int.formatWalletBalancePaise(fallbackAmountInr: Int): String {
@@ -1057,6 +1142,16 @@ private fun Int.formatWalletBalancePaise(fallbackAmountInr: Int): String {
 private fun Int.formatCoinRate(): String {
     val paise = takeIf { it > 0 } ?: 0
     return paise.formatCurrencyPaise()
+}
+
+private fun String.panValidationError(): String? {
+    if (isBlank()) return "Enter PAN number"
+    if (length != 10) return "PAN must be 10 characters"
+    return if (Regex("^[A-Z]{5}[0-9]{4}[A-Z]$").matches(this)) {
+        null
+    } else {
+        "Enter a valid PAN format, for example ABCDE1234F"
+    }
 }
 
 private const val MIN_REDEEM_COINS = 100

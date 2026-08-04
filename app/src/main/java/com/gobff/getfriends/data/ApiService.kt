@@ -5,6 +5,7 @@ import com.gobff.getfriends.data.model.CallHistoryItemResponse
 import com.gobff.getfriends.data.model.CountryLoginConfig
 import com.gobff.getfriends.data.model.ConnectUserResponse
 import com.gobff.getfriends.data.model.CreateCoinWithdrawalBody
+import com.gobff.getfriends.data.model.CoinWithdrawalsResponse
 import com.gobff.getfriends.data.model.CreateRoomBody
 import com.gobff.getfriends.data.model.EndRoomResponse
 import com.gobff.getfriends.data.model.FriendListUserResponse
@@ -128,7 +129,7 @@ interface ApiService {
     @GET("coin/withdrawals")
     suspend fun getCoinWithdrawals(
         @Header("Authorization") bearerToken: String
-    ): Response<JsonElement>
+    ): Response<CoinWithdrawalsResponse>
 
     @POST("coin/withdrawals")
     suspend fun createCoinWithdrawal(

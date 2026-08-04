@@ -5,6 +5,7 @@ import com.gobff.getfriends.data.model.CallHistoryItemResponse
 import com.gobff.getfriends.data.model.CountryLoginConfig
 import com.gobff.getfriends.data.model.ConnectUserResponse
 import com.gobff.getfriends.data.model.CreateCoinWithdrawalBody
+import com.gobff.getfriends.data.model.CoinWithdrawalsResponse
 import com.gobff.getfriends.data.model.CreateRoomBody
 import com.gobff.getfriends.data.model.EndRoomResponse
 import com.gobff.getfriends.data.model.FriendListUserResponse
@@ -94,7 +95,7 @@ class MainRepository(
     suspend fun getCoinSummary(bearerToken: String): Response<WalletBalanceResponse> =
         apiService.getCoinSummary(bearerToken)
 
-    suspend fun getCoinWithdrawals(bearerToken: String): Response<JsonElement> =
+    suspend fun getCoinWithdrawals(bearerToken: String): Response<CoinWithdrawalsResponse> =
         apiService.getCoinWithdrawals(bearerToken)
 
     suspend fun createCoinWithdrawal(

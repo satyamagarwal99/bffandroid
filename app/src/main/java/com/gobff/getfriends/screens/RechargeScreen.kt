@@ -720,6 +720,11 @@ private fun RechargePackCard(
     modifier: Modifier = Modifier
 ) {
     val shape = HeartChipShape
+    val originalPricePaise = pack.price * 100
+    val discountedPriceText = discountedPricePaise
+        ?.takeIf { it in 0 until originalPricePaise }
+        ?.formatPaiseAsRupees()
+    val originalPriceText = "₹${pack.price}"
     Box(
         modifier = modifier
             .height(132.dp)
@@ -785,13 +790,40 @@ private fun RechargePackCard(
                     .height(40.dp)
                     .background(if (isSelected) RechargePink else Color(0xFFF7F7F7))
             ) {
-                Text(
-                    text = discountedPricePaise?.formatPaiseAsRupees() ?: "₹${pack.price}",
-                    color = Color.Black,
-                    fontSize = 16.sp,
-                    fontFamily = GaretFontFamily,
-                    fontWeight = FontWeight.Bold
-                )
+                if (discountedPriceText != null) {
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = discountedPriceText,
+                            color = Color.Black,
+                            fontSize = 14.sp,
+                            lineHeight = 14.sp,
+                            fontFamily = GaretFontFamily,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = originalPriceText,
+                            color = RechargeMuted,
+                            fontSize = 10.sp,
+                            lineHeight = 10.sp,
+                            fontFamily = GaretFontFamily,
+                            fontWeight = FontWeight.Bold,
+                            textDecoration = TextDecoration.LineThrough
+                        )
+                    }
+                } else {
+                    Text(
+                        text = originalPriceText,
+                        color = Color.Black,
+                        fontSize = 16.sp,
+                        fontFamily = GaretFontFamily,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
         if (pack.isPopular) {

@@ -37,7 +37,48 @@ data class WalletWithdrawalItem(
     val status: String,
     val createdAt: String?,
     val amountPaise: Int,
-    val coinAmount: Int
+    val coinAmount: Int,
+    val name: String = "",
+    val maskedPan: String = "",
+    val maskedUpiId: String = "",
+    val rejectionReason: String? = null
+)
+
+data class CoinWithdrawalsResponse(
+    @SerializedName("transactions") val transactions: List<CoinWithdrawalDto>?,
+    @SerializedName("withdrawals") val withdrawals: List<CoinWithdrawalDto>?,
+    @SerializedName("data") val data: List<CoinWithdrawalDto>?,
+    @SerializedName("items") val items: List<CoinWithdrawalDto>?,
+    @SerializedName("results") val results: List<CoinWithdrawalDto>?
+)
+
+data class CoinWithdrawalDto(
+    @SerializedName("withdrawalId") val withdrawalId: String?,
+    @SerializedName("id") val id: String?,
+    @SerializedName("_id") val _id: String?,
+    @SerializedName("name") val name: String?,
+    @SerializedName("maskedPan") val maskedPan: String?,
+    @SerializedName("maskedUpiId") val maskedUpiId: String?,
+    @SerializedName("coinAmount") val coinAmount: Int?,
+    @SerializedName("coins") val coins: Int?,
+    @SerializedName("flowerAmount") val flowerAmount: Int?,
+    @SerializedName("coinValuePaise") val coinValuePaise: Int?,
+    @SerializedName("payoutAmountPaise") val payoutAmountPaise: Int?,
+    @SerializedName("amountPaise") val amountPaise: Int?,
+    @SerializedName("estimatedPayoutPaise") val estimatedPayoutPaise: Int?,
+    @SerializedName("payoutPaise") val payoutPaise: Int?,
+    @SerializedName("amountInr") val amountInr: Int?,
+    @SerializedName("amount") val amount: Int?,
+    @SerializedName("payoutAmount") val payoutAmount: Int?,
+    @SerializedName("currencyCode") val currencyCode: String?,
+    @SerializedName("status") val status: String?,
+    @SerializedName("state") val state: String?,
+    @SerializedName("rejectionReason") val rejectionReason: String?,
+    @SerializedName("requestedAt") val requestedAt: String?,
+    @SerializedName("processedAt") val processedAt: String?,
+    @SerializedName("createdAt") val createdAt: String?,
+    @SerializedName("submittedAt") val submittedAt: String?,
+    @SerializedName("updatedAt") val updatedAt: String?
 )
 
 data class WalletBalanceResponse(

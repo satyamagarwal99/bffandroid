@@ -7,6 +7,8 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.gobff.getfriends.data.model.CreateCoinWithdrawalBody
+import com.gobff.getfriends.data.model.CoinWithdrawalDto
+import com.gobff.getfriends.data.model.CoinWithdrawalsResponse
 import com.gobff.getfriends.data.MainRepository
 import com.gobff.getfriends.data.model.WalletBalanceResponse
 import com.gobff.getfriends.data.model.WalletWithdrawalItem
@@ -148,8 +150,8 @@ class WalletViewModel(
             uiState = uiState.copy(withdrawalSubmitMessage = "Login token missing")
             return
         }
-        if (coinAmount <= MIN_WITHDRAWAL_COINS) {
-            uiState = uiState.copy(withdrawalSubmitMessage = "Minimum 101 coins required to redeem")
+        if (coinAmount < MIN_WITHDRAWAL_COINS) {
+            uiState = uiState.copy(withdrawalSubmitMessage = "Minimum 100 coins required to redeem")
             return
         }
 
@@ -262,33 +264,30 @@ class WalletViewModel(
             ?: data?.currentFlowerValuePaise
     }
 
-    private fun JsonElement.toWithdrawalItems(): List<WalletWithdrawalItem> {
-        val array = when {
-            isJsonArray -> asJsonArray
-            isJsonObject -> {
-                val obj = asJsonObject
-                when {
-                    obj.get("withdrawals")?.isJsonArray == true -> obj.getAsJsonArray("withdrawals")
-                    obj.get("data")?.isJsonArray == true -> obj.getAsJsonArray("data")
-                    obj.get("items")?.isJsonArray == true -> obj.getAsJsonArray("items")
-                    obj.get("results")?.isJsonArray == true -> obj.getAsJsonArray("results")
-                    else -> null
-                }
-            }
-            else -> null
-        } ?: return emptyList()
+    private fun CoinWithdrawalsResponse.toWithdrawalItems(): List<WalletWithdrawalItem> {
+        val items = transactions ?: withdrawals ?: data ?: items ?: results ?: emptyList()
+        return items.mapIndexed { index, item -> item.toWithdrawalItem(index) }
+    }
 
-        return array.mapIndexedNotNull { index, element ->
-            val obj = element.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapIndexedNotNull null
-            val coinAmount = obj.firstInt("coinAmount", "coins", "flowerAmount", "flowerBalance", "amountCoins") ?: 0
-            WalletWithdrawalItem(
-                id = obj.firstString("id", "withdrawalId", "_id") ?: index.toString(),
-                status = obj.firstString("status", "state") ?: "PENDING",
-                createdAt = obj.firstString("createdAt", "requestedAt", "submittedAt", "updatedAt"),
-                amountPaise = obj.amountPaiseFromObject(),
-                coinAmount = coinAmount
-            )
-        }
+    private fun CoinWithdrawalDto.toWithdrawalItem(index: Int): WalletWithdrawalItem {
+        return WalletWithdrawalItem(
+            id = withdrawalId ?: id ?: _id ?: index.toString(),
+            status = status ?: state ?: "PENDING",
+            createdAt = requestedAt ?: processedAt ?: createdAt ?: submittedAt ?: updatedAt,
+            amountPaise = payoutAmountPaise
+                ?: amountPaise
+                ?: estimatedPayoutPaise
+                ?: payoutPaise
+                ?: amountInr?.times(100)
+                ?: amount?.times(100)
+                ?: payoutAmount?.times(100)
+                ?: 0,
+            coinAmount = coinAmount ?: coins ?: flowerAmount ?: 0,
+            name = name.orEmpty(),
+            maskedPan = maskedPan.orEmpty(),
+            maskedUpiId = maskedUpiId.orEmpty(),
+            rejectionReason = rejectionReason
+        )
     }
 
     private fun JsonElement.findFirstObject(): JsonObject? {
