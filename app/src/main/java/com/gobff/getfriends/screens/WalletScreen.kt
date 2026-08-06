@@ -630,7 +630,8 @@ private fun TransactionRow(item: WalletTransaction) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .height(62.dp)
+            .heightIn(min = 62.dp)
+            .padding(vertical = 10.dp)
     ) {
         Box(
             contentAlignment = Alignment.Center,
@@ -664,6 +665,17 @@ private fun TransactionRow(item: WalletTransaction) {
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(item.date, color = Color(0xFF999999), fontSize = 10.sp, fontFamily = GaretFontFamily, fontWeight = FontWeight.Medium)
+            if (!item.rejectionReason.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(5.dp))
+                Text(
+                    text = "Reason: ${item.rejectionReason}",
+                    color = Color(0xFFE95151),
+                    fontSize = 9.sp,
+                    lineHeight = 12.sp,
+                    fontFamily = GaretFontFamily,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(item.amount, color = Color.Black, fontSize = 13.sp, fontFamily = GaretFontFamily, fontWeight = FontWeight.Bold)
@@ -1068,7 +1080,8 @@ private data class WalletTransaction(
     val coinDelta: String,
     val status: String,
     val statusColor: Color,
-    val iconBackground: Color
+    val iconBackground: Color,
+    val rejectionReason: String?
 )
 
 private fun WalletWithdrawalItem.toWalletTransaction(index: Int): WalletTransaction {
@@ -1101,7 +1114,10 @@ private fun WalletWithdrawalItem.toWalletTransaction(index: Int): WalletTransact
         coinDelta = "-$coinAmount Coins",
         status = statusLabel,
         statusColor = statusColor,
-        iconBackground = backgrounds[index % backgrounds.size]
+        iconBackground = backgrounds[index % backgrounds.size],
+        rejectionReason = rejectionReason
+            ?.trim()
+            ?.takeIf { isFailed && it.isNotBlank() }
     )
 }
 

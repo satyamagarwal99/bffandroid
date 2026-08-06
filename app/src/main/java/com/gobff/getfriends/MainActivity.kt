@@ -19,6 +19,7 @@ import com.gobff.getfriends.service.BffFirebaseMessagingService
 import com.gobff.getfriends.service.PresenceForegroundService
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.utils.AppSession
+import com.gobff.getfriends.utils.InstallReferrerReporter
 import com.gobff.getfriends.utils.PresenceHeartbeat
 import com.gobff.getfriends.utils.TokenUtils
 import com.gobff.getfriends.viewmodel.MainViewModel
@@ -35,6 +36,7 @@ class MainActivity : ComponentActivity() {
         AppSession.initialize(this)
         BffFirebaseMessagingService.createDefaultChannel(this)
         AvatarDownloadService.startIfNeeded(this)
+        fetchInstallReferrer()
         syncCurrentFcmToken()
         AppSession.logSnapshot("MainActivity.onCreate")
         super.onCreate(savedInstanceState)
@@ -126,6 +128,16 @@ class MainActivity : ComponentActivity() {
             .addOnFailureListener { error ->
                 Log.w(TAG, "Current FCM token fetch failed", error)
             }
+    }
+
+    private fun fetchInstallReferrer() {
+        lifecycleScope.launch {
+            runCatching {
+                InstallReferrerReporter(this@MainActivity).fetchAndStoreIfAvailable()
+            }.onFailure { error ->
+                Log.w(TAG, "Install referrer fetch failed", error)
+            }
+        }
     }
 
     private fun cancelIncomingCallNotification(push: IncomingCallPush?) {

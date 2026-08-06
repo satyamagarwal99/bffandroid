@@ -55,6 +55,7 @@ import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Header
+import retrofit2.http.HeaderMap
 import retrofit2.http.Multipart
 import retrofit2.http.POST
 import retrofit2.http.PUT
@@ -75,6 +76,7 @@ interface ApiService {
 
     @POST("auth/otp/verify")
     suspend fun verifyOtp(
+        @HeaderMap attributionHeaders: Map<String, String>,
         @Body body: OtpVerifyBody
     ): Response<OtpVerifyResponse>
 
@@ -171,6 +173,7 @@ interface ApiService {
     suspend fun purchaseRecharge(
         @Header("Authorization") bearerToken: String,
         @Header("Idempotency-Key") idempotencyKey: String,
+        @HeaderMap attributionHeaders: Map<String, String>,
         @Body body: RechargePurchaseBody
     ): Response<RechargePurchaseResponse>
 

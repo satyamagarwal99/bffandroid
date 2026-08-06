@@ -132,7 +132,28 @@ data class RechargeQuoteResponse(
 
 data class RechargePurchaseBody(
     @SerializedName("packCode") val packCode: String,
-    @SerializedName("couponCode") val couponCode: String?
+    @SerializedName("couponCode") val couponCode: String?,
+    @SerializedName("marketingContext") val marketingContext: MarketingContext?
+)
+
+data class MarketingContext(
+    @SerializedName("platform") val platform: String,
+    @SerializedName("advertiserTrackingEnabled") val advertiserTrackingEnabled: Boolean,
+    @SerializedName("mobileAdvertisingId") val mobileAdvertisingId: String?,
+    @SerializedName("idfv") val idfv: String?,
+    @SerializedName("appId") val appId: String,
+    @SerializedName("appVersion") val appVersion: String,
+    @SerializedName("appBuild") val appBuild: String,
+    @SerializedName("osVersion") val osVersion: String,
+    @SerializedName("deviceModel") val deviceModel: String,
+    @SerializedName("locale") val locale: String,
+    @SerializedName("timezone") val timezone: String,
+    @SerializedName("timezoneAbbreviation") val timezoneAbbreviation: String,
+    @SerializedName("carrier") val carrier: String?,
+    @SerializedName("screenWidth") val screenWidth: Int,
+    @SerializedName("screenHeight") val screenHeight: Int,
+    @SerializedName("screenDensity") val screenDensity: String,
+    @SerializedName("cpuCores") val cpuCores: Int?
 )
 
 data class AppliedRechargeCouponDto(

@@ -90,6 +90,7 @@ import com.gobff.getfriends.payment.CashfreePaymentLauncher
 import com.gobff.getfriends.ui.component.HeartChipShape
 import com.gobff.getfriends.ui.theme.BffAndroidTheme
 import com.gobff.getfriends.ui.theme.GaretFontFamily
+import com.gobff.getfriends.utils.MarketingContextProvider
 import com.gobff.getfriends.viewmodel.RechargeViewModel
 private val RechargePurple = Color(0xFFAB179C)
 private val RechargePink = Color(0xFFFF3F78)
@@ -131,6 +132,7 @@ fun RechargeScreen(
     var pendingCouponCode by remember { mutableStateOf("") }
     var loggedPurchaseKey by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
+    val marketingContextProvider = remember(context) { MarketingContextProvider(context) }
     val lifecycleOwner = LocalLifecycleOwner.current
     val selectedPack = rechargePacks.firstOrNull { it.id == rechargeUiState.selectedOptionId }
     val applicableCoupons = remember(selectedPack, rechargeUiState.coupons) {
@@ -242,7 +244,10 @@ fun RechargeScreen(
             !rechargeUiState.isPurchaseSuccessful &&
             rechargeUiState.purchaseMessage == null
         ) {
-            rechargeViewModel.purchaseRecharge(couponCode = pendingCouponCode)
+            rechargeViewModel.purchaseRecharge(
+                couponCode = pendingCouponCode,
+                marketingContext = marketingContextProvider.currentContext()
+            )
             return@LaunchedEffect
         }
 

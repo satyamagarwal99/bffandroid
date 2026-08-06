@@ -61,8 +61,11 @@ class MainRepository(
     suspend fun requestOtp(body: OtpRequestBody): Response<OtpRequestResponse> =
         apiService.requestOtp(body)
 
-    suspend fun verifyOtp(body: OtpVerifyBody): Response<OtpVerifyResponse> =
-        apiService.verifyOtp(body)
+    suspend fun verifyOtp(
+        body: OtpVerifyBody,
+        attributionHeaders: Map<String, String> = emptyMap()
+    ): Response<OtpVerifyResponse> =
+        apiService.verifyOtp(attributionHeaders, body)
 
     suspend fun authenticateWithGoogle(body: GoogleAuthBody): Response<GoogleAuthResponse> =
         apiService.authenticateWithGoogle(body)
@@ -129,9 +132,10 @@ class MainRepository(
     suspend fun purchaseRecharge(
         bearerToken: String,
         idempotencyKey: String,
-        body: RechargePurchaseBody
+        body: RechargePurchaseBody,
+        attributionHeaders: Map<String, String> = emptyMap()
     ): Response<RechargePurchaseResponse> =
-        apiService.purchaseRecharge(bearerToken, idempotencyKey, body)
+        apiService.purchaseRecharge(bearerToken, idempotencyKey, attributionHeaders, body)
 
     suspend fun getRechargeOrderStatus(
         bearerToken: String,

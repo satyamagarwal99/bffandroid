@@ -20,6 +20,7 @@ import com.gobff.getfriends.data.model.OtpRequestBody
 import com.gobff.getfriends.data.model.OtpVerifyBody
 import com.gobff.getfriends.data.model.UpdateFcmTokenBody
 import com.gobff.getfriends.utils.AppSession
+import com.gobff.getfriends.utils.AttributionStore
 import com.gobff.getfriends.utils.Constant
 import com.gobff.getfriends.utils.OtpDeviceProvider
 import com.gobff.getfriends.utils.TokenUtils
@@ -204,7 +205,12 @@ class LoginViewModel(
                 dateOfBirth = Constant.DEFAULT_DATE_OF_BIRTH
             )
 
-            runCatching { mainRepository.verifyOtp(body) }
+            runCatching {
+                mainRepository.verifyOtp(
+                    body = body,
+                    attributionHeaders = AttributionStore.attributionHeaders(getApplication<Application>())
+                )
+            }
                 .onSuccess { response ->
                     val responseBody = response.body()
                     if (response.isSuccessful && responseBody != null) {

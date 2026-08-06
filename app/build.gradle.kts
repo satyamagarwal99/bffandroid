@@ -17,8 +17,8 @@ android {
         targetSdk = 36
 
 
-        versionCode = 11
-        versionName = "1.10"
+        versionCode = 12
+        versionName = "1.11"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -79,6 +79,8 @@ dependencies {
     implementation(libs.logging.interceptor)
     implementation(libs.cashfree.pg.api)
     implementation(libs.cashfree.pg.ui)
+    implementation(libs.play.services.ads.identifier)
+    implementation(libs.install.referrer)
 
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)

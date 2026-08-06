@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.gobff.getfriends.data.MainRepository
 import com.gobff.getfriends.data.model.AppliedRechargeCoupon
 import com.gobff.getfriends.data.model.CashfreeCheckoutData
+import com.gobff.getfriends.data.model.MarketingContext
 import com.gobff.getfriends.data.model.RechargeCoupon
 import com.gobff.getfriends.data.model.RechargeCouponDto
 import com.gobff.getfriends.data.model.RechargeOption
@@ -23,6 +24,7 @@ import com.gobff.getfriends.data.model.RechargeQuoteBody
 import com.gobff.getfriends.data.model.RechargeQuoteResponse
 import com.gobff.getfriends.data.model.RechargeUiState
 import com.gobff.getfriends.utils.TokenUtils
+import com.gobff.getfriends.utils.AttributionStore
 import com.gobff.getfriends.utils.userFacingMessage
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -179,7 +181,10 @@ class RechargeViewModel(
         )
     }
 
-    fun purchaseRecharge(couponCode: String = "") {
+    fun purchaseRecharge(
+        couponCode: String = "",
+        marketingContext: MarketingContext? = null
+    ) {
         val selectedOption = uiState.selectedOption ?: run {
             uiState = uiState.copy(
                 isPurchaseLoading = false,
@@ -211,7 +216,8 @@ class RechargeViewModel(
 
             val body = RechargePurchaseBody(
                 packCode = selectedOption.packCode,
-                couponCode = couponCode.trim().takeIf { it.isNotBlank() } ?: uiState.appliedCouponCode
+                couponCode = couponCode.trim().takeIf { it.isNotBlank() } ?: uiState.appliedCouponCode,
+                marketingContext = marketingContext
             )
             val idempotencyKey = UUID.randomUUID().toString()
             Log.d(
@@ -220,7 +226,14 @@ class RechargeViewModel(
                     "idempotencyKey=$idempotencyKey"
             )
 
-            runCatching { mainRepository.purchaseRecharge(token, idempotencyKey, body) }
+            runCatching {
+                mainRepository.purchaseRecharge(
+                    bearerToken = token,
+                    idempotencyKey = idempotencyKey,
+                    body = body,
+                    attributionHeaders = AttributionStore.attributionHeaders(getApplication<Application>())
+                )
+            }
                 .onSuccess { response ->
                     val responseBody = response.body()
                     val errorBody = if (response.isSuccessful) null else response.errorBody()?.string()
