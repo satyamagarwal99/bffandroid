@@ -29,6 +29,7 @@ class MarketingContextProvider(
             mobileAdvertisingId = advertisingInfo?.advertisingId,
             idfv = null,
             appId = appContext.packageName,
+            appPackageName = appContext.packageName,
             appVersion = packageInfo.versionName.orEmpty(),
             appBuild = packageInfo.longVersionCodeCompat().toString(),
             osVersion = Build.VERSION.RELEASE.orEmpty(),

@@ -142,6 +142,7 @@ data class MarketingContext(
     @SerializedName("mobileAdvertisingId") val mobileAdvertisingId: String?,
     @SerializedName("idfv") val idfv: String?,
     @SerializedName("appId") val appId: String,
+    @SerializedName("appPackageName") val appPackageName: String,
     @SerializedName("appVersion") val appVersion: String,
     @SerializedName("appBuild") val appBuild: String,
     @SerializedName("osVersion") val osVersion: String,
